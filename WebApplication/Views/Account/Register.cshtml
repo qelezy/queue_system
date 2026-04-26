@@ -1,0 +1,45 @@
+﻿@{
+    ViewData["Title"] = "Регистрация пользователя";
+    var registerUrl = ViewData["RegisterUrl"]?.ToString() ?? "";
+}
+
+<h2>Регистрация пользователя</h2>
+
+<form id="registerForm">
+    <div>
+        <label>Username</label>
+        <input type="text" name="username" required />
+    </div>
+    <div>
+        <label>Email</label>
+        <input type="email" name="email" required />
+    </div>
+    <div>
+        <label>Роль</label>
+        <input type="text" name="role" />
+    </div>
+    <button type="submit">Создать пользователя</button>
+</form>
+
+<script>
+    const form = document.getElementById('registerForm');
+
+    form.addEventListener('submit', async e => {
+        e.preventDefault();
+        const username = form.username.value;
+        const email = form.email.value;
+
+        const response = await fetch('@registerUrl', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, email })
+        });
+
+        if (response.ok) {
+            alert("Пользователь создан! Проверьте email для пароля и подтверждения.");
+        } else {
+            const error = await response.json();
+            alert(error.errors.join('\n'));
+        }
+    });
+</script>

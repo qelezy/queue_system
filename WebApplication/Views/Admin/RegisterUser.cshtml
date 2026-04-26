@@ -1,0 +1,58 @@
+﻿@{
+    ViewData["Title"] = "Регистрация пользователя";
+    var registerUserUrl = ViewData["RegisterUserUrl"]?.ToString() ?? "";
+    Layout = "_AdminLayout.cshtml";
+}
+
+<div class="auth-form-container">
+    <h2 class="auth-form-title">
+        @ViewData["Title"];
+    </h2>
+    <form id="registerForm" class="auth-form">
+        <div class="form-input">
+            <label>Username</label>
+            <input type="text" name="username" required />
+        </div>
+        <div class="form-input">
+            <label>Email</label>
+            <input type="email" name="email" required />
+        </div>
+        <div class="form-input">
+            <label>Роль</label>
+            <input type="text" name="role" />
+        </div>
+        <button type="submit">Зарегистрировать</button>
+    </form>
+</div>
+
+@section Scripts {
+    <script>
+        const form = document.getElementById('registerForm');
+
+        form.addEventListener('submit', async e => {
+            e.preventDefault();
+
+            const username = form.username.value;
+            const email = form.email.value;
+            const role = form.role.value;
+
+            const response = await fetch('@registerUserUrl', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, email, role })
+            });
+
+            if (response.ok) {
+                alert("Пользователь создан! Проверьте email для пароля и подтверждения.");
+                form.reset();
+            } else {
+                const error = await response.json();
+                if (error.errors) {
+                    alert(error.errors.join('\n'));
+                } else {
+                    alert("Произошла ошибка при создании пользователя.");
+                }
+            }
+        });
+    </script>
+}

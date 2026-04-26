@@ -1,0 +1,129 @@
+﻿@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+
+:root {
+    --main-bg-color: #FFFFFF;
+    --form-bg-color: #FFFFFF;
+    --primary-color: #00B3B8;
+    --primary-hover-color: #009599;
+    --text-color: #333333;
+    --text-secondary-color: #555555;
+    --input-border-color: #CCCCCC;
+    --input-focus-color: #00B3B8;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Poppins', sans-serif;
+    background: var(--main-bg-color);
+}
+
+.auth-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: var(--main-bg-color);
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.auth-form-container {
+    background: var(--form-bg-color);
+    padding: 40px 30px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    width: 100%;
+    max-width: 400px;
+    box-sizing: border-box;
+}
+
+.auth-form-title {
+    font-size: 24px;
+    font-weight: 600;
+    text-align: center;
+    margin-bottom: 25px;
+    color: var(--text-color);
+}
+
+.auth-form .form-input {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 18px;
+}
+
+.auth-form label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 14px;
+    color: var(--text-secondary-color);
+}
+
+.auth-form input {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 14px;
+    border: 1px solid var(--input-border-color);
+    border-radius: 6px;
+    box-sizing: border-box;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+    .auth-form input:focus {
+        border-color: var(--input-focus-color);
+        box-shadow: 0 0 0 2px rgba(0, 179, 184, 0.2);
+        outline: none;
+    }
+
+.auth-form .remember-me {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 18px;
+}
+    
+    .auth-form .remember-me label {
+        margin: 0;
+    }
+
+    .auth-form .remember-me input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        cursor: pointer;
+    }
+
+.auth-form button {
+    width: 100%;
+    padding: 12px;
+    font-size: 15px;
+    background-color: var(--primary-color);
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+    .auth-form button:hover {
+        background-color: var(--primary-hover-color);
+    }
+
+.auth-links {
+    text-align: center;
+    margin-top: 15px;
+    font-size: 14px;
+}
+
+    .auth-links a {
+        color: var(--primary-color);
+        text-decoration: none;
+    }
+
+        .auth-links a:hover {
+            cursor: pointer;
+            text-decoration: underline;
+        }
