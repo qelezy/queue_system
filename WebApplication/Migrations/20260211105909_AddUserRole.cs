@@ -2,7 +2,7 @@
 
 #nullable disable
 
-namespace MyWebApplication.Migrations
+namespace WebApplication.Migrations
 {
     /// <inheritdoc />
     public partial class AddUserRole : Migration

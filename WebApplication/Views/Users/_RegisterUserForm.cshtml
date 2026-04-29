@@ -1,0 +1,62 @@
+﻿@model RegisterUserViewModel
+
+@{
+    var registerUrl = "/api/user/register";
+    var modalCloseId = ViewData["ModalCloseId"] as string;
+}
+
+<section class="register-panel">
+    <header class="register-panel-head">
+        <h2 class="register-panel-title">Регистрация пользователя</h2>
+        @if (!string.IsNullOrWhiteSpace(modalCloseId))
+        {
+            <button type="button"
+                    class="register-panel-close"
+                    aria-label="Закрыть"
+                    data-modal-close="@modalCloseId">
+                ×
+            </button>
+        }
+    </header>
+
+    <form id="registerForm" class="register-form" method="post" data-url="@registerUrl">
+
+        <div class="register-fio-row">
+
+            <div class="form-field">
+                <label asp-for="LastName" class="field-required"></label>
+                <input asp-for="LastName" required />
+            </div>
+
+            <div class="form-field">
+                <label asp-for="FirstName" class="field-required"></label>
+                <input asp-for="FirstName" required />
+            </div>
+
+            <div class="form-field">
+                <label asp-for="Patronymic"></label>
+                <input asp-for="Patronymic" />
+            </div>
+
+        </div>
+
+        <div class="form-field">
+            <label asp-for="Email" class="field-required"></label>
+            <input asp-for="Email" required />
+        </div>
+
+        <div class="form-field">
+            <label asp-for="Role" class="field-required"></label>
+            <select asp-for="Role" required>
+                <option value="Registrator">Регистратор</option>
+                <option value="Manager">Менеджер</option>
+                <option value="Admin">Администратор</option>
+            </select>
+        </div>
+
+        <div class="register-actions">
+            <button class="register-submit" type="submit">Зарегистрировать</button>
+        </div>
+
+    </form>
+</section>

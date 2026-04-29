@@ -1,14 +1,38 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 
-namespace MyWebApplication.Controllers
+namespace WebApplication.Controllers
 {
     public class AccountController : Controller
     {
+        public const string PostLoginRedirectPath = "/dashboard/index";
+
         [HttpGet]
+        [AllowAnonymous]
         public IActionResult Login()
         {
             ViewData["LoginUrl"] = Url.Action("Login", "Auth", null, Request.Scheme);
+            ViewData["PostLoginRedirectPath"] = PostLoginRedirectPath;
             return View();
+        }
+
+        [HttpGet]
+        [Authorize]
+        public IActionResult Profile() 
+        {
+            
+            return View();
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public IActionResult Logout()
+        {
+            Response.Cookies.Delete("accessToken");
+            Response.Cookies.Delete("refreshToken");
+            Response.Cookies.Delete("rememberMe");
+            return RedirectToAction(nameof(Login));
         }
 
         [HttpGet]

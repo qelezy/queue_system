@@ -1,24 +1,29 @@
 ﻿using Microsoft.IdentityModel.Tokens;
-using MyWebApplication.Dto;
+using Microsoft.Extensions.Options;
+using WebApplication.Dto;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using WebApplication.Models;
 
-namespace MyWebApplication.Services
+namespace WebApplication.Services
 {
     public class TokenService : ITokenService
     {
         private readonly IConfiguration _configuration;
+        private readonly JwtOptions _jwtOptions;
 
-        public TokenService(IConfiguration configuration)
+        public TokenService(IConfiguration configuration, IOptions<JwtOptions> jwtOptions)
         {
             _configuration = configuration;
+            _jwtOptions = jwtOptions.Value;
         }
 
         public async Task<TokenResponseDto> CreateTokenResponseAsync(User user, IList<string> roles)
         {
+            var expiresAt = DateTime.UtcNow.AddMinutes(_jwtOptions.AccessTokenMinutes);
+            var primaryRole = roles.FirstOrDefault() ?? string.Empty;
             var claims = new List<Claim>
             {
                 new Claim(ClaimTypes.Name, user.UserName!),
@@ -26,7 +31,7 @@ namespace MyWebApplication.Services
             };
 
             if (roles.Any())
-                claims.Add(new Claim(ClaimTypes.Role, roles.First()));
+                claims.Add(new Claim(ClaimTypes.Role, primaryRole));
 
             var key = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(_configuration["AppSettings:Token"]!));
@@ -37,14 +42,16 @@ namespace MyWebApplication.Services
                 issuer: _configuration["AppSettings:Issuer"],
                 audience: _configuration["AppSettings:Audience"],
                 claims: claims,
-                expires: DateTime.UtcNow.AddMinutes(30),
+                expires: expiresAt,
                 signingCredentials: creds
             );
 
             return new TokenResponseDto
             {
                 AccessToken = new JwtSecurityTokenHandler().WriteToken(tokenDescriptor),
-                RefreshToken = GenerateRefreshToken()
+                RefreshToken = GenerateRefreshToken(),
+                Expires = expiresAt,
+                Role = primaryRole
             };
         }
 

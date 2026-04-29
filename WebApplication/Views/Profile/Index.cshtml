@@ -1,0 +1,50 @@
+@model UserProfilePageViewModel
+
+@{
+    ViewData["Title"] = "Профиль";
+}
+
+@{
+    var profileViewData = new ViewDataDictionary(ViewData);
+    profileViewData.TemplateInfo.HtmlFieldPrefix = "Profile";
+
+    var passwordViewData = new ViewDataDictionary(ViewData);
+    passwordViewData.TemplateInfo.HtmlFieldPrefix = "Password";
+}
+
+@await Component.InvokeAsync("ToastStack", new ToastStackViewModel
+{
+    ContainerId = "profile-toast-stack",
+    SuccessMessage = TempData["ProfileSuccess"] as string,
+    MaxToasts = 3,
+    AutoCloseMs = 3000
+})
+
+<form asp-action="Index" asp-controller="Profile" method="post" class="profile-form">
+    @Html.AntiForgeryToken()
+
+    <div class="card">
+        @await Html.PartialAsync("_ProfileForm", Model.Profile, profileViewData)
+
+        <hr />
+
+        @await Html.PartialAsync("_PasswordForm", Model.Password, passwordViewData)
+
+        <div class="actions">
+            <button type="submit" class="btn-primary">Сохранить</button>
+        </div>
+    </div>
+</form>
+
+<form asp-action="Logout" asp-controller="Account" method="post" class="profile-form logout-panel">
+    @Html.AntiForgeryToken()
+    <div class="logout-panel-row">
+        <span class="logout-panel-title">Выйти из аккаунта</span>
+        <button type="submit" class="btn-danger">Выход</button>
+    </div>
+</form>
+
+@section Scripts {
+    <script src="~/js/toast-stack.js" asp-append-version="true"></script>
+    <script src="~/js/profile-form.js" asp-append-version="true"></script>
+}

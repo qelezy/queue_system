@@ -1,31 +1,22 @@
 ﻿@{
-    var userId = ViewData["UserId"];
-    var token = ViewData["Token"];
+    Layout = "_AuthForm";
+    ViewData["Title"] = "Подтверждение email";
+    var userId = ViewData["UserId"]?.ToString() ?? "";
+    var token = ViewData["Token"]?.ToString() ?? "";
     var confirmEmailUrl = ViewData["ConfirmEmailUrl"]?.ToString() ?? "";
 }
 
-<div class="auth-result">
+<div class="auth-result" style="text-align:center;">
     <h2 id="status">Подтверждение email...</h2>
 </div>
 
-<script>
-    (async () => {
-        try {
-            const response = await fetch('@confirmEmailUrl?userId=@userId&token=@token');
-
-            const status = document.getElementById("status");
-
-            const result = await response.json();
-
-            if (response.ok && result.success) {
-                status.innerText = result.message || "Email успешно подтвержден";
-            } else {
-                const errors = result.errors ? result.errors.join(", ") : "";
-                status.innerText = result.message + (errors ? ": " + errors : "");
-            }
-        } catch (e) {
-            document.getElementById("status").innerText =
-                "Произошла ошибка при подключении к серверу.";
-        }
-    })();
-</script>
+@section Scripts {
+    <script>
+        window.AppConfig = window.AppConfig || {};
+        window.AppConfig.confirmEmailUrl = '@confirmEmailUrl';
+        window.AppConfig.confirmEmailUserId = '@userId';
+        window.AppConfig.confirmEmailToken = '@token';
+        window.AppConfig.loginPageUrl = '@Url.Action("Login", "Account")';
+    </script>
+    <script src="~/js/account-confirm-email.js" asp-append-version="true"></script>
+}

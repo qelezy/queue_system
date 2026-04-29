@@ -1,6 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore.Storage.ValueConversion.Internal;
 
-namespace MyWebApplication.Dto
+namespace WebApplication.Dto
 {
     public class RefreshTokenRequestDto
     {

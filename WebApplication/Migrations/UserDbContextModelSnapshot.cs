@@ -4,11 +4,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using MyWebApplication.Data;
+using WebApplication.Data;
 
 #nullable disable
 
-namespace MyWebApplication.Migrations
+namespace WebApplication.Migrations
 {
     [DbContext(typeof(AppDbContext))]
     partial class UserDbContextModelSnapshot : ModelSnapshot
@@ -46,7 +46,7 @@ namespace MyWebApplication.Migrations
                         .HasDatabaseName("RoleNameIndex")
                         .HasFilter("[NormalizedName] IS NOT NULL");
 
-                    b.ToTable("AspNetRoles", (string)null);
+                    b.ToTable("roles", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
@@ -155,6 +155,204 @@ namespace MyWebApplication.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("WebApplication.Models.Appointment", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("appointment_id");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("CabinetId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("cabinet_id");
+
+                    b.Property<long>("DoctorId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("doctor_id");
+
+                    b.Property<DateTime?>("EndTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("end_time");
+
+                    b.Property<long>("QueueEntryId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("queue_entry_id");
+
+                    b.Property<DateTime>("StartTime")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("start_time");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("QueueEntryId");
+
+                    b.HasIndex("StartTime");
+
+                    b.HasIndex("CabinetId", "StartTime");
+
+                    b.HasIndex("DoctorId", "StartTime");
+
+                    b.ToTable("appointment", (string)null);
+                });
+
+            modelBuilder.Entity("WebApplication.Models.Cabinet", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("cabinet_id");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("CabinetNumber")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)")
+                        .HasColumnName("cabinet_number");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CabinetNumber")
+                        .IsUnique();
+
+                    b.ToTable("cabinet", (string)null);
+                });
+
+            modelBuilder.Entity("WebApplication.Models.Doctor", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("doctor_id");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("FirstName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("first_name");
+
+                    b.Property<string>("LastName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("last_name");
+
+                    b.Property<string>("Patronymic")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("patronymic");
+
+                    b.Property<string>("Specialization")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("specialization");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("doctor", (string)null);
+                });
+
+            modelBuilder.Entity("WebApplication.Models.Patient", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("patient_id");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("FirstName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("first_name");
+
+                    b.Property<string>("LastName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("last_name");
+
+                    b.Property<string>("Patronymic")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("patronymic");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("patient", (string)null);
+                });
+
+            modelBuilder.Entity("WebApplication.Models.QueueEntry", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("queue_entry_id");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime?>("CalledAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("called_at");
+
+                    b.Property<long>("PatientId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("patient_id");
+
+                    b.Property<DateTime>("QueuedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("queued_at");
+
+                    b.Property<long>("ServiceCategoryId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("service_category_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PatientId");
+
+                    b.HasIndex("ServiceCategoryId");
+
+                    b.HasIndex("Status", "QueuedAt");
+
+                    b.ToTable("queue_entry", (string)null);
+                });
+
+            modelBuilder.Entity("WebApplication.Models.ServiceCategory", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("service_category_id");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("int")
+                        .HasColumnName("priority");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("service_category", (string)null);
+                });
+
             modelBuilder.Entity("WebApplication.Models.User", b =>
                 {
                     b.Property<string>("Id")
@@ -174,6 +372,18 @@ namespace MyWebApplication.Migrations
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("bit");
 
+                    b.Property<string>("FirstName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("first_name");
+
+                    b.Property<string>("LastName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("last_name");
+
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("bit");
 
@@ -191,11 +401,25 @@ namespace MyWebApplication.Migrations
                     b.Property<string>("PasswordHash")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("Patronymic")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("patronymic");
+
                     b.Property<string>("PhoneNumber")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("PhoneNumberConfirmed")
                         .HasColumnType("bit");
+
+                    b.Property<string>("RefreshToken")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)")
+                        .HasColumnName("refresh_token");
+
+                    b.Property<DateTime?>("RefreshTokenExpiresAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("refresh_token_expires_at");
 
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("nvarchar(max)");
@@ -217,7 +441,7 @@ namespace MyWebApplication.Migrations
                         .HasDatabaseName("UserNameIndex")
                         .HasFilter("[NormalizedUserName] IS NOT NULL");
 
-                    b.ToTable("AspNetUsers", (string)null);
+                    b.ToTable("user", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
@@ -269,6 +493,77 @@ namespace MyWebApplication.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("WebApplication.Models.Appointment", b =>
+                {
+                    b.HasOne("WebApplication.Models.Cabinet", "Cabinet")
+                        .WithMany("Appointments")
+                        .HasForeignKey("CabinetId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WebApplication.Models.Doctor", "Doctor")
+                        .WithMany("Appointments")
+                        .HasForeignKey("DoctorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WebApplication.Models.QueueEntry", "QueueEntry")
+                        .WithMany("Appointments")
+                        .HasForeignKey("QueueEntryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Cabinet");
+
+                    b.Navigation("Doctor");
+
+                    b.Navigation("QueueEntry");
+                });
+
+            modelBuilder.Entity("WebApplication.Models.QueueEntry", b =>
+                {
+                    b.HasOne("WebApplication.Models.Patient", "Patient")
+                        .WithMany("QueueEntries")
+                        .HasForeignKey("PatientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WebApplication.Models.ServiceCategory", "ServiceCategory")
+                        .WithMany("QueueEntries")
+                        .HasForeignKey("ServiceCategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Patient");
+
+                    b.Navigation("ServiceCategory");
+                });
+
+            modelBuilder.Entity("WebApplication.Models.Cabinet", b =>
+                {
+                    b.Navigation("Appointments");
+                });
+
+            modelBuilder.Entity("WebApplication.Models.Doctor", b =>
+                {
+                    b.Navigation("Appointments");
+                });
+
+            modelBuilder.Entity("WebApplication.Models.Patient", b =>
+                {
+                    b.Navigation("QueueEntries");
+                });
+
+            modelBuilder.Entity("WebApplication.Models.QueueEntry", b =>
+                {
+                    b.Navigation("Appointments");
+                });
+
+            modelBuilder.Entity("WebApplication.Models.ServiceCategory", b =>
+                {
+                    b.Navigation("QueueEntries");
                 });
 #pragma warning restore 612, 618
         }

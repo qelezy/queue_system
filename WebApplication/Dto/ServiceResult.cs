@@ -1,4 +1,4 @@
-﻿namespace MyWebApplication.Dto
+﻿namespace WebApplication.Dto
 {
     public class ServiceResult
     {

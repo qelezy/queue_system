@@ -1,0 +1,9 @@
+﻿@model ChartCardViewModel
+
+<div class="chart-card">
+    <h4>@Model.Title</h4>
+
+    <div class="chart-canvas-wrap @Model.HeightClass">
+        <canvas id="@Model.CanvasId"></canvas>
+    </div>
+</div>

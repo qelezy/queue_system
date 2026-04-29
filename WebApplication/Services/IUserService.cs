@@ -1,7 +1,6 @@
-﻿using MyWebApplication.Dto;
-using WebApplication.Dto;
+﻿using WebApplication.Dto;
 
-namespace MyWebApplication.Services
+namespace WebApplication.Services
 {
     public interface IUserService
     {

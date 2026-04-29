@@ -1,16 +1,16 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using MyWebApplication.Dto;
-using MyWebApplication.Services;
-using System.Text.Encodings.Web;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using WebApplication.Dto;
+using WebApplication.Services;
+using System.Text.Encodings.Web;
 using WebApplication.Models;
 
-namespace MyWebApplication.Controllers
+namespace WebApplication.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    //[Authorize(Roles = "Admin")]
+    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Roles = "Admin")]
     public class UserController : ControllerBase
     {
         private readonly IUserService _userService;

@@ -1,0 +1,57 @@
+/* ─── Дополнения к prototype.css ─────────────────────────────────────────
+   Добавьте этот блок в конец prototype.css (или подключите отдельным файлом)
+   ─────────────────────────────────────────────────────────────────────── */
+
+/* Вкладки как ссылки (а не кнопки) — те же стили что и .tabs-bar button */
+.tabs-bar .tab-link {
+    display: inline-block;
+    padding: 10px 18px;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-secondary-color);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    cursor: pointer;
+    border-radius: 8px 8px 0 0;
+    text-decoration: none;
+    transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+
+.tabs-bar .tab-link:hover {
+    color: var(--text-color);
+    background: rgba(0, 179, 184, 0.06);
+}
+
+.tabs-bar .tab-link.is-active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+    background: rgba(0, 179, 184, 0.08);
+}
+
+/* Сообщение об успехе */
+.alert-success {
+    padding: 12px 16px;
+    border-radius: 8px;
+    background: rgba(10, 143, 106, 0.1);
+    border: 1px solid rgba(10, 143, 106, 0.3);
+    color: #0a6e4a;
+    font-size: 14px;
+    margin-bottom: 18px;
+}
+
+/* Ошибки валидации */
+.field-error {
+    display: block;
+    font-size: 12px;
+    color: #c43d3d;
+    margin-top: 3px;
+}
+
+.register-form input.input-validation-error,
+.register-form select.input-validation-error {
+    border-color: #c43d3d;
+    box-shadow: 0 0 0 2px rgba(196, 61, 61, 0.15);
+}

@@ -1,11 +1,12 @@
-﻿using MyWebApplication.Dto;
+﻿using WebApplication.Dto;
 
-namespace MyWebApplication.Services
+namespace WebApplication.Services
 {
     public interface IAuthService
     {
         Task<ServiceResult<TokenResponseDto>> LoginAsync(LoginRequestDto request);
         Task<ServiceResult<TokenResponseDto>> RefreshTokenAsync(RefreshTokenRequestDto request);
+        Task<ServiceResult<TokenResponseDto>> RefreshTokenByTokenAsync(string refreshToken, bool rememberMe);
         Task<ServiceResult> ConfirmEmailAsync(Guid userId, string token);
         Task<ServiceResult<PasswordResetDto>> ForgotPasswordAsync(ForgotPasswordRequestDto request);
         Task<ServiceResult> ResetPasswordAsync(PasswordResetTokenRequestDto request);

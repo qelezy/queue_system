@@ -1,0 +1,33 @@
+@using WebApplication.ViewComponents
+@model SidebarViewModel
+
+<aside class="sidebar">
+    <ul class="sidebar-menu">
+        @foreach (var item in Model.MenuItems)
+        {
+            var isActive = Model.ActiveKey == item.Key.ToLowerInvariant();
+            <li>
+                <a href="@item.Href" class="@(isActive ? "is-active" : null)">
+                    @item.Label
+                </a>
+            </li>
+        }
+    </ul>
+
+    <div class="sidebar-footer">
+        <div class="sidebar-user">
+            <div class="sidebar-user-card">
+                <a asp-controller="Profile"
+                   asp-action="Index"
+                   class="sidebar-user-link-overlay"
+                   aria-label="Перейти в профиль"></a>
+                <span class="sidebar-user-fullname">
+                    @Model.UserFullName
+                </span>
+                <span class="sidebar-user-email">
+                    @Model.UserEmail
+                </span>
+            </div>
+        </div>
+    </div>
+</aside>

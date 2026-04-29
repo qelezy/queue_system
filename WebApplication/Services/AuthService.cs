@@ -1,6 +1,8 @@
 ﻿using Microsoft.AspNetCore.Identity;
-using MyWebApplication.Dto;
-using MyWebApplication.Services;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using WebApplication.Dto;
+using WebApplication.Services;
 using WebApplication.Models;
 
 namespace WebApplication.Services
@@ -10,12 +12,14 @@ namespace WebApplication.Services
         private readonly UserManager<User> _userManager;
         private readonly ITokenService _tokenService;
         private readonly IPasswordGeneratorService _passwordGeneratorService;
+        private readonly JwtOptions _jwtOptions;
 
-        public AuthService(UserManager<User> userManager, ITokenService tokenService, IPasswordGeneratorService passwordGeneratorService)
+        public AuthService(UserManager<User> userManager, ITokenService tokenService, IPasswordGeneratorService passwordGeneratorService, IOptions<JwtOptions> jwtOptions)
         {
             _userManager = userManager;
             _tokenService = tokenService;
             _passwordGeneratorService = passwordGeneratorService;
+            _jwtOptions = jwtOptions.Value;
         }
 
         public async Task<ServiceResult<TokenResponseDto>> LoginAsync(LoginRequestDto request)
@@ -38,7 +42,7 @@ namespace WebApplication.Services
             var tokenResponse = await _tokenService.CreateTokenResponseAsync(user, roles);
 
             user.RefreshToken = tokenResponse.RefreshToken;
-            user.RefreshTokenExpireTime = DateTime.UtcNow.AddDays(7);
+            user.RefreshTokenExpiresAt = CalculateRefreshTokenExpiry(request.RememberMe);
             await _userManager.UpdateAsync(user);
 
             return ServiceResult<TokenResponseDto>.Success(tokenResponse);
@@ -46,14 +50,35 @@ namespace WebApplication.Services
 
         public async Task<ServiceResult<TokenResponseDto>> RefreshTokenAsync(RefreshTokenRequestDto request) 
         {
-            var user = await _userManager.FindByIdAsync(request.UserId.ToString());
-            if (user is null || user.RefreshToken != request.RefreshToken || user.RefreshTokenExpireTime <= DateTime.UtcNow)
-            {
+            if (string.IsNullOrWhiteSpace(request.RefreshToken))
+                return ServiceResult<TokenResponseDto>.Fail(new[] { "Отсутствует refresh token" });
+
+            return await RefreshTokenByTokenAsync(request.RefreshToken, rememberMe: false);
+        }
+
+        public async Task<ServiceResult<TokenResponseDto>> RefreshTokenByTokenAsync(string refreshToken, bool rememberMe)
+        {
+            if (string.IsNullOrWhiteSpace(refreshToken))
+                return ServiceResult<TokenResponseDto>.Fail(new[] { "Отсутствует refresh token" });
+
+            var user = await _userManager.Users.FirstOrDefaultAsync(x => x.RefreshToken == refreshToken);
+            if (user is null || user.RefreshTokenExpiresAt <= DateTime.UtcNow)
                 return ServiceResult<TokenResponseDto>.Fail(new[] { "Неверный или просроченный refresh token" });
-            }
+
             var roles = await _userManager.GetRolesAsync(user);
             var tokenResponse = await _tokenService.CreateTokenResponseAsync(user, roles);
+            user.RefreshToken = tokenResponse.RefreshToken;
+            user.RefreshTokenExpiresAt = CalculateRefreshTokenExpiry(rememberMe);
+            await _userManager.UpdateAsync(user);
+
             return ServiceResult<TokenResponseDto>.Success(tokenResponse);
+        }
+
+        private DateTime CalculateRefreshTokenExpiry(bool rememberMe)
+        {
+            return rememberMe
+                ? DateTime.UtcNow.AddDays(_jwtOptions.RefreshRememberDays)
+                : DateTime.UtcNow.AddHours(_jwtOptions.RefreshSessionHours);
         }
 
         public async Task<ServiceResult> ConfirmEmailAsync(Guid userId, string token)

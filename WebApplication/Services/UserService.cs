@@ -1,9 +1,8 @@
-﻿using Microsoft.AspNetCore.Identity;
-using MyWebApplication.Dto;
+using Microsoft.AspNetCore.Identity;
 using WebApplication.Dto;
 using WebApplication.Models;
 
-namespace MyWebApplication.Services
+namespace WebApplication.Services
 {
     public class UserService : IUserService
     {
@@ -18,16 +17,12 @@ namespace MyWebApplication.Services
 
         public async Task<ServiceResult<RegistrationResultDto>> RegisterAsync(RegisterRequestDto request)
         {
-            if (await _userManager.FindByNameAsync(request.Username) != null)
-            {
-                return ServiceResult<RegistrationResultDto>.Fail(new[] { "Пользователь уже существует" });
-            }
             if (await _userManager.FindByEmailAsync(request.Email) != null)
             {
                 return ServiceResult<RegistrationResultDto>.Fail(new[] { "Email уже занят" });
             }
 
-            var user = new User { UserName = request.Username, Email = request.Email };
+            var user = new User { FirstName = request.FirstName, LastName = request.LastName, Patronymic = request.Patronymic, Email = request.Email, UserName = request.Email };
 
             var generatedPassword = _passwordGeneratorService.GeneratePassword();
 
@@ -37,7 +32,10 @@ namespace MyWebApplication.Services
                 return ServiceResult<RegistrationResultDto>.Fail(result.Errors.Select(e => e.Description));
             }
 
-            await _userManager.AddToRoleAsync(user, string.IsNullOrWhiteSpace(request.Role) ? "User" : request.Role);
+            var normalizedRole = (request.Role ?? string.Empty).Trim();
+            var roleToAssign = string.IsNullOrWhiteSpace(normalizedRole) ? "Registrator" : normalizedRole;
+
+            await _userManager.AddToRoleAsync(user, roleToAssign);
 
             var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
 
@@ -56,10 +54,17 @@ namespace MyWebApplication.Services
             if (user == null)
                 return ServiceResult<UserDto>.Fail(new[] { "Пользователь не найден", userId });
 
-            if (!string.IsNullOrEmpty(request.Username))
+            if (!string.IsNullOrWhiteSpace(request.LastName))
             {
-                user.UserName = request.Username;
+                user.LastName = request.LastName.Trim();
             }
+
+            if (!string.IsNullOrWhiteSpace(request.FirstName))
+            {
+                user.FirstName = request.FirstName.Trim();
+            }
+
+            user.Patronymic = request.Patronymic?.Trim() ?? string.Empty;
 
             if (!string.IsNullOrEmpty(request.Email) && request.Email != user.Email)
             {
@@ -68,6 +73,7 @@ namespace MyWebApplication.Services
                     return ServiceResult<UserDto>.Fail(new[] { "Email уже используется" });
 
                 user.Email = request.Email;
+                user.UserName = request.Email;
             }
 
             if (!string.IsNullOrEmpty(request.Role))
@@ -94,9 +100,11 @@ namespace MyWebApplication.Services
 
             return ServiceResult<UserDto>.Success(new UserDto
             {
-                Username = user.UserName,
+                FirstName = user.FirstName ?? string.Empty,
+                LastName = user.LastName ?? string.Empty,
+                Patronymic = user.Patronymic,
                 Email = user.Email,
-                Role = (await _userManager.GetRolesAsync(user)).FirstOrDefault() ?? "User"
+                Role = (await _userManager.GetRolesAsync(user)).FirstOrDefault() ?? "Registrator"
             });
         }
 

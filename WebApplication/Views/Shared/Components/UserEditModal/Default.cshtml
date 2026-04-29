@@ -1,0 +1,16 @@
+@model UserEditModalViewModel
+
+<div id="@Model.ModalId" class="app-modal" aria-hidden="true">
+    <div class="app-modal__overlay" data-modal-close="@Model.ModalId"></div>
+    <div class="app-modal__dialog" role="dialog" aria-modal="true" aria-label="@Model.Title" tabindex="-1">
+        <div class="app-modal__body">
+            @{
+                var modalViewData = new ViewDataDictionary(ViewData)
+                {
+                    ["ModalCloseId"] = Model.ModalId
+                };
+            }
+            @await Html.PartialAsync("~/Views/Users/_EditUserForm.cshtml", Model.FormModel, modalViewData)
+        </div>
+    </div>
+</div>

@@ -1,0 +1,10 @@
+@model SearchBoxViewModel
+
+<label class="toolbar-search" for="@Model.InputId">
+    <i class="bi bi-search search-icon"></i>
+    <input type="text"
+           id="@Model.InputId"
+           class="@Model.InputCssClass"
+           placeholder="@Model.Placeholder"
+           oninput="@Model.OnInput" />
+</label>

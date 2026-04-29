@@ -1,0 +1,39 @@
+@model UsersPageViewModel
+
+@{
+    ViewData["Title"] = "Управление пользователями";
+}
+
+<div class="tabs-bar">
+    <button class="is-active" data-tab="list">Список пользователей</button>
+    <button data-tab="access">Настройка доступа</button>
+</div>
+
+<div id="panel-list" class="tab-panel is-visible">
+    <partial name="_UsersTable" model="Model.Users" />
+</div>
+
+<div id="panel-access" class="tab-panel">
+
+</div>
+
+@await Component.InvokeAsync("UserRegistrationModal", new UserRegistrationModalViewModel
+{
+    ModalId = "register-user-modal",
+    Title = "Регистрация пользователя",
+    FormModel = Model.RegisterUser
+})
+
+@await Component.InvokeAsync("UserEditModal", new UserEditModalViewModel
+{
+    ModalId = "edit-user-modal",
+    Title = "Редактирование пользователя",
+    FormModel = new EditUserViewModel()
+})
+
+@section Scripts {
+    <script src="~/js/admin-users-tabs.js"></script>
+    <script src="~/js/users-modal.js" asp-append-version="true"></script>
+    <script src="~/js/admin-register-user.js" asp-append-version="true"></script>
+    <script src="~/js/admin-edit-user.js" asp-append-version="true"></script>
+}

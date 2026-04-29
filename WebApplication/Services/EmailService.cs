@@ -1,6 +1,6 @@
 ﻿using System.Net.Mail;
 
-namespace MyWebApplication.Services
+namespace WebApplication.Services
 {
     public class EmailService : IEmailService
     {

@@ -1,0 +1,29 @@
+﻿@model UsersToolbarViewModel
+
+<div class="table-toolbar">
+    <div class="table-toolbar__left">
+        @await Component.InvokeAsync("SearchBox", Model.Search)
+
+        <div class="toolbar-role-filter">
+            <select id="users-role-filter"
+                    class="toolbar-role-filter__select"
+                    onchange="@Model.RoleFilterOnChange">
+                <option value="">@Model.RoleFilterAllLabel</option>
+                @foreach (var role in Model.RoleFilterOptions)
+                {
+                    <option value="@role.Value">@role.Label</option>
+                }
+            </select>
+        </div>
+    </div>
+
+    <div class="table-toolbar__right">
+        <button class="btn btn-primary"
+                type="button"
+                onclick="@Model.CreateButtonOnClick">
+            <i class="bi bi-person-plus"></i>
+            @Model.CreateButtonText
+        </button>
+    </div>
+
+</div>

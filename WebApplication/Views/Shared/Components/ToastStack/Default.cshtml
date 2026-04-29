@@ -1,0 +1,23 @@
+@model ToastStackViewModel
+
+<div id="@Model.ContainerId"
+     class="app-toast-stack"
+     aria-live="polite"
+     aria-atomic="true"
+     data-success-message="@(Model.SuccessMessage ?? string.Empty)"
+     data-max-toasts="@Model.MaxToasts"
+     data-auto-close-ms="@Model.AutoCloseMs">
+    @foreach (var item in Model.Items.Where(x => !string.IsNullOrWhiteSpace(x.Message)))
+    {
+        var normalizedType = item.Type?.Trim().ToLowerInvariant() == "success" ? "success" : "error";
+        <div class="app-toast @(normalizedType == "success" ? "app-toast--success" : "app-toast--error")" role="@(normalizedType == "success" ? "status" : "alert")">
+            <span class="app-toast__text">@item.Message</span>
+            <button type="button"
+                    class="app-toast__close"
+                    aria-label="Закрыть уведомление"
+                    onclick="this.closest('.app-toast')?.remove()">
+                ×
+            </button>
+        </div>
+    }
+</div>

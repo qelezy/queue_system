@@ -1,0 +1,105 @@
+@using WebApplication.Models
+@model IReadOnlyList<UserRowViewModel>
+
+<div class="users-list-layout">
+    @await Component.InvokeAsync("TableToolbar", new UsersToolbarViewModel
+    {
+        Search = new SearchBoxViewModel
+        {
+            Placeholder = "Поиск",
+            OnInput = "UsersUI.search(this.value)"
+        },
+        RoleFilterAllLabel = "Все роли",
+        RoleFilterOnChange = "UsersUI.filterByRole(this.value)",
+        RoleFilterOptions = new List<RoleFilterOptionViewModel>
+        {
+            new() { Value = "Администратор", Label = "Администраторы" },
+            new() { Value = "Менеджер", Label = "Менеджеры" },
+            new() { Value = "Регистратор", Label = "Регистраторы" }
+        },
+        CreateButtonText = "Регистрация пользователя",
+        CreateButtonOnClick = "UsersUI.openCreate()"
+    })
+
+    <div class="users-table-region">
+        <div class="users-table-wrap">
+            <table class="users-table">
+        <thead>
+            <tr>
+                <th data-sort-key="fullName"
+                    scope="col"
+                    role="button"
+                    tabindex="0"
+                    onclick="UsersUI.sortBy('fullName')"
+                    onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); UsersUI.sortBy('fullName'); }">
+                    <span class="users-sort-label">ФИО</span>
+                    <i class="bi users-sort-icon" aria-hidden="true"></i>
+                </th>
+                <th data-sort-key="email"
+                    scope="col"
+                    role="button"
+                    tabindex="0"
+                    onclick="UsersUI.sortBy('email')"
+                    onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); UsersUI.sortBy('email'); }">
+                    <span class="users-sort-label">Email</span>
+                    <i class="bi users-sort-icon" aria-hidden="true"></i>
+                </th>
+                <th data-sort-key="role"
+                    scope="col"
+                    role="button"
+                    tabindex="0"
+                    onclick="UsersUI.sortBy('role')"
+                    onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); UsersUI.sortBy('role'); }">
+                    <span class="users-sort-label">Роль</span>
+                    <i class="bi users-sort-icon" aria-hidden="true"></i>
+                </th>
+                <th style="width:120px;">Действия</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            @if (Model == null || Model.Count == 0)
+            {
+                <tr>
+                    <td colspan="4">Пользователи не найдены</td>
+                </tr>
+            }
+            else
+            {
+                foreach (var user in Model)
+                {
+                    <tr data-user-id="@user.Id"
+                        data-first-name="@user.FirstName"
+                        data-last-name="@user.LastName"
+                        data-patronymic="@user.Patronymic"
+                        data-email="@user.Email"
+                        data-role="@user.Role">
+                        <td>@user.FullName</td>
+                        <td>@user.Email</td>
+                        <td>@user.RoleName</td>
+
+                        <td class="actions-cell">
+                            <button class="icon-btn edit-btn"
+                                    title="Редактировать"
+                                    onclick="UsersUI.openEdit('@user.Id')">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="icon-btn delete-btn"
+                                    title="Удалить"
+                                    onclick="UsersUI.delete('@user.Id')">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            }
+        </tbody>
+            </table>
+        </div>
+
+        <nav id="users-pagination"
+             class="users-pagination"
+             aria-label="Пагинация таблицы пользователей">
+        </nav>
+    </div>
+</div>

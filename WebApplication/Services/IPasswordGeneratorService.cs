@@ -1,4 +1,4 @@
-﻿namespace MyWebApplication.Services
+﻿namespace WebApplication.Services
 {
     public interface IPasswordGeneratorService
     {

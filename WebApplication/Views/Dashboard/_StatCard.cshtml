@@ -1,0 +1,19 @@
+@using WebApplication.Models
+@model StatCardViewModel
+
+<div class="stat-card">
+    <div class="stat-card-label">@Model.Label</div>
+
+    <div class="stat-card-value">
+        @Model.Value
+
+        @if (!string.IsNullOrEmpty(Model.Unit))
+        {
+            <span style="font-size:16px;font-weight:600;">
+                @Model.Unit
+            </span>
+        }
+    </div>
+
+    <div class="stat-card-hint">@Model.Hint</div>
+</div>

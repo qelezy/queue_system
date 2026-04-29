@@ -2,7 +2,7 @@
 using System.Security.Cryptography;
 using WebApplication.Models;
 
-namespace MyWebApplication.Services
+namespace WebApplication.Services
 {
     public class PasswordGeneratorService : IPasswordGeneratorService
     {

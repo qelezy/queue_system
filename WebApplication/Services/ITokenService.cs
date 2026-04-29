@@ -1,7 +1,7 @@
-﻿using MyWebApplication.Dto;
+﻿using WebApplication.Dto;
 using WebApplication.Models;
 
-namespace MyWebApplication.Services
+namespace WebApplication.Services
 {
     public interface ITokenService
     {

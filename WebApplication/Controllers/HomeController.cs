@@ -1,13 +1,13 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 
-namespace MyWebApplication.Controllers
+namespace WebApplication.Controllers
 {
     public class HomeController : Controller
     {
         [HttpGet("/")]
         public IActionResult Index()
         {
-            if (!User.Identity.IsAuthenticated)
+            if (User.Identity?.IsAuthenticated != true)
             {
                 return RedirectToAction("Login", "Account");
             }

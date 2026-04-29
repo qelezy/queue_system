@@ -1,12 +1,12 @@
-﻿@{
+@{
     Layout = "_AuthForm";
     ViewData["Title"] = "Вход";
     var loginUrl = ViewData["LoginUrl"]?.ToString() ?? "";
+    var postLoginRedirectPath = ViewData["PostLoginRedirectPath"]?.ToString() ?? "/dashboard/index";
 }
 
-<link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
-
-<form class="auth-form" id="loginForm">
+<form id="loginForm" class="auth-form" method="post" data-login-url="@loginUrl" data-post-login-redirect-path="@postLoginRedirectPath">
+    <p class="auth-form-subtitle">Введите учетные данные для доступа к системе</p>
     <div class="form-input">
         <label>Email</label>
         <input type="email" name="email" required />
@@ -15,58 +15,16 @@
         <label>Пароль</label>
         <input type="password" name="password" required />
     </div>
-    <div class="form-input remember-me">
-        <input type="checkbox" id="rememberMe" name="rememberMe" />
-        <label for="rememberMe">Запомнить меня</label>
+    <div class="login-options-row">
+        <div class="form-input remember-me">
+            <input type="checkbox" id="rememberMe" name="rememberMe" />
+            <label for="rememberMe">Запомнить меня</label>
+        </div>
+        <a class="forgot-inline" href="@Url.Action("ForgotPassword", "Account")">Забыли пароль?</a>
     </div>
     <button type="submit">Войти</button>
 </form>
 
-<p class="auth-links">
-    <a href="@Url.Action("ForgotPassword", "Account")">Забыли пароль?</a>
-</p>
-
-<script>
-    (function() {
-        const form = document.getElementById('loginForm');
-
-        form.addEventListener('submit', async e => {
-            e.preventDefault();
-            const email = form.email.value;
-            const password = form.password.value;
-
-            try {
-                const response = await fetch('@loginUrl', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, password })
-                });
-
-                const result = await response.json();
-
-                if (response.ok && result.success) {
-                    localStorage.setItem("accessToken", result.data.token);
-                    if (result.data.refreshToken)
-                        localStorage.setItem("refreshToken", result.data.refreshToken);
-
-                    const role = result.data.role || "";
-
-                    if (role === "Admin") {
-                        window.location.href = '/Admin';
-                    } else if (role === "Doctor") {
-                        window.location.href = '/Doctor';
-                    } else {
-                        window.location.href = '/';
-                    }
-
-                } else {
-                    const errors = result.errors?.join('\n') || "";
-                    alert((result.message || "Ошибка входа") + (errors ? "\n" + errors : ""));
-                }
-            } catch (err) {
-                console.error(err);
-                alert("Сетевая ошибка при попытке входа");
-            }
-        });
-    })();
-</script>
+@section Scripts {
+    <script src="~/js/account-login.js" asp-append-version="true"></script>
+}

@@ -1,0 +1,11 @@
+﻿@model string
+
+<section class="register-panel">
+    <header class="register-panel-head">
+        <h2 class="register-panel-title">@ViewBag.Title</h2>
+    </header>
+
+    <div class="register-panel-body">
+        @await Html.PartialAsync(Model)
+    </div>
+</section>
