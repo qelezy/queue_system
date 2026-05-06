@@ -1,0 +1,142 @@
+@using System.Globalization
+@model WebApplication.Models.ManagerAnalyticsViewModel
+
+@{
+    string F(DateOnly d) => d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+}
+
+<div class="dashboard-panel dashboard-panel--manager">
+    <h3 class="dashboard-panel__title">Аналитика за период</h3>
+
+    <form method="get" asp-controller="Dashboard" asp-action="Index" class="manager-filters">
+        <div class="manager-filters__row">
+            <label class="form-field">
+                <span class="form-field__label">С</span>
+                <input class="form-input" type="date" name="from" value="@F(Model.PeriodFrom)" required />
+            </label>
+            <label class="form-field">
+                <span class="form-field__label">По</span>
+                <input class="form-input" type="date" name="to" value="@F(Model.PeriodTo)" required />
+            </label>
+            <label class="form-field">
+                <span class="form-field__label">Кабинет</span>
+                <select class="form-input" name="cabinetId">
+                    @foreach (var o in Model.CabinetOptions)
+                    {
+                        if (Model.FilterCabinetId == o.Value)
+                        {
+                            <option value="@(o.Value?.ToString() ?? "")" selected="selected">@o.Text</option>
+                        }
+                        else
+                        {
+                            <option value="@(o.Value?.ToString() ?? "")">@o.Text</option>
+                        }
+                    }
+                </select>
+            </label>
+            <label class="form-field">
+                <span class="form-field__label">Врач</span>
+                <select class="form-input" name="doctorId">
+                    @foreach (var o in Model.DoctorOptions)
+                    {
+                        if (Model.FilterDoctorId == o.Value)
+                        {
+                            <option value="@(o.Value?.ToString() ?? "")" selected="selected">@o.Text</option>
+                        }
+                        else
+                        {
+                            <option value="@(o.Value?.ToString() ?? "")">@o.Text</option>
+                        }
+                    }
+                </select>
+            </label>
+            <label class="form-field">
+                <span class="form-field__label">Категория</span>
+                <select class="form-input" name="categoryId">
+                    @foreach (var o in Model.CategoryOptions)
+                    {
+                        if (Model.FilterCategoryId == o.Value)
+                        {
+                            <option value="@(o.Value?.ToString() ?? "")" selected="selected">@o.Text</option>
+                        }
+                        else
+                        {
+                            <option value="@(o.Value?.ToString() ?? "")">@o.Text</option>
+                        }
+                    }
+                </select>
+            </label>
+            <label class="form-field form-field--checkbox">
+                @if (Model.HeatmapIsByDoctor)
+                {
+                    <input type="checkbox" name="heatmapByDoctor" value="true" checked="checked" />
+                }
+                else
+                {
+                    <input type="checkbox" name="heatmapByDoctor" value="true" />
+                }
+                <span class="form-field__label">Heatmap по врачам</span>
+            </label>
+            <button type="submit" class="btn btn-primary">Применить</button>
+        </div>
+    </form>
+
+    <div class="dashboard-toggle-group manager-queue-mode" role="group" aria-label="Режим графика очереди по часам">
+        <button type="button" class="btn btn-secondary btn-sm is-active" data-queue-mode="per-day">По дням</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-queue-mode="avg-only">Только среднее</button>
+    </div>
+
+    <div class="charts-grid charts-grid--manager">
+        <partial name="_ChartCard" model="@(new ChartCardViewModel { Title = "Пациенты в очередях по часу дня (по дням периода)", CanvasId = "chartQueueByHour", HeightClass = "tall" })" />
+        <partial name="_ChartCard" model="@(new ChartCardViewModel { Title = "Распределение времени ожидания за период", CanvasId = "chartWaitHistogram", HeightClass = "tall" })" />
+    </div>
+
+    <div class="charts-grid charts-grid--manager">
+        <partial name="_ChartCard" model="@(new ChartCardViewModel { Title = "Среднее время ожидания по врачам (мин)", CanvasId = "chartAvgWaitDoctors", HeightClass = "tall" })" />
+        <partial name="_ChartCard" model="@(new ChartCardViewModel { Title = "Средняя длительность приёма по врачам (мин)", CanvasId = "chartAvgServiceDoctors", HeightClass = "tall" })" />
+    </div>
+
+    <div class="dashboard-panel__heatmap">
+        <div class="dashboard-toggle-group" role="group" aria-label="Режим heatmap">
+            <span class="dashboard-toggle-group__label">Heatmap: ось Y — @(Model.HeatmapIsByDoctor ? "врачи" : "кабинеты") (переключатель в фильтре выше)</span>
+        </div>
+        @if (Model.HeatmapRowLabels.Count == 0)
+        {
+            <p class="dashboard-panel__hint">Нет данных для heatmap.</p>
+        }
+        else
+        {
+            <div class="table-scroll">
+                <table class="heatmap-table">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            @foreach (var h in Model.HeatmapHourLabels)
+                            {
+                                <th>@h</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @{
+                        var flat = Model.HeatmapValues.SelectMany(row => row).DefaultIfEmpty(0).ToList();
+                        var maxV = flat.Count == 0 ? 1 : Math.Max(flat.Max(), 1e-6);
+                    }
+                    @for (var ri = 0; ri < Model.HeatmapRowLabels.Count; ri++)
+                    {
+                        <tr>
+                            <th scope="row">@Model.HeatmapRowLabels[ri]</th>
+                            @for (var ci = 0; ci < Model.HeatmapHourLabels.Count; ci++)
+                            {
+                                var v = ci < Model.HeatmapValues[ri].Count ? Model.HeatmapValues[ri][ci] : 0;
+                                var alpha = 0.15 + 0.85 * (v / maxV);
+                                <td class="heatmap-table__cell" style="--heat:@alpha.ToString("0.###", CultureInfo.InvariantCulture)" title="@v.ToString("0.##", CultureInfo.InvariantCulture)">@v.ToString("0.##", CultureInfo.InvariantCulture)</td>
+                            }
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>

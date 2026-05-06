@@ -1,0 +1,38 @@
+@model IReadOnlyList<WebApplication.Models.DashboardQueueRowViewModel>
+
+<div class="dashboard-panel">
+    <h3 class="dashboard-panel__title">Текущая очередь</h3>
+    <p class="dashboard-panel__hint">Незавершённые талоны, сортировка: приоритет талона и категории, затем время ожидания.</p>
+    <div class="users-table-wrap">
+        <table class="users-table" aria-label="Текущая очередь">
+            <thead>
+                <tr>
+                    <th>Пациент</th>
+                    <th>Приоритет</th>
+                    <th>Ожидание, мин</th>
+                    <th>Кабинет</th>
+                    <th>Врач</th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (Model.Count == 0)
+            {
+                <tr><td colspan="5">Нет записей в очереди</td></tr>
+            }
+            else
+            {
+                foreach (var r in Model)
+                {
+                    <tr>
+                        <td>@r.Patient</td>
+                        <td>@r.PriorityDisplay</td>
+                        <td>@r.WaitingMinutes</td>
+                        <td>@r.CurrentCabinet</td>
+                        <td>@r.CurrentDoctor</td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+</div>

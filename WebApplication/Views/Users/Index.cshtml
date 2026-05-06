@@ -14,7 +14,7 @@
 </div>
 
 <div id="panel-access" class="tab-panel">
-
+    @await Component.InvokeAsync("AccessMatrix", Model.AccessSettings)
 </div>
 
 @await Component.InvokeAsync("UserRegistrationModal", new UserRegistrationModalViewModel
@@ -36,4 +36,5 @@
     <script src="~/js/users-modal.js" asp-append-version="true"></script>
     <script src="~/js/admin-register-user.js" asp-append-version="true"></script>
     <script src="~/js/admin-edit-user.js" asp-append-version="true"></script>
+    <script src="~/js/access-settings.js" asp-append-version="true"></script>
 }

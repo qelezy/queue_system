@@ -1,115 +1,108 @@
+@using System.Text.Json
 @using WebApplication.Models
 @model DashboardViewModel
 @{
-    var labels         = System.Text.Json.JsonSerializer.Serialize(Model.DailyLabels);
-    var waitData       = System.Text.Json.JsonSerializer.Serialize(Model.DailyWaitMinutes);
-    var serveData      = System.Text.Json.JsonSerializer.Serialize(Model.DailyServiceMinutes);
-    var cabNames       = System.Text.Json.JsonSerializer.Serialize(Model.Cabinets.Select(c => c.Name));
-    var cabLoads       = System.Text.Json.JsonSerializer.Serialize(Model.Cabinets.Select(c => c.LoadPercent));
+    var jsonOpts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+    object? managerPayload = null;
+    if (Model.Manager != null)
+    {
+        var mgr = Model.Manager;
+        managerPayload = new
+        {
+            queueHourLabels = mgr.QueueByHourLabels,
+            queueByDay = mgr.QueueByHourPerDay.Select(d => new { dayLabel = d.DayLabel, values = d.Values }),
+            queueDailyAvg = mgr.QueueByHourDailyAverage,
+            histogram = mgr.WaitHistogram.Select(h => new { label = h.Label, count = h.Count }),
+            avgWaitByDoctor = mgr.AvgWaitByDoctor.Select(x => new { name = x.Name, valueMinutes = x.ValueMinutes }),
+            avgServiceByDoctor = mgr.AvgServiceByDoctor.Select(x => new { name = x.Name, valueMinutes = x.ValueMinutes })
+        };
+    }
+
+    var chartPayload = new
+    {
+        hourly = new { labels = Model.HourlyLabels, wait = Model.HourlyWaitMinutes, service = Model.HourlyServiceMinutes },
+        load = new
+        {
+            cabinetLabels = Model.CabinetLoadLabels,
+            cabinetCompleted = Model.CabinetCompletedToday,
+            cabinetBusy = Model.CabinetBusyPercent,
+            doctorLabels = Model.DoctorLoadLabels,
+            doctorCompleted = Model.DoctorCompletedToday,
+            doctorBusy = Model.DoctorBusyPercent
+        },
+        manager = managerPayload
+    };
+
+    var chartJson = JsonSerializer.Serialize(chartPayload, jsonOpts);
 }
 
 @section Head {
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 }
 
+<script type="application/json" id="dashboard-chart-data">@Html.Raw(chartJson)</script>
+
 <div class="stats-row">
     <partial name="_StatCard" model="@(new StatCardViewModel {
-        Label = "Всего ожидают",
+        Label = "Ожидают",
         Value = Model.WaitingCount.ToString(),
-        Hint = "в очереди сейчас"
+        Unit = "",
+        Hint = "пациенты, ожидающие приёма"
     })" />
     <partial name="_StatCard" model="@(new StatCardViewModel {
-        Label = "Всего на приёме сейчас",
+        Label = "На приёме",
         Value = Model.InServiceCount.ToString(),
-        Hint = "по всем кабинетам"
+        Unit = "",
+        Hint = "пациенты, находящиеся на приёме"
     })" />
     <partial name="_StatCard" model="@(new StatCardViewModel {
-        Label = "Среднее время ожидания (сегодня)",
+        Label = "Среднее время ожидания",
         Value = Model.AvgWaitMinutes.ToString(),
         Unit = "мин",
-        Hint = "по завершённым этапам ожидания"
+        SubLabel = "Максимум",
+        SubValue = Model.MaxWaitMinutes.ToString(),
+        SubUnit = "мин",
+        Hint = "по завершённым ожиданиям за сегодня"
     })" />
     <partial name="_StatCard" model="@(new StatCardViewModel {
-        Label = "Средняя длительность приёма (сегодня)",
+        Label = "Средняя длительность приёма",
         Value = Model.AvgServiceMinutes.ToString(),
         Unit = "мин",
-        Hint = "по завершённым приёмам"
+        SubLabel = "Максимум",
+        SubValue = Model.MaxServiceMinutes.ToString(),
+        SubUnit = "мин",
+        Hint = "по завершённым приёмам за сегодня"
     })" />
 </div>
 
-<div class="bottom-grid">
+<div class="charts-grid">
     <partial name="_ChartCard" model="@(new ChartCardViewModel {
-        Title = "Среднее время ожидания и длительность приёма по дням (мин)",
-        CanvasId = "chartWaitServe"
+        Title = "За сегодня по часам: среднее ожидание и средняя длительность приёма (мин)",
+        CanvasId = "chartWaitServeHourly"
     })" />
-    <partial name="_ChartCard" model="@(new ChartCardViewModel {
-        Title = "Загрузка кабинетов (% занятого времени, неделя)",
-        CanvasId = "chartCabinets"
-    })" />
+    <div class="chart-card">
+        <h4>Загруженность за сегодня</h4>
+        <div class="dashboard-toggle-group load-entity-toggle" role="group" aria-label="Кабинет или врач">
+            <button type="button" class="btn btn-secondary btn-sm is-active" data-entity="cabinet">Кабинеты</button>
+            <button type="button" class="btn btn-secondary btn-sm" data-entity="doctor">Врачи</button>
+        </div>
+        <div class="dashboard-toggle-group load-metric-toggle" role="group" aria-label="Метрика">
+            <button type="button" class="btn btn-secondary btn-sm is-active" data-metric="completed">Завершённые приёмы</button>
+            <button type="button" class="btn btn-secondary btn-sm" data-metric="busy">Доля занятого времени</button>
+        </div>
+        <div class="chart-canvas-wrap tall">
+            <canvas id="chartLoadToday"></canvas>
+        </div>
+    </div>
 </div>
+
+<partial name="_DashboardQueueTable" model="Model.ActiveQueue" />
+
+@if (Model.Manager != null)
+{
+    <partial name="_DashboardManager" model="Model.Manager" />
+}
 
 @section Scripts {
-<script>
-    Chart.defaults.font.family = "'Poppins', sans-serif";
-    Chart.defaults.color = '#555';
-
-    var teal     = '#00b3b8';
-    var tealDark = '#0d3d40';
-    var amber    = '#c9a227';
-
-    new Chart(document.getElementById('chartWaitServe'), {
-        type: 'line',
-        data: {
-            labels: @Html.Raw(labels),
-            datasets: [
-                {
-                    label: 'Ожидание, мин',
-                    data: @Html.Raw(waitData),
-                    borderColor: teal,
-                    backgroundColor: 'rgba(0,179,184,0.12)',
-                    fill: true, tension: 0.35, pointRadius: 4
-                },
-                {
-                    label: 'Приём, мин',
-                    data: @Html.Raw(serveData),
-                    borderColor: amber,
-                    backgroundColor: 'rgba(201,162,39,0.08)',
-                    fill: true, tension: 0.35, pointRadius: 4
-                }
-            ]
-        },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { position: 'top', align: 'end' } },
-            scales: {
-                y: { beginAtZero: true, title: { display: true, text: 'Минуты' }, grid: { color: 'rgba(0,0,0,0.06)' } },
-                x: { grid: { display: false } }
-            }
-        }
-    });
-
-    new Chart(document.getElementById('chartCabinets'), {
-        type: 'bar',
-        data: {
-            labels: @Html.Raw(cabNames),
-            datasets: [{
-                label: 'Загрузка, %',
-                data: @Html.Raw(cabLoads),
-                backgroundColor: [
-                    'rgba(0,179,184,0.75)','rgba(0,179,184,0.55)','rgba(0,179,184,0.65)',
-                    'rgba(13,61,64,0.85)','rgba(0,179,184,0.5)','rgba(13,61,64,0.65)'
-                ],
-                borderRadius: 6
-            }]
-        },
-        options: {
-            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-                x: { max: 100, beginAtZero: true, title: { display: true, text: '%' }, grid: { color: 'rgba(0,0,0,0.06)' } },
-                y: { grid: { display: false } }
-            }
-        }
-    });
-</script>
+    <script src="~/js/dashboard-monitoring.js" asp-append-version="true"></script>
 }

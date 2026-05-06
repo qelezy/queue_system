@@ -1,0 +1,37 @@
+@model ReportPreviewModalViewModel
+
+@{ var dialogTitle = Model.Title; }
+
+<div id="@Model.ModalId"
+     class="app-modal"
+     aria-hidden="true"
+     data-auto-open="@(Model.AutoOpen ? "true" : "false")">
+    <div class="app-modal__overlay" data-modal-close="@Model.ModalId"></div>
+    <div class="app-modal__dialog report-preview-modal__dialog"
+         role="dialog"
+         aria-modal="true"
+         aria-label="@dialogTitle"
+         tabindex="-1">
+        <div class="app-modal__body report-preview-modal__body">
+            <section class="register-panel report-preview-modal__panel">
+                <header class="register-panel-head">
+                    <h2 class="register-panel-title">@dialogTitle</h2>
+                    <button type="button"
+                            class="register-panel-close"
+                            aria-label="Закрыть"
+                            data-modal-close="@Model.ModalId">
+                        ×
+                    </button>
+                </header>
+                <div class="report-preview-modal__table-wrap" id="report-preview-content">
+                    <p class="report-params__empty">Нет данных для предпросмотра.</p>
+                </div>
+                <div class="report-preview-modal__actions" id="report-preview-export-actions">
+                    <button type="button" class="btn btn-primary" data-export-format="csv"><i class="bi bi-download" aria-hidden="true"></i>Скачать CSV</button>
+                    <button type="button" class="btn btn-primary" data-export-format="xlsx"><i class="bi bi-download" aria-hidden="true"></i>Скачать XLSX</button>
+                    <button type="button" class="btn btn-primary" data-export-format="pdf"><i class="bi bi-download" aria-hidden="true"></i>Скачать PDF</button>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,45 @@
+@model AccessGroupViewModel
+@{
+    var roles = ViewData["Roles"] as IReadOnlyList<AccessRoleColumn> ?? Array.Empty<AccessRoleColumn>();
+}
+
+<section class="access-matrix__group" data-group="@Model.Key">
+    <h3 class="access-matrix__group-title">
+        <i class="bi @Model.Icon" aria-hidden="true"></i>
+        <span>@Model.Title</span>
+    </h3>
+
+    <div class="access-matrix__table-scroll">
+        <table class="access-matrix__table">
+            <caption class="visually-hidden">@Model.Title — доступ по ролям</caption>
+            <thead>
+                <tr>
+                    <th scope="col" class="access-matrix__col-element">Элемент</th>
+                    @foreach (var role in roles)
+                    {
+                        <th scope="col" class="access-matrix__role-col">@role.Label</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="access-matrix__row access-matrix__row--select-all">
+                    <td class="access-matrix__select-all-label">Выбрать все</td>
+                    @foreach (var role in roles)
+                    {
+                        <td class="access-matrix__role-cell">
+                            <input type="checkbox"
+                                   class="access-matrix__col-toggle"
+                                   data-role="@role.Key"
+                                   aria-label="Выбрать все для роли @role.Label" />
+                        </td>
+                    }
+                </tr>
+                @foreach (var item in Model.Items)
+                {
+                    var rowViewData = new ViewDataDictionary(ViewData);
+                    <partial name="_AccessMatrixRow" model="item" view-data="rowViewData" />
+                }
+            </tbody>
+        </table>
+    </div>
+</section>

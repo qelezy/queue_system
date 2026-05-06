@@ -1,3 +1,111 @@
-<p style="color:#888; font-size:15px; margin-top: 12px;">
-    Раздел в разработке.
-</p>
+@model ReportsHubViewModel
+
+@{
+    string AsDateTimeLocal(string? v)
+    {
+        if (string.IsNullOrWhiteSpace(v))
+            return "";
+        if (DateTime.TryParse(v, out var dt))
+            return dt.ToString("yyyy-MM-ddTHH:mm");
+        return v!;
+    }
+
+    var previewModel = new ReportPreviewModalViewModel
+    {
+        ModalId = "report-preview-modal",
+        Title = "Предпросмотр отчёта",
+        Result = null,
+        DownloadReportId = null,
+        AutoOpen = false
+    };
+    var selectedId = Model.SelectedReportId ?? "";
+}
+
+<script type="application/json" id="reports-page-data">
+@Html.Raw(System.Text.Json.JsonSerializer.Serialize(new
+{
+    selectedReportId = selectedId,
+    toolbar = new
+    {
+        dateFrom = Model.ToolbarDateFrom,
+        dateTo = Model.ToolbarDateTo,
+        weekStart = Model.ToolbarWeekStart,
+        cabinetId = Model.ToolbarCabinetId,
+        doctorId = Model.ToolbarDoctorId,
+        cabinetOptions = Model.ToolbarCabinetOptions.Select(x => new { id = x.Id, label = x.Label }),
+        doctorOptions = Model.ToolbarDoctorOptions.Select(x => new { id = x.Id, label = x.Label }),
+        categoryOptions = Model.ToolbarCategoryOptions.Select(x => new { id = x.Id, label = x.Label })
+    }
+}))
+</script>
+
+<div class="report-hub">
+    @if (Model.Catalog.Count == 0)
+    {
+        <p class="report-params__empty">В конфигурации нет доступных отчётов (секция <code>Reports:Catalog</code> в appsettings).</p>
+    }
+    <section class="report-catalog" aria-label="Доступные отчёты">
+        @foreach (var group in Model.CatalogByCategory)
+        {
+            <details class="report-category">
+                <summary class="report-category__summary">
+                    <span class="report-category__title">@group.Title</span>
+                    <span class="report-category__count">@group.Items.Count</span>
+                    <span class="report-category__chevron" aria-hidden="true"></span>
+                </summary>
+                <div class="report-category__panel">
+                    <ul class="report-catalog__list">
+                        @foreach (var item in group.Items)
+                        {
+                            var isActive = string.Equals(item.Id, Model.SelectedReportId, StringComparison.OrdinalIgnoreCase);
+                            <li>
+                                <a class="report-catalog-card @(isActive ? "is-active" : null)" href="#" data-report-id="@item.Id">
+                                    <span class="report-catalog-card__title">@item.Title</span>
+                                    <span class="report-catalog-card__desc">@item.Description</span>
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            </details>
+        }
+    </section>
+
+    <section class="dashboard-panel report-toolbar-panel" aria-label="Параметры страницы отчётов" id="report-toolbar">
+        @{
+            var preselected = Model.Catalog.FirstOrDefault(x => string.Equals(x.Id, Model.SelectedReportId, StringComparison.OrdinalIgnoreCase));
+        }
+        <h2 class="dashboard-panel__title">
+            Параметры отчёта
+            <span class="report-toolbar__selected @(preselected == null ? "is-empty" : null)" id="report-toolbar-selected">
+                @if (preselected != null)
+                {
+                    <span class="report-toolbar__selected-title">@preselected.Title</span>
+                }
+            </span>
+        </h2>
+        <form id="reports-generate-form" class="manager-filters">
+            @Html.AntiForgeryToken()
+            <div class="manager-filters__row">
+                <label class="form-field">
+                    <span class="form-field__label">С</span>
+                    <input class="form-input" type="datetime-local" name="periodFrom" value="@AsDateTimeLocal(Model.ToolbarDateFrom)" required />
+                </label>
+                <label class="form-field">
+                    <span class="form-field__label">По</span>
+                    <input class="form-input" type="datetime-local" name="periodTo" value="@AsDateTimeLocal(Model.ToolbarDateTo)" required />
+                </label>
+                <div id="report-custom-fields" class="report-toolbar__custom"></div>
+            </div>
+            <div class="manager-filters__row report-toolbar__actions">
+                <button type="button" id="report-generate-btn" class="btn btn-primary">Сформировать</button>
+            </div>
+        </form>
+    </section>
+
+    @await Component.InvokeAsync("ReportPreviewModal", previewModel)
+</div>
+
+@section Scripts {
+    <script src="~/js/reports-index.js" asp-append-version="true"></script>
+}

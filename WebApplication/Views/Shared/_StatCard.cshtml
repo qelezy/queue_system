@@ -1,0 +1,42 @@
+@model StatCardViewModel
+@{
+    var hasSub = !string.IsNullOrEmpty(Model.SubLabel) && !string.IsNullOrEmpty(Model.SubValue);
+    var cardClass = hasSub ? "stat-card" : "stat-card stat-card--no-sub";
+}
+
+<div class="@cardClass">
+    <div class="stat-card-body">
+        <div class="stat-card-main">
+            <div class="stat-card-label">@Model.Label</div>
+
+            <div class="stat-card-value-slot">
+                <div class="stat-card-value">
+                    @Model.Value
+
+                    @if (!string.IsNullOrEmpty(Model.Unit))
+                    {
+                        <span class="stat-card-value-unit">@Model.Unit</span>
+                    }
+                </div>
+            </div>
+        </div>
+
+        @if (hasSub)
+        {
+            <div class="stat-card-sub">
+                <span class="stat-card-sub-label">@Model.SubLabel</span>
+                <span class="stat-card-sub-value-wrap">
+                    <span class="stat-card-sub-value">
+                        @Model.SubValue
+                        @if (!string.IsNullOrEmpty(Model.SubUnit))
+                        {
+                            <span class="stat-card-sub-unit">@Model.SubUnit</span>
+                        }
+                    </span>
+                </span>
+            </div>
+        }
+    </div>
+
+    <div class="stat-card-hint">@Model.Hint</div>
+</div>

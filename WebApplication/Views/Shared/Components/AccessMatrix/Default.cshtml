@@ -1,0 +1,23 @@
+@model AccessSettingsViewModel
+
+<div id="access-matrix-root" class="access-matrix" aria-label="Настройка прав по ролям">
+    <div class="access-matrix__groups">
+        @foreach (var group in Model.Groups)
+        {
+            var groupViewData = new ViewDataDictionary(ViewData)
+            {
+                ["Roles"] = Model.Roles,
+                ["GroupKey"] = group.Key,
+            };
+            <partial name="_AccessMatrixGroup" model="group" view-data="groupViewData" />
+        }
+    </div>
+
+    <div class="access-matrix__footer register-actions">
+        <button type="button"
+                class="register-submit"
+                onclick="@Model.SaveOnClick">
+            @Model.SaveButtonText
+        </button>
+    </div>
+</div>

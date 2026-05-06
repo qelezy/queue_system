@@ -1,0 +1,25 @@
+@model ReportResultViewModel
+
+<div class="users-table-wrap">
+    <table class="users-table" aria-label="@Model.Title">
+        <thead>
+            <tr>
+                @foreach (var h in Model.ColumnHeaders)
+                {
+                    <th>@h</th>
+                }
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var row in Model.Rows)
+            {
+                <tr>
+                    @foreach (var cell in row.Cells)
+                    {
+                        <td>@cell</td>
+                    }
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

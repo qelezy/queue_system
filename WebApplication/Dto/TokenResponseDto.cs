@@ -6,5 +6,7 @@
         public string RefreshToken { get; set; } = string.Empty;
         public DateTime Expires { get; set; }
         public string Role { get; set; } = string.Empty;
+
+        public bool RefreshSessionExtended { get; set; }
     }
 }

@@ -1,0 +1,18 @@
+@model CabinetLoadReportParametersViewModel
+
+<form asp-controller="Reports"
+      asp-action="RunCabinetLoad"
+      method="post"
+      class="report-form"
+      id="report-form-cabinet-load">
+    <div class="report-form__row">
+        <div class="form-field">
+            <label asp-for="WeekStart">Неделя с (понедельник)</label>
+            <input asp-for="WeekStart" type="date" required />
+        </div>
+    </div>
+
+    <div class="report-form__actions">
+        <button type="submit" class="btn btn-primary">Сформировать</button>
+    </div>
+</form>

@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using WebApplication.Dto;
@@ -41,10 +42,12 @@ namespace WebApplication.Services
             var roles = await _userManager.GetRolesAsync(user);
             var tokenResponse = await _tokenService.CreateTokenResponseAsync(user, roles);
 
+            user.RefreshSessionExtended = request.RememberMe;
             user.RefreshToken = tokenResponse.RefreshToken;
-            user.RefreshTokenExpiresAt = CalculateRefreshTokenExpiry(request.RememberMe);
+            user.RefreshTokenExpiresAt = CalculateRefreshTokenExpiry(user.RefreshSessionExtended);
             await _userManager.UpdateAsync(user);
 
+            tokenResponse.RefreshSessionExtended = user.RefreshSessionExtended;
             return ServiceResult<TokenResponseDto>.Success(tokenResponse);
         }
 
@@ -53,30 +56,54 @@ namespace WebApplication.Services
             if (string.IsNullOrWhiteSpace(request.RefreshToken))
                 return ServiceResult<TokenResponseDto>.Fail(new[] { "Отсутствует refresh token" });
 
-            return await RefreshTokenByTokenAsync(request.RefreshToken, rememberMe: false);
+            return await RefreshTokenByTokenAsync(request.RefreshToken);
         }
 
-        public async Task<ServiceResult<TokenResponseDto>> RefreshTokenByTokenAsync(string refreshToken, bool rememberMe)
+        public async Task<ServiceResult<TokenResponseDto>> RefreshTokenByTokenAsync(string refreshToken)
         {
             if (string.IsNullOrWhiteSpace(refreshToken))
                 return ServiceResult<TokenResponseDto>.Fail(new[] { "Отсутствует refresh token" });
 
             var user = await _userManager.Users.FirstOrDefaultAsync(x => x.RefreshToken == refreshToken);
-            if (user is null || user.RefreshTokenExpiresAt <= DateTime.UtcNow)
+            if (user is null || !user.RefreshTokenExpiresAt.HasValue || user.RefreshTokenExpiresAt.Value <= DateTime.UtcNow)
                 return ServiceResult<TokenResponseDto>.Fail(new[] { "Неверный или просроченный refresh token" });
 
             var roles = await _userManager.GetRolesAsync(user);
             var tokenResponse = await _tokenService.CreateTokenResponseAsync(user, roles);
             user.RefreshToken = tokenResponse.RefreshToken;
-            user.RefreshTokenExpiresAt = CalculateRefreshTokenExpiry(rememberMe);
+            user.RefreshTokenExpiresAt = CalculateRefreshTokenExpiry(user.RefreshSessionExtended);
             await _userManager.UpdateAsync(user);
 
+            tokenResponse.RefreshSessionExtended = user.RefreshSessionExtended;
             return ServiceResult<TokenResponseDto>.Success(tokenResponse);
         }
 
-        private DateTime CalculateRefreshTokenExpiry(bool rememberMe)
+        public async Task<ServiceResult> LogoutAsync(ClaimsPrincipal? principal, string? refreshTokenFromCookie = null)
         {
-            return rememberMe
+            User? user = null;
+            if (!string.IsNullOrWhiteSpace(refreshTokenFromCookie))
+                user = await _userManager.Users.FirstOrDefaultAsync(u => u.RefreshToken == refreshTokenFromCookie);
+
+            if (user is null && principal?.Identity?.IsAuthenticated == true)
+            {
+                var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (!string.IsNullOrEmpty(userId))
+                    user = await _userManager.FindByIdAsync(userId);
+            }
+
+            if (user is null)
+                return ServiceResult.Success();
+
+            user.RefreshToken = null;
+            user.RefreshTokenExpiresAt = null;
+            user.RefreshSessionExtended = false;
+            await _userManager.UpdateAsync(user);
+            return ServiceResult.Success();
+        }
+
+        private DateTime CalculateRefreshTokenExpiry(bool refreshSessionExtended)
+        {
+            return refreshSessionExtended
                 ? DateTime.UtcNow.AddDays(_jwtOptions.RefreshRememberDays)
                 : DateTime.UtcNow.AddHours(_jwtOptions.RefreshSessionHours);
         }

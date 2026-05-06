@@ -1,4 +1,5 @@
-﻿using WebApplication.Dto;
+﻿using System.Security.Claims;
+using WebApplication.Dto;
 
 namespace WebApplication.Services
 {
@@ -6,7 +7,8 @@ namespace WebApplication.Services
     {
         Task<ServiceResult<TokenResponseDto>> LoginAsync(LoginRequestDto request);
         Task<ServiceResult<TokenResponseDto>> RefreshTokenAsync(RefreshTokenRequestDto request);
-        Task<ServiceResult<TokenResponseDto>> RefreshTokenByTokenAsync(string refreshToken, bool rememberMe);
+        Task<ServiceResult<TokenResponseDto>> RefreshTokenByTokenAsync(string refreshToken);
+        Task<ServiceResult> LogoutAsync(ClaimsPrincipal? principal, string? refreshTokenFromCookie = null);
         Task<ServiceResult> ConfirmEmailAsync(Guid userId, string token);
         Task<ServiceResult<PasswordResetDto>> ForgotPasswordAsync(ForgotPasswordRequestDto request);
         Task<ServiceResult> ResetPasswordAsync(PasswordResetTokenRequestDto request);

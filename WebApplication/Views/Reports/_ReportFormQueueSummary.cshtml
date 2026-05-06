@@ -1,0 +1,56 @@
+@model QueueSummaryReportParametersViewModel
+
+<form asp-controller="Reports"
+      asp-action="RunQueueSummary"
+      method="post"
+      class="report-form"
+      id="report-form-queue-summary">
+    <div class="report-form__row">
+        <div class="form-field">
+            <label asp-for="DateFrom">Дата с</label>
+            <input asp-for="DateFrom" type="date" required />
+        </div>
+        <div class="form-field">
+            <label asp-for="DateTo">Дата по</label>
+            <input asp-for="DateTo" type="date" required />
+        </div>
+        <div class="form-field">
+            <label asp-for="CabinetId">Кабинет</label>
+            <select asp-for="CabinetId">
+                <option value="">Все кабинеты</option>
+                @foreach (var opt in Model.CabinetOptions)
+                {
+                    if (Model.CabinetId == opt.Id)
+                    {
+                        <option value="@opt.Id" selected="selected">@opt.Label</option>
+                    }
+                    else
+                    {
+                        <option value="@opt.Id">@opt.Label</option>
+                    }
+                }
+            </select>
+        </div>
+        <div class="form-field">
+            <label asp-for="DoctorId">Врач</label>
+            <select asp-for="DoctorId">
+                <option value="">Все врачи</option>
+                @foreach (var opt in Model.DoctorOptions)
+                {
+                    if (Model.DoctorId == opt.Id)
+                    {
+                        <option value="@opt.Id" selected="selected">@opt.Label</option>
+                    }
+                    else
+                    {
+                        <option value="@opt.Id">@opt.Label</option>
+                    }
+                }
+            </select>
+        </div>
+    </div>
+
+    <div class="report-form__actions">
+        <button type="submit" class="btn btn-primary">Сформировать</button>
+    </div>
+</form>

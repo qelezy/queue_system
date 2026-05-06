@@ -1,12 +1,19 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
+using WebApplication.Services;
 
 namespace WebApplication.Controllers
 {
     public class AccountController : Controller
     {
         public const string PostLoginRedirectPath = "/dashboard/index";
+
+        private readonly IAuthService _authService;
+
+        public AccountController(IAuthService authService)
+        {
+            _authService = authService;
+        }
 
         [HttpGet]
         [AllowAnonymous]
@@ -27,11 +34,12 @@ namespace WebApplication.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public IActionResult Logout()
+        public async Task<IActionResult> Logout()
         {
-            Response.Cookies.Delete("accessToken");
-            Response.Cookies.Delete("refreshToken");
-            Response.Cookies.Delete("rememberMe");
+            Request.Cookies.TryGetValue(AuthCookieHelper.RefreshTokenCookieName, out var refreshFromCookie);
+            await _authService.LogoutAsync(User, refreshFromCookie);
+
+            AuthCookieHelper.DeleteAuthCookies(Response);
             return RedirectToAction(nameof(Login));
         }
 

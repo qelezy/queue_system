@@ -16,10 +16,21 @@
                 container.firstElementChild?.remove();
             }
 
-            const normalizedType = type === "success" ? "success" : "error";
+            let typeClass;
+            let role;
+            if (type === "success") {
+                typeClass = "app-toast--success";
+                role = "status";
+            } else if (type === "info") {
+                typeClass = "app-toast--info";
+                role = "status";
+            } else {
+                typeClass = "app-toast--error";
+                role = "alert";
+            }
             const toast = document.createElement("div");
-            toast.className = `app-toast ${normalizedType === "success" ? "app-toast--success" : "app-toast--error"}`;
-            toast.setAttribute("role", normalizedType === "success" ? "status" : "alert");
+            toast.className = `app-toast ${typeClass}`;
+            toast.setAttribute("role", role);
             toast.innerHTML = `
                 <span class="app-toast__text">${message}</span>
                 <button type="button" class="app-toast__close" aria-label="Закрыть уведомление">×</button>

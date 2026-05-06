@@ -1,38 +1,54 @@
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using WebApplication.Models;
+using WebApplication.Services;
 
+namespace WebApplication.Controllers;
+
+[Authorize]
 public class DashboardController : Controller
 {
+    private readonly IQueueDashboardService _queueDashboard;
+    private readonly IQueueAnalyticsService _queueAnalytics;
+    private readonly IElectronicQueueAvailability _queueAvailability;
+
+    public DashboardController(
+        IQueueDashboardService queueDashboard,
+        IQueueAnalyticsService queueAnalytics,
+        IElectronicQueueAvailability queueAvailability)
+    {
+        _queueDashboard = queueDashboard;
+        _queueAnalytics = queueAnalytics;
+        _queueAvailability = queueAvailability;
+    }
+
     [HttpGet]
-    public IActionResult Index()
+    public async Task<IActionResult> Index(
+        DateOnly? from,
+        DateOnly? to,
+        int? cabinetId,
+        int? doctorId,
+        int? categoryId,
+        bool heatmapByDoctor = false,
+        CancellationToken cancellationToken = default)
     {
         ViewData["Title"] = "Мониторинг очереди";
 
-        // В реальном проекте — из сервиса/БД
-        var model = new DashboardViewModel
+        var model = await _queueDashboard.GetDashboardAsync(cancellationToken).ConfigureAwait(false);
+
+        if (User.IsInRole("Manager") || User.IsInRole("Admin"))
         {
-            WaitingCount = 14,
-            InServiceCount = 6,
-            AvgWaitMinutes = 21,
-            AvgServiceMinutes = 17,
+            var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+            var defaultFrom = today.AddDays(-6);
+            var fromDo = from ?? defaultFrom;
+            var toDo = to ?? today;
+            model.Manager = await _queueAnalytics
+                .GetManagerAnalyticsAsync(fromDo, toDo, cabinetId, doctorId, categoryId, heatmapByDoctor, cancellationToken)
+                .ConfigureAwait(false);
+        }
 
-            // Данные для графика (последние 7 дней)
-            DailyLabels = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"],
-            DailyWaitMinutes = [24, 19, 22, 18, 21, 16, 14],
-            DailyServiceMinutes = [16, 17, 15, 18, 17, 14, 13],
-
-            // Данные для графика загрузки кабинетов
-            Cabinets = [
-                new("Каб. 101", 88),
-                new("Каб. 102", 76),
-                new("Каб. 103", 82),
-                new("Каб. 201", 91),
-                new("Каб. 202", 69),
-                new("Каб. 203", 74),
-            ],
-        };
+        var live = await _queueAvailability.CanQueryLiveDataAsync(cancellationToken).ConfigureAwait(false);
+        model.UsingElectronicQueueMockData = !live;
 
         return View(model);
     }

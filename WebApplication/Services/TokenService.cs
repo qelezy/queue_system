@@ -1,4 +1,5 @@
-﻿using Microsoft.IdentityModel.Tokens;
+﻿using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.Extensions.Options;
 using WebApplication.Dto;
 using System.IdentityModel.Tokens.Jwt;
@@ -55,12 +56,12 @@ namespace WebApplication.Services
             };
         }
 
-        private string GenerateRefreshToken()
+        private static string GenerateRefreshToken()
         {
             var randomNumber = new byte[32];
             using var rng = RandomNumberGenerator.Create();
             rng.GetBytes(randomNumber);
-            return Convert.ToBase64String(randomNumber);
+            return WebEncoders.Base64UrlEncode(randomNumber);
         }
     }
 }

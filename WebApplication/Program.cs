@@ -1,15 +1,16 @@
+using DotNetEnv;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
-using System.IdentityModel.Tokens.Jwt;
 using WebApplication.Data;
 using WebApplication.Services;
 using Scalar.AspNetCore;
 using System.Text;
 using WebApplication.Models;
+
+Env.TraversePath().Load();
 
 var builder = Microsoft.AspNetCore.Builder.WebApplication.CreateBuilder(args);
 
@@ -19,8 +20,18 @@ builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
+var userDatabaseConnection = builder.Configuration.GetConnectionString("UserDatabase")
+    ?? throw new InvalidOperationException("Строка подключения UserDatabase не задана.");
+var electronicQueueConnection = builder.Configuration.GetConnectionString("ElectronicQueue")
+    ?? throw new InvalidOperationException("Строка подключения ElectronicQueue не задана.");
+
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlServer(userDatabaseConnection));
+
+builder.Services.AddDbContext<ElectronicQueueDbContext>(options =>
+    options
+        .UseSqlServer(electronicQueueConnection)
+        .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking));
 
 builder.Services.AddIdentity<User, IdentityRole>(options =>
 {
@@ -53,6 +64,7 @@ builder.Services.AddAuthentication(options =>
         ValidateAudience = true,
         ValidAudience = builder.Configuration["AppSettings:Audience"],
         ValidateLifetime = true,
+        ClockSkew = TimeSpan.FromMinutes(5),
         IssuerSigningKey = new SymmetricSecurityKey(
             Encoding.UTF8.GetBytes(builder.Configuration["AppSettings:Token"]!)),
         ValidateIssuerSigningKey = true
@@ -70,7 +82,7 @@ builder.Services.AddAuthentication(options =>
                 return Task.CompletedTask;
             }
 
-            if (context.Request.Cookies.TryGetValue("accessToken", out var accessToken) && !string.IsNullOrWhiteSpace(accessToken))
+            if (context.Request.Cookies.TryGetValue(AuthCookieHelper.AccessTokenCookieName, out var accessToken) && !string.IsNullOrWhiteSpace(accessToken))
             {
                 context.Token = accessToken;
             }
@@ -88,14 +100,26 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IUserService,  UserService>();
 builder.Services.AddScoped<IUserProfileService, UserProfileService>();
-
-
 builder.Services.AddRouting(options =>
 {
     options.LowercaseUrls = true;
     //options.LowercaseQueryStrings = true;
 });
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("JwtOptions"));
+builder.Services.Configure<ReportsOptions>(builder.Configuration.GetSection("Reports"));
+builder.Services.Configure<MonitoringOptions>(builder.Configuration.GetSection(MonitoringOptions.SectionName));
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<IReportsCatalog, ReportsCatalog>();
+builder.Services.AddScoped<IElectronicQueueAvailability, ElectronicQueueAvailabilityService>();
+builder.Services.AddScoped<QueueDashboardService>();
+builder.Services.AddScoped<MockQueueDashboardService>();
+builder.Services.AddScoped<IQueueDashboardService, ResilientQueueDashboardService>();
+builder.Services.AddScoped<QueueAnalyticsService>();
+builder.Services.AddScoped<MockQueueAnalyticsService>();
+builder.Services.AddScoped<IQueueAnalyticsService, ResilientQueueAnalyticsService>();
+builder.Services.AddScoped<ReportGenerationService>();
+builder.Services.AddScoped<MockReportGenerationService>();
+builder.Services.AddScoped<IReportGenerationService, ResilientReportGenerationService>();
 
 var app = builder.Build();
 var jwtOptions = app.Services.GetRequiredService<IOptions<JwtOptions>>().Value;
@@ -112,35 +136,32 @@ app.UseStaticFiles();
 
 app.Use(async (context, next) =>
 {
-    const string accessTokenCookieName = "accessToken";
-    const string refreshTokenCookieName = "refreshToken";
-    const string rememberMeCookieName = "rememberMe";
-
-    if (context.Request.Cookies.TryGetValue(accessTokenCookieName, out var accessToken) &&
-        IsJwtExpired(accessToken) &&
-        context.Request.Cookies.TryGetValue(refreshTokenCookieName, out var refreshToken))
+    if (!context.Request.Cookies.TryGetValue(AuthCookieHelper.RefreshTokenCookieName, out var refreshToken) ||
+        string.IsNullOrWhiteSpace(refreshToken))
     {
-        using var scope = app.Services.CreateScope();
-        var authService = scope.ServiceProvider.GetRequiredService<IAuthService>();
-        var rememberMeEnabled = context.Request.Cookies.TryGetValue(rememberMeCookieName, out var rememberValue) &&
-                                rememberValue == "1";
-        var refreshResult = await authService.RefreshTokenByTokenAsync(refreshToken, rememberMeEnabled);
+        await next();
+        return;
+    }
 
-        if (refreshResult.Succeeded && refreshResult.Data != null)
-        {
-            var isHttps = context.Request.IsHttps;
-            context.Response.Cookies.Append(accessTokenCookieName, refreshResult.Data.AccessToken, BuildAuthCookieOptions(rememberMeEnabled ? refreshResult.Data.Expires : null, isHttps));
-            context.Response.Cookies.Append(refreshTokenCookieName, refreshResult.Data.RefreshToken, BuildAuthCookieOptions(rememberMeEnabled ? DateTime.UtcNow.AddDays(jwtOptions.RefreshRememberDays) : null, isHttps));
-            context.Response.Cookies.Append(rememberMeCookieName, rememberMeEnabled ? "1" : "0", BuildAuthCookieOptions(rememberMeEnabled ? DateTime.UtcNow.AddDays(jwtOptions.RefreshRememberDays) : null, isHttps));
+    context.Request.Cookies.TryGetValue(AuthCookieHelper.AccessTokenCookieName, out var accessToken);
+    if (!AccessTokenRefreshGate.ShouldTryRefresh(accessToken))
+    {
+        await next();
+        return;
+    }
 
-            context.Items["accessToken"] = refreshResult.Data.AccessToken;
-        }
-        else
-        {
-            context.Response.Cookies.Delete(accessTokenCookieName);
-            context.Response.Cookies.Delete(refreshTokenCookieName);
-            context.Response.Cookies.Delete(rememberMeCookieName);
-        }
+    using var scope = app.Services.CreateScope();
+    var authService = scope.ServiceProvider.GetRequiredService<IAuthService>();
+    var refreshResult = await authService.RefreshTokenByTokenAsync(refreshToken);
+
+    if (refreshResult.Succeeded && refreshResult.Data != null)
+    {
+        AuthCookieHelper.AppendAuthCookies(context.Response, refreshResult.Data, jwtOptions, context.Request.IsHttps);
+        context.Items["accessToken"] = refreshResult.Data.AccessToken;
+    }
+    else
+    {
+        AuthCookieHelper.DeleteAuthCookies(context.Response);
     }
 
     await next();
@@ -174,31 +195,3 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
-
-static bool IsJwtExpired(string token)
-{
-    if (string.IsNullOrWhiteSpace(token))
-        return true;
-
-    try
-    {
-        var jwt = new JwtSecurityTokenHandler().ReadJwtToken(token);
-        return jwt.ValidTo <= DateTime.UtcNow;
-    }
-    catch
-    {
-        return true;
-    }
-}
-
-static CookieOptions BuildAuthCookieOptions(DateTime? expiresUtc, bool isHttps)
-{
-    return new CookieOptions
-    {
-        HttpOnly = true,
-        Secure = isHttps,
-        SameSite = SameSiteMode.Lax,
-        Path = "/",
-        Expires = expiresUtc
-    };
-}

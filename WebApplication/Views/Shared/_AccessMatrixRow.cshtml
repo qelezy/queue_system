@@ -1,0 +1,41 @@
+@model AccessItemViewModel
+@{
+    var roles = ViewData["Roles"] as IReadOnlyList<AccessRoleColumn> ?? Array.Empty<AccessRoleColumn>();
+    var groupKey = ViewData["GroupKey"] as string ?? "";
+    var searchBlob = $"{Model.Title} {Model.Description}".ToLowerInvariant();
+}
+
+<tr class="access-matrix__row"
+    data-item-key="@Model.Key"
+    data-item-type="@groupKey"
+    data-search="@searchBlob">
+    <td class="access-matrix__name-cell">
+        <span class="access-matrix__name-text">
+            <span class="access-matrix__name-title">@Model.Title</span>
+            <span class="access-matrix__name-desc">@Model.Description</span>
+        </span>
+    </td>
+    @foreach (var role in roles)
+    {
+        var granted = Model.RolePermissions.TryGetValue(role.Key, out var g) && g;
+        <td class="access-matrix__role-cell">
+            @if (granted)
+            {
+                <input type="checkbox"
+                       class="access-matrix__checkbox"
+                       data-role="@role.Key"
+                       data-item="@Model.Key"
+                       checked="checked"
+                       aria-label="Доступ «@Model.Title» для роли @role.Label" />
+            }
+            else
+            {
+                <input type="checkbox"
+                       class="access-matrix__checkbox"
+                       data-role="@role.Key"
+                       data-item="@Model.Key"
+                       aria-label="Доступ «@Model.Title» для роли @role.Label" />
+            }
+        </td>
+    }
+</tr>
