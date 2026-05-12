@@ -13,10 +13,23 @@
         <tbody>
             @foreach (var row in Model.Rows)
             {
-                <tr>
-                    @foreach (var cell in row.Cells)
+                <tr class="@row.RowClass">
+                    @for (var i = 0; i < row.Cells.Count; i++)
                     {
-                        <td>@cell</td>
+                        var span = row.CellColSpans is not null && i < row.CellColSpans.Count ? row.CellColSpans[i] : 1;
+                        if (span == 0)
+                        {
+                            continue;
+                        }
+
+                        if (span > 1)
+                        {
+                            <td colspan="@span">@row.Cells[i]</td>
+                        }
+                        else
+                        {
+                            <td>@row.Cells[i]</td>
+                        }
                     }
                 </tr>
             }

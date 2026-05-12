@@ -1,17 +1,24 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
 using WebApplication.Models;
+using WebApplication.Services;
 
 namespace WebApplication.ViewComponents;
 
 public class SidebarViewComponent : ViewComponent
 {
     private readonly UserManager<User> _userManager;
+    private readonly IRolePermissionService _rolePermissionService;
+    private readonly IReportsCatalog _reportsCatalog;
 
-    public SidebarViewComponent(UserManager<User> userManager)
+    public SidebarViewComponent(
+        UserManager<User> userManager,
+        IRolePermissionService rolePermissionService,
+        IReportsCatalog reportsCatalog)
     {
         _userManager = userManager;
+        _rolePermissionService = rolePermissionService;
+        _reportsCatalog = reportsCatalog;
     }
 
     public async Task<IViewComponentResult> InvokeAsync()
@@ -24,17 +31,29 @@ public class SidebarViewComponent : ViewComponent
         string email = user?.Email ?? "";
         string fullName = BuildFullName(user);
 
+        var menuItems = new List<SidebarItem>
+        {
+            new("Dashboard/Index", "Мониторинг очереди", "/dashboard"),
+        };
+
+        if (user != null)
+        {
+            var roleName = (await _userManager.GetRolesAsync(user)).FirstOrDefault() ?? "Registrator";
+            var permissions = await _rolePermissionService.GetPermissionNamesForRoleAsync(roleName);
+            var reportIds = _reportsCatalog.GetCatalog().Select(x => x.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var canReports = permissions.Any(p => reportIds.Contains(p));
+
+            if (canReports)
+                menuItems.Add(new SidebarItem("Reports/Index", "Отчёты", "/reports"));
+
+            if (User.IsInRole("Admin"))
+                menuItems.Add(new SidebarItem("Users/Index", "Управление пользователями", "/users"));
+        }
+
         var model = new SidebarViewModel
         {
             ActiveKey = $"{controller}/{action}".ToLowerInvariant(),
-
-            MenuItems =
-            [
-                new SidebarItem("Dashboard/Index", "Мониторинг очереди", "/dashboard"),
-                new SidebarItem("Reports/Index", "Отчёты", "/reports"),
-                new SidebarItem("Users/Index", "Управление пользователями", "/users"),
-            ],
-
+            MenuItems = menuItems,
             UserEmail = email,
             UserFullName = fullName
         };

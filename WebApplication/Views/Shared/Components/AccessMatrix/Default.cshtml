@@ -1,6 +1,6 @@
 @model AccessSettingsViewModel
 
-<div id="access-matrix-root" class="access-matrix" aria-label="Настройка прав по ролям">
+<div id="access-matrix-root" class="access-matrix" aria-label="Настройка прав по ролям" data-save-matrix-url="@Model.SaveMatrixUrl">
     <div class="access-matrix__groups">
         @foreach (var group in Model.Groups)
         {

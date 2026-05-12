@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using WebApplication.Models;
 using WebApplication.Services;
@@ -21,15 +22,21 @@ public class ReportsController : Controller
     private readonly IReportsCatalog _catalog;
     private readonly IReportGenerationService _generation;
     private readonly IElectronicQueueAvailability _queueAvailability;
+    private readonly UserManager<User> _userManager;
+    private readonly IRolePermissionService _rolePermissionService;
 
     public ReportsController(
         IReportsCatalog catalog,
         IReportGenerationService generation,
-        IElectronicQueueAvailability queueAvailability)
+        IElectronicQueueAvailability queueAvailability,
+        UserManager<User> userManager,
+        IRolePermissionService rolePermissionService)
     {
         _catalog = catalog;
         _generation = generation;
         _queueAvailability = queueAvailability;
+        _userManager = userManager;
+        _rolePermissionService = rolePermissionService;
     }
 
     [HttpGet]
@@ -45,7 +52,9 @@ public class ReportsController : Controller
 
         var live = await _queueAvailability.CanQueryLiveDataAsync(cancellationToken).ConfigureAwait(false);
 
-        var catalog = _catalog.GetCatalog();
+        var permissionNames = await GetPermissionNamesAsync(cancellationToken).ConfigureAwait(false);
+        var fullCatalog = _catalog.GetCatalog();
+        var catalog = FilterCatalog(fullCatalog, permissionNames);
         var selectedId = NormalizeSelected(selected, catalog);
 
         var lastResult = TryConsumeResultFromTempData();
@@ -62,7 +71,7 @@ public class ReportsController : Controller
         var hub = new ReportsHubViewModel
         {
             Catalog = catalog,
-            CatalogByCategory = _catalog.GetCatalogByCategory(),
+            CatalogByCategory = FilterCatalogByCategory(_catalog.GetCatalogByCategory(), permissionNames),
             SelectedReportId = selectedId,
             LastResult = lastResult,
             ToolbarDateFrom = queueParams.DateFrom,
@@ -87,6 +96,9 @@ public class ReportsController : Controller
         QueueSummaryReportParametersViewModel model,
         CancellationToken cancellationToken)
     {
+        if (!await CanAccessReportAsync(ReportIds.QueueSummary, cancellationToken).ConfigureAwait(false))
+            return Forbid();
+
         await _queueAvailability.CanQueryLiveDataAsync(cancellationToken).ConfigureAwait(false);
         FillSelectOptions(model);
         if (!ModelState.IsValid)
@@ -110,6 +122,9 @@ public class ReportsController : Controller
         CabinetLoadReportParametersViewModel model,
         CancellationToken cancellationToken)
     {
+        if (!await CanAccessReportAsync(ReportIds.CabinetLoad, cancellationToken).ConfigureAwait(false))
+            return Forbid();
+
         await _queueAvailability.CanQueryLiveDataAsync(cancellationToken).ConfigureAwait(false);
         if (!ModelState.IsValid)
             return await InvalidCabinetLoad(model, cancellationToken).ConfigureAwait(false);
@@ -132,6 +147,9 @@ public class ReportsController : Controller
         if (!_catalog.TryGetItem(reportId, out _))
             return NotFound();
 
+        if (!await CanAccessReportAsync(reportId, cancellationToken).ConfigureAwait(false))
+            return Forbid();
+
         await _queueAvailability.CanQueryLiveDataAsync(cancellationToken).ConfigureAwait(false);
         var bytes = _generation.BuildMockCsv(reportId);
         var fileName = $"{reportId.Trim().ToLowerInvariant()}.csv";
@@ -150,6 +168,9 @@ public class ReportsController : Controller
         if (!_catalog.TryGetItem(request.ReportId, out _))
             return NotFound(new ReportGenerateResponse { Success = false, Message = "Отчет не найден." });
 
+        if (!await CanAccessReportAsync(request.ReportId, cancellationToken).ConfigureAwait(false))
+            return Json(new ReportGenerateResponse { Success = false, Message = "Нет доступа к этому отчёту." });
+
         var result = _generation.Generate(request);
         return Json(result);
     }
@@ -166,8 +187,54 @@ public class ReportsController : Controller
         if (!_catalog.TryGetItem(request.ReportId, out _))
             return NotFound();
 
+        if (!await CanAccessReportAsync(request.ReportId, cancellationToken).ConfigureAwait(false))
+            return Forbid();
+
         var built = _generation.BuildExport(request);
         return File(built.Bytes, built.ContentType, built.FileName);
+    }
+
+    private async Task<HashSet<string>> GetPermissionNamesAsync(CancellationToken cancellationToken)
+    {
+        var user = await _userManager.GetUserAsync(User).ConfigureAwait(false);
+        var roleName = user is null
+            ? "Registrator"
+            : (await _userManager.GetRolesAsync(user).ConfigureAwait(false)).FirstOrDefault() ?? "Registrator";
+        return await _rolePermissionService.GetPermissionNamesForRoleAsync(roleName, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task<bool> CanAccessReportAsync(string reportId, CancellationToken cancellationToken)
+    {
+        var perms = await GetPermissionNamesAsync(cancellationToken).ConfigureAwait(false);
+        return perms.Contains(reportId);
+    }
+
+    private static List<ReportCatalogItemViewModel> FilterCatalog(
+        IReadOnlyList<ReportCatalogItemViewModel> full,
+        HashSet<string> permissionNames) =>
+        full.Where(x => permissionNames.Contains(x.Id)).ToList();
+
+    private static List<ReportCategoryViewModel> FilterCatalogByCategory(
+        IReadOnlyList<ReportCategoryViewModel> full,
+        HashSet<string> permissionNames)
+    {
+        var result = new List<ReportCategoryViewModel>();
+        foreach (var c in full)
+        {
+            var items = c.Items.Where(x => permissionNames.Contains(x.Id)).ToList();
+            if (items.Count > 0)
+            {
+                result.Add(new ReportCategoryViewModel
+                {
+                    Id = c.Id,
+                    Title = c.Title,
+                    Items = items
+                });
+            }
+        }
+
+        return result;
     }
 
     private async Task<IActionResult> InvalidQueueSummary(
@@ -176,12 +243,14 @@ public class ReportsController : Controller
     {
         ViewData["Title"] = "Отчёты";
         var live = await _queueAvailability.CanQueryLiveDataAsync(cancellationToken).ConfigureAwait(false);
-        var catalog = _catalog.GetCatalog();
+        var permissionNames = await GetPermissionNamesAsync(cancellationToken).ConfigureAwait(false);
+        var fullCatalog = _catalog.GetCatalog();
+        var catalog = FilterCatalog(fullCatalog, permissionNames);
         FillSelectOptions(model);
         var hub = new ReportsHubViewModel
         {
             Catalog = catalog,
-            CatalogByCategory = _catalog.GetCatalogByCategory(),
+            CatalogByCategory = FilterCatalogByCategory(_catalog.GetCatalogByCategory(), permissionNames),
             SelectedReportId = ReportIds.QueueSummary,
             LastResult = null,
             ToolbarDateFrom = model.DateFrom,
@@ -205,11 +274,13 @@ public class ReportsController : Controller
     {
         ViewData["Title"] = "Отчёты";
         var live = await _queueAvailability.CanQueryLiveDataAsync(cancellationToken).ConfigureAwait(false);
-        var catalog = _catalog.GetCatalog();
+        var permissionNames = await GetPermissionNamesAsync(cancellationToken).ConfigureAwait(false);
+        var fullCatalog = _catalog.GetCatalog();
+        var catalog = FilterCatalog(fullCatalog, permissionNames);
         var hub = new ReportsHubViewModel
         {
             Catalog = catalog,
-            CatalogByCategory = _catalog.GetCatalogByCategory(),
+            CatalogByCategory = FilterCatalogByCategory(_catalog.GetCatalogByCategory(), permissionNames),
             SelectedReportId = ReportIds.CabinetLoad,
             LastResult = null,
             QueueSummaryParams = CreateDefaultQueueSummaryParams(DateTime.UtcNow.Date),
@@ -253,6 +324,7 @@ public class ReportsController : Controller
         {
             (fromDate, toDate) = (toDate, fromDate);
         }
+
         return (fromDate.Date, toDate.Date);
     }
 
@@ -287,13 +359,14 @@ public class ReportsController : Controller
         };
     }
 
-    private string? NormalizeSelected(string? selected, IReadOnlyList<ReportCatalogItemViewModel> catalog)
+    private static string? NormalizeSelected(string? selected, IReadOnlyList<ReportCatalogItemViewModel> catalog)
     {
         if (catalog.Count == 0)
             return null;
 
-        if (!string.IsNullOrWhiteSpace(selected) && _catalog.TryGetItem(selected, out _))
-            return catalog.First(x => string.Equals(x.Id, selected.Trim(), StringComparison.OrdinalIgnoreCase)).Id;
+        if (!string.IsNullOrWhiteSpace(selected) &&
+            catalog.FirstOrDefault(x => string.Equals(x.Id, selected.Trim(), StringComparison.OrdinalIgnoreCase)) is { } match)
+            return match.Id;
 
         return null;
     }

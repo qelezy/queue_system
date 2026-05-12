@@ -4,16 +4,19 @@ using Microsoft.EntityFrameworkCore;
 using WebApplication.Data;
 using WebApplication.Models;
 using WebApplication.Models.ElectronicQueueProf;
+using WebApplication.Services.Reports;
 
 namespace WebApplication.Services;
 
 public sealed class ReportGenerationService : IReportGenerationService
 {
     private readonly ElectronicQueueDbContext _queue;
+    private readonly ReportGeneratorRegistry _reportGenerators;
 
-    public ReportGenerationService(ElectronicQueueDbContext queue)
+    public ReportGenerationService(ElectronicQueueDbContext queue, ReportGeneratorRegistry reportGenerators)
     {
         _queue = queue;
+        _reportGenerators = reportGenerators;
     }
 
     public IReadOnlyList<ReportSelectOption> GetCabinetOptions() =>
@@ -41,6 +44,9 @@ public sealed class ReportGenerationService : IReportGenerationService
     public ReportGenerateResponse Generate(ReportGenerateRequest request)
     {
         var reportId = request.ReportId?.Trim() ?? "";
+        if (_reportGenerators.TryGenerate(reportId, request, _queue, out var fromRegistry) && fromRegistry is not null)
+            return fromRegistry;
+
         if (string.Equals(reportId, ReportIds.QueueSummary, StringComparison.OrdinalIgnoreCase))
         {
             var model = new QueueSummaryReportParametersViewModel
@@ -277,6 +283,23 @@ public sealed class ReportGenerationService : IReportGenerationService
                 WeekStart = DateTime.UtcNow.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
             };
             return ToCsvBytes(GenerateCabinetLoad(p));
+        }
+
+        if (string.Equals(reportId, ReportIds.DoctorCabinetLoadDowntime, StringComparison.OrdinalIgnoreCase))
+        {
+            var p = new ReportGenerateRequest
+            {
+                ReportId = ReportIds.DoctorCabinetLoadDowntime,
+                DateFrom = DateTime.UtcNow.AddDays(-7).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
+                DateTo = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
+                CustomParams = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["analysisMode"] = "doctor"
+                }
+            };
+            if (_reportGenerators.TryGenerate(ReportIds.DoctorCabinetLoadDowntime, p, _queue, out var resp)
+                && resp?.Result is not null)
+                return ToCsvBytes(resp.Result);
         }
 
         return Encoding.UTF8.GetBytes("reportId;status\nunknown;not_found\n");

@@ -1,5 +1,6 @@
 using DotNetEnv;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -9,6 +10,8 @@ using WebApplication.Services;
 using Scalar.AspNetCore;
 using System.Text;
 using WebApplication.Models;
+using WebApplication.Services.Reports;
+using WebApplication.Services.Reports.LoadAndDowntime;
 
 Env.TraversePath().Load();
 
@@ -93,6 +96,10 @@ builder.Services.AddAuthentication(options =>
 });
 
 builder.Services.AddControllersWithViews();
+builder.Services.Configure<AntiforgeryOptions>(o =>
+{
+    o.HeaderName = "RequestVerificationToken";
+});
 
 builder.Services.AddScoped<IPasswordGeneratorService, PasswordGeneratorService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -114,12 +121,12 @@ builder.Services.AddScoped<IElectronicQueueAvailability, ElectronicQueueAvailabi
 builder.Services.AddScoped<QueueDashboardService>();
 builder.Services.AddScoped<MockQueueDashboardService>();
 builder.Services.AddScoped<IQueueDashboardService, ResilientQueueDashboardService>();
-builder.Services.AddScoped<QueueAnalyticsService>();
-builder.Services.AddScoped<MockQueueAnalyticsService>();
-builder.Services.AddScoped<IQueueAnalyticsService, ResilientQueueAnalyticsService>();
+builder.Services.AddScoped<IReportGenerator, LoadAndDowntimeReportGenerator>();
+builder.Services.AddScoped<ReportGeneratorRegistry>();
 builder.Services.AddScoped<ReportGenerationService>();
 builder.Services.AddScoped<MockReportGenerationService>();
 builder.Services.AddScoped<IReportGenerationService, ResilientReportGenerationService>();
+builder.Services.AddScoped<IRolePermissionService, RolePermissionService>();
 
 var app = builder.Build();
 var jwtOptions = app.Services.GetRequiredService<IOptions<JwtOptions>>().Value;
@@ -192,6 +199,9 @@ using (var scope = app.Services.CreateScope())
             await roleManager.CreateAsync(new IdentityRole(role));
         }
     }
+
+    var permissionService = scope.ServiceProvider.GetRequiredService<IRolePermissionService>();
+    await permissionService.SyncPermissionsAndSeedDefaultsAsync();
 }
 
 app.Run();

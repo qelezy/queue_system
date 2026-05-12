@@ -1,0 +1,91 @@
+@model ReportsHubViewModel
+
+@{
+    string AsDateTimeLocal(string? v)
+    {
+        if (string.IsNullOrWhiteSpace(v))
+            return "";
+        if (DateTime.TryParse(v, out var dt))
+            return dt.ToString("yyyy-MM-ddTHH:mm");
+        return v!;
+    }
+
+    const string modalId = "report-workflow-modal";
+}
+
+<div id="@modalId"
+     class="app-modal report-workflow-modal"
+     aria-hidden="true">
+    <div class="app-modal__overlay" data-modal-close="@modalId"></div>
+    <div class="app-modal__dialog report-workflow-modal__dialog report-preview-modal__dialog"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="report-workflow-title"
+         tabindex="-1">
+        <div class="app-modal__body report-preview-modal__body">
+            <section class="register-panel report-workflow-modal__panel report-preview-modal__panel">
+                <header class="register-panel-head">
+                    <div class="report-workflow-modal__head-text">
+                        <h2 class="register-panel-title" id="report-workflow-title">Отчёт</h2>
+                        <p class="report-workflow-modal__subtitle is-empty" id="report-workflow-subtitle" aria-live="polite"></p>
+                    </div>
+                    <button type="button"
+                            class="register-panel-close"
+                            aria-label="Закрыть"
+                            data-modal-close="@modalId">
+                        ×
+                    </button>
+                </header>
+
+                <div class="report-workflow-modal__content">
+                    <div class="report-workflow-modal__pane report-workflow-modal__pane--params">
+                        <form id="reports-generate-form" class="manager-filters report-workflow-modal__form">
+                            @Html.AntiForgeryToken()
+                            <div class="report-workflow-modal__params-fields">
+                                <div class="manager-filters__row report-workflow-modal__period-row">
+                                    <label class="form-field">
+                                        <span class="form-field__label">С</span>
+                                        <input class="form-input" type="datetime-local" name="periodFrom" value="@AsDateTimeLocal(Model.ToolbarDateFrom)" required />
+                                    </label>
+                                    <label class="form-field">
+                                        <span class="form-field__label">По</span>
+                                        <input class="form-input" type="datetime-local" name="periodTo" value="@AsDateTimeLocal(Model.ToolbarDateTo)" required />
+                                    </label>
+                                    <div id="report-custom-fields" class="report-workflow-modal__custom-fields"></div>
+                                </div>
+                                <p class="report-workflow-modal__status is-empty" id="report-generate-status" role="status"></p>
+                            </div>
+                            <div class="report-workflow-modal__actions-row">
+                                <button type="button" id="report-generate-btn" class="btn btn-primary">Сформировать</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="report-workflow-modal__pane report-workflow-modal__pane--preview">
+                        <div class="report-preview-modal__table-wrap" id="report-preview-content">
+                            <p class="report-params__empty">Нет данных для предпросмотра.</p>
+                        </div>
+                        <div class="report-preview-modal__actions report-workflow-modal__preview-actions">
+                            <button type="button" class="report-preview-modal__back-link" id="report-back-to-params">
+                                <i class="bi bi-arrow-left" aria-hidden="true"></i><span class="report-preview-modal__back-link-label">К параметрам</span>
+                            </button>
+                            <button type="button" class="btn btn-primary report-preview-modal__save-btn" id="report-save-as">Сохранить</button>
+                        </div>
+                        <dialog id="report-export-fallback-dialog" class="report-export-fallback-dialog" aria-labelledby="report-export-fallback-title">
+                            <div class="report-export-fallback-dialog__panel">
+                                <h3 class="report-export-fallback-dialog__title" id="report-export-fallback-title">Формат файла</h3>
+                                <p class="report-export-fallback-dialog__hint">В этом браузере нет выбора папки — файл будет сохранён в «Загрузки».</p>
+                                <div class="report-export-fallback-dialog__formats">
+                                    <button type="button" class="btn btn-primary" data-export-fallback-format="csv">CSV</button>
+                                    <button type="button" class="btn btn-primary" data-export-fallback-format="xlsx">XLSX</button>
+                                    <button type="button" class="btn btn-primary" data-export-fallback-format="pdf">PDF</button>
+                                </div>
+                                <button type="button" class="btn btn-secondary report-export-fallback-dialog__cancel" data-export-fallback-cancel>Отмена</button>
+                            </div>
+                        </dialog>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>

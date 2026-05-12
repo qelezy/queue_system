@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -62,6 +63,17 @@ namespace WebApplication.Controllers
         [HttpDelete("{id}")]
         public async Task<ActionResult> Delete(string id)
         {
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!string.IsNullOrEmpty(currentUserId) &&
+                string.Equals(currentUserId, id, StringComparison.Ordinal))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    errors = new[] { "Нельзя удалить собственную учётную запись." }
+                });
+            }
+
             var result = await _userService.DeleteAsync(id);
             if (!result.Succeeded)
                 return BadRequest(new { success = false, errors = result.Errors });

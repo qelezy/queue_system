@@ -24,6 +24,83 @@
     let sortDirection = "asc";
     let currentPage = 1;
 
+    const pendingDelete = { timer: null, button: null };
+
+    function resetDeleteButton(btn) {
+        if (!(btn instanceof HTMLElement)) return;
+        btn.classList.remove("delete-btn--confirm");
+        btn.innerHTML = '<i class="bi bi-trash" aria-hidden="true"></i>';
+        btn.title = "Удалить";
+        btn.setAttribute("aria-label", "Удалить пользователя");
+    }
+
+    function cancelPendingDelete() {
+        if (pendingDelete.timer != null) {
+            clearTimeout(pendingDelete.timer);
+            pendingDelete.timer = null;
+        }
+        if (pendingDelete.button) {
+            resetDeleteButton(pendingDelete.button);
+            pendingDelete.button = null;
+        }
+    }
+
+    function armDeleteConfirm(btn) {
+        cancelPendingDelete();
+        pendingDelete.button = btn;
+        btn.classList.add("delete-btn--confirm");
+        btn.innerHTML = '<i class="bi bi-check-lg" aria-hidden="true"></i>';
+        btn.title = "Нажмите ещё раз для удаления";
+        btn.setAttribute("aria-label", "Подтвердить удаление пользователя");
+        pendingDelete.timer = window.setTimeout(() => {
+            pendingDelete.timer = null;
+            if (pendingDelete.button === btn) {
+                resetDeleteButton(btn);
+                pendingDelete.button = null;
+            }
+        }, 2000);
+    }
+
+    async function executeDelete(id, btn) {
+        const trimmed = (id || "").trim();
+        if (!trimmed || !(btn instanceof HTMLElement)) return;
+
+        if (pendingDelete.timer != null) {
+            clearTimeout(pendingDelete.timer);
+            pendingDelete.timer = null;
+        }
+        pendingDelete.button = null;
+
+        const toastManager = window.AppToasts?.getManager("global-toast-stack");
+        btn.disabled = true;
+
+        try {
+            const response = await fetch(`/api/user/${encodeURIComponent(trimmed)}`, { method: "DELETE" });
+            const result = await response.json().catch(() => ({}));
+            if (response.ok && result.success) {
+                const row = Array.from(document.querySelectorAll(".users-table tbody tr[data-user-id]")).find(
+                    (r) => r.getAttribute("data-user-id") === trimmed
+                );
+                if (row instanceof HTMLTableRowElement) {
+                    row.remove();
+                }
+                applyFilters();
+                toastManager?.show(result.message || "Пользователь удалён.", "success");
+                return;
+            }
+
+            const errors = Array.isArray(result.errors) ? result.errors.join("\n") : "";
+            toastManager?.show((result.message || "Не удалось удалить пользователя.") + (errors ? "\n" + errors : ""), "error");
+            resetDeleteButton(btn);
+        } catch (err) {
+            console.error(err);
+            toastManager?.show("Сетевая ошибка при удалении пользователя.", "error");
+            resetDeleteButton(btn);
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
     function getFirstFocusableInModal(modalKey) {
         return modals[modalKey]?.querySelector("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])");
     }
@@ -267,8 +344,27 @@
         openModal("edit");
     }
 
-    function remove(id) {
-        console.log("Delete user", id);
+    function handleDeleteButtonClick(event) {
+        const btn = event.target instanceof Element ? event.target.closest("button.delete-btn") : null;
+        if (!(btn instanceof HTMLButtonElement) || !tableBody || !tableBody.contains(btn)) return;
+        if (btn.disabled) return;
+
+        const row = btn.closest("tr[data-user-id]");
+        if (!(row instanceof HTMLTableRowElement)) return;
+        const id = row.getAttribute("data-user-id") || "";
+
+        if (btn.classList.contains("delete-btn--confirm")) {
+            event.preventDefault();
+            void executeDelete(id, btn);
+            return;
+        }
+
+        event.preventDefault();
+        armDeleteConfirm(btn);
+    }
+
+    if (tableBody) {
+        tableBody.addEventListener("click", handleDeleteButtonClick);
     }
 
     document.addEventListener("click", (event) => {
@@ -286,8 +382,11 @@
     });
 
     document.addEventListener("keydown", (event) => {
-        if (event.key === "Escape" && activeModalKey) {
-            closeModal(activeModalKey);
+        if (event.key === "Escape") {
+            cancelPendingDelete();
+            if (activeModalKey) {
+                closeModal(activeModalKey);
+            }
         }
     });
 
@@ -299,8 +398,7 @@
         filterByRole,
         goToPage,
         sortBy,
-        openEdit,
-        delete: remove
+        openEdit
     };
 
     setModalHiddenState("register", true);

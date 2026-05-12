@@ -1,5 +1,5 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using WebApplication.Data;
 using WebApplication.Models;
 using WebApplication.Models.ElectronicQueueProf;
@@ -12,18 +12,12 @@ namespace WebApplication.Services;
 public sealed class QueueDashboardService : IQueueDashboardService
 {
     private readonly ElectronicQueueDbContext _queue;
-    private readonly MonitoringOptions _opt;
 
-    public QueueDashboardService(ElectronicQueueDbContext queue, IOptions<MonitoringOptions> options)
-    {
-        _queue = queue;
-        _opt = options.Value;
-    }
+    public QueueDashboardService(ElectronicQueueDbContext queue) => _queue = queue;
 
     public async Task<DashboardViewModel> GetDashboardAsync(CancellationToken cancellationToken = default)
     {
-        var today = DateTime.UtcNow.Date;
-        var todayDo = DateOnly.FromDateTime(today);
+        var todayDo = DateOnly.FromDateTime(DateTime.UtcNow.Date);
         var now = DateTime.UtcNow;
 
         var waitingCount = await (
@@ -56,6 +50,25 @@ public sealed class QueueDashboardService : IQueueDashboardService
             }
         ).ToListAsync(cancellationToken).ConfigureAwait(false);
 
+        var acceptedTodayCount = completedToday.Count;
+
+        var statusRows = await _queue.StatusItemLists.AsNoTracking()
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var noShowStatusIds = statusRows
+            .Where(s => QueueDashboardStatusMapper.IsNoShowStatusName(s.Name))
+            .Select(s => s.IdStatusItem)
+            .ToHashSet();
+
+        var noShowTodayCount = noShowStatusIds.Count == 0
+            ? 0
+            : await (
+                from a in _queue.Appointments.AsNoTracking()
+                join li in _queue.ListItems.AsNoTracking() on a.IdAppointment equals li.IdAppointment
+                where a.DateArrival == todayDo && noShowStatusIds.Contains(li.IdStatusItem)
+                select a.IdAppointment
+            ).Distinct().CountAsync(cancellationToken).ConfigureAwait(false);
+
         var avgWait = completedToday.Count == 0
             ? 0
             : (int)Math.Round(completedToday.Average(x => WaitBeforeServiceMinutes(x.DateArrival, x.TimeArrival, x.Call)));
@@ -69,124 +82,47 @@ public sealed class QueueDashboardService : IQueueDashboardService
             ? 0
             : (int)Math.Round(completedToday.Max(x => ServiceMinutes(x.DateArrival, x.Start, x.End)));
 
-        var hourlyLabels = new List<string>();
-        var hourlyWait = new List<int>();
-        var hourlyService = new List<int>();
-        for (var h = _opt.WorkdayStartHour; h < _opt.WorkdayEndHour; h++)
-        {
-            hourlyLabels.Add($"{h}:00");
-            var bucket = completedToday.Where(x => x.Call.Hour == h).ToList();
-            hourlyWait.Add(bucket.Count == 0
-                ? 0
-                : (int)Math.Round(bucket.Average(x => WaitBeforeServiceMinutes(x.DateArrival, x.TimeArrival, x.Call))));
-            hourlyService.Add(bucket.Count == 0
-                ? 0
-                : (int)Math.Round(bucket.Average(x => ServiceMinutes(x.DateArrival, x.Start, x.End))));
-        }
-
-        var workdayMinutes = Math.Max(1, (_opt.WorkdayEndHour - _opt.WorkdayStartHour) * 60);
-
-        var cabCompletedFixed = await GetLoadAggregatesTodayAsync(todayDo, byDoctor: false, cancellationToken).ConfigureAwait(false);
-        var docCompletedFixed = await GetLoadAggregatesTodayAsync(todayDo, byDoctor: true, cancellationToken).ConfigureAwait(false);
-
-        var cabinetsDb = await _queue.Cabinets.AsNoTracking().OrderBy(c => c.CabinetNumber).ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
         var doctorsDb = await _queue.Doctors.AsNoTracking().OrderBy(d => d.FullName).ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        var cabDict = cabCompletedFixed.ToDictionary(x => x.Id, x => x);
-        var cabLabels = new List<string>();
-        var cabDone = new List<int>();
-        var cabBusy = new List<int>();
-        foreach (var c in cabinetsDb)
-        {
-            var x = cabDict.GetValueOrDefault(c.IdCabinet);
-            var sum = x?.ServiceSumMin ?? 0;
-            var cnt = x?.Completed ?? 0;
-            cabLabels.Add($"Каб. {c.CabinetNumber}");
-            cabDone.Add(cnt);
-            cabBusy.Add((int)Math.Min(100, Math.Round(sum * 100.0 / workdayMinutes)));
-        }
-
-        var docDict = docCompletedFixed.ToDictionary(x => x.Id, x => x);
-        var docLabels = new List<string>();
-        var docDone = new List<int>();
-        var docBusy = new List<int>();
-        foreach (var d in doctorsDb.Where(x => x.IdDoctor > 0))
-        {
-            var x = docDict.GetValueOrDefault(d.IdDoctor);
-            var sum = x?.ServiceSumMin ?? 0;
-            var cnt = x?.Completed ?? 0;
-            docLabels.Add(d.FullName);
-            docDone.Add(cnt);
-            docBusy.Add((int)Math.Min(100, Math.Round(sum * 100.0 / workdayMinutes)));
-        }
-
-        var activeQueue = await BuildActiveQueueAsync(now, cancellationToken).ConfigureAwait(false);
+        var open = await LoadOpenAppointmentsAsync(cancellationToken).ConfigureAwait(false);
+        var activeQueue = BuildActiveQueueFromOpen(open, now);
+        var doctorLoadCards = BuildDoctorLoadCards(open, now, doctorsDb);
 
         return new DashboardViewModel
         {
             WaitingCount = waitingCount,
             InServiceCount = inServiceCount,
+            AcceptedTodayCount = acceptedTodayCount,
+            NoShowTodayCount = noShowTodayCount,
             AvgWaitMinutes = avgWait,
             MaxWaitMinutes = maxWait,
             AvgServiceMinutes = avgService,
             MaxServiceMinutes = maxService,
-            HourlyLabels = hourlyLabels,
-            HourlyWaitMinutes = hourlyWait,
-            HourlyServiceMinutes = hourlyService,
-            CabinetLoadLabels = cabLabels,
-            CabinetCompletedToday = cabDone,
-            CabinetBusyPercent = cabBusy,
-            DoctorLoadLabels = docLabels,
-            DoctorCompletedToday = docDone,
-            DoctorBusyPercent = docBusy,
-            ActiveQueue = activeQueue
+            ActiveQueue = activeQueue,
+            DoctorLoadCards = doctorLoadCards
         };
     }
 
-    private sealed record LoadAgg(int Id, int Completed, double ServiceSumMin);
-
-    private async Task<List<LoadAgg>> GetLoadAggregatesTodayAsync(DateOnly todayDo, bool byDoctor, CancellationToken cancellationToken)
-    {
-        var raw = await (
-            from li in _queue.ListItems.AsNoTracking()
-            join a in _queue.Appointments.AsNoTracking() on li.IdAppointment equals a.IdAppointment
-            where a.DateArrival == todayDo
-                  && li.TimeCall != null && li.TimeStartServicing != null && li.TimeEndServicing != null
-            select new
-            {
-                li.IdCabinet,
-                li.IdDoctor,
-                a.DateArrival,
-                Start = li.TimeStartServicing!.Value,
-                End = li.TimeEndServicing!.Value
-            }
-        ).ToListAsync(cancellationToken).ConfigureAwait(false);
-
-        var groups = byDoctor
-            ? raw.GroupBy(x => x.IdDoctor)
-            : raw.GroupBy(x => x.IdCabinet);
-
-        return groups.Select(g => new LoadAgg(
-            g.Key,
-            g.Count(),
-            g.Sum(x => (EqDateTimeExtensions.CombineOnArrivalDate(x.DateArrival, x.End)
-                        - EqDateTimeExtensions.CombineOnArrivalDate(x.DateArrival, x.Start)).TotalMinutes))).ToList();
-    }
-
-    private async Task<IReadOnlyList<DashboardQueueRowViewModel>> BuildActiveQueueAsync(DateTime nowUtc, CancellationToken cancellationToken)
-    {
-        var open = await _queue.Appointments.AsNoTracking()
+    private async Task<List<EqAppointment>> LoadOpenAppointmentsAsync(CancellationToken cancellationToken) =>
+        await _queue.Appointments.AsNoTracking()
             .Where(a => a.TimeComplete == null)
             .Include(a => a.ListItems)
             .ThenInclude(li => li.Cabinet)
             .Include(a => a.ListItems)
             .ThenInclude(li => li.Doctor)
+            .Include(a => a.ListItems)
+            .ThenInclude(li => li.Specialty)
+            .Include(a => a.ListItems)
+            .ThenInclude(li => li.StatusItem)
             .Include(a => a.Category)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
+    private static IReadOnlyList<DashboardQueueRowViewModel> BuildActiveQueueFromOpen(
+        IReadOnlyList<EqAppointment> open,
+        DateTime nowUtc)
+    {
         var rows = new List<DashboardQueueRowViewModel>();
         foreach (var a in open)
         {
@@ -209,17 +145,24 @@ public sealed class QueueDashboardService : IQueueDashboardService
 
             var cab = current.Cabinet != null ? $"Каб. {current.Cabinet.CabinetNumber}" : "—";
             var doc = current.Doctor != null && current.IdDoctor > 0 ? current.Doctor.FullName : "—";
+            var spec = string.IsNullOrWhiteSpace(current.Specialty?.Definition)
+                ? "—"
+                : current.Specialty!.Definition.Trim();
+            var (statusLabel, statusCode) = QueueDashboardStatusMapper.ResolveForCurrentStep(current);
 
             rows.Add(new DashboardQueueRowViewModel
             {
                 IdAppointment = a.IdAppointment,
-                Patient = string.IsNullOrWhiteSpace(a.Info) ? $"Талон #{a.IdAppointment}" : a.Info.Trim(),
-                PriorityDisplay = $"Талон: {a.Priority}, кат.: {a.Category?.Priority ?? 0} ({a.Category?.Name ?? "—"})",
+                Patient = string.IsNullOrWhiteSpace(a.Info) ? $"Запись №{a.IdAppointment}" : a.Info.Trim(),
                 TicketPriority = a.Priority,
                 CategoryPriority = a.Category?.Priority ?? 0,
                 WaitingMinutes = waitMin,
                 CurrentCabinet = cab,
-                CurrentDoctor = doc
+                CurrentDoctor = doc,
+                Specialty = spec,
+                ArrivalTime = a.TimeArrival.ToString("HH:mm", CultureInfo.InvariantCulture),
+                StatusLabel = statusLabel,
+                StatusCode = statusCode
             });
         }
 
@@ -232,6 +175,128 @@ public sealed class QueueDashboardService : IQueueDashboardService
         });
 
         return rows;
+    }
+
+    private static IReadOnlyList<DoctorLoadCardViewModel> BuildDoctorLoadCards(
+        IReadOnlyList<EqAppointment> open,
+        DateTime nowUtc,
+        IReadOnlyList<EqDoctor> doctorsOrdered)
+    {
+        var cards = new List<DoctorLoadCardViewModel>();
+        foreach (var doc in doctorsOrdered.Where(d => d.IdDoctor > 0))
+        {
+            EqListItem? inServiceLi = null;
+            EqAppointment? inServiceAppt = null;
+            foreach (var a in open)
+            {
+                foreach (var li in a.ListItems)
+                {
+                    if (li.IdDoctor != doc.IdDoctor)
+                        continue;
+                    if (li.TimeStartServicing.HasValue && !li.TimeEndServicing.HasValue)
+                    {
+                        if (inServiceLi == null || li.IdListItem < inServiceLi.IdListItem)
+                        {
+                            inServiceLi = li;
+                            inServiceAppt = a;
+                        }
+                    }
+                }
+            }
+
+            var queueLen = 0;
+            foreach (var a in open)
+            {
+                foreach (var li in a.ListItems)
+                {
+                    if (li.IdDoctor != doc.IdDoctor || li.TimeEndServicing.HasValue)
+                        continue;
+                    if (inServiceLi != null && li.IdListItem == inServiceLi.IdListItem)
+                        continue;
+                    var (_, code) = QueueDashboardStatusMapper.ResolveForCurrentStep(li);
+                    if (QueueDashboardStatusMapper.IsWaitingOrCalledCode(code))
+                        queueLen++;
+                }
+            }
+
+            var isInService = inServiceLi != null;
+            if (!isInService && queueLen == 0)
+                continue;
+
+            int? currentMin = null;
+            int? normMin = null;
+            if (inServiceLi != null && inServiceAppt != null)
+            {
+                var startDt = EqDateTimeExtensions.CombineOnArrivalDate(
+                    inServiceAppt.DateArrival,
+                    inServiceLi.TimeStartServicing!.Value);
+                currentMin = (int)Math.Max(0, Math.Round((nowUtc - startDt).TotalMinutes));
+                var n = inServiceLi.Specialty?.TimeServicing ?? 0;
+                normMin = n > 0 ? n : null;
+            }
+
+            var specialtyDisplay = "—";
+            if (inServiceLi?.Specialty?.Definition is { } def1 && !string.IsNullOrWhiteSpace(def1))
+                specialtyDisplay = def1.Trim();
+            else
+            {
+                foreach (var a in open)
+                {
+                    foreach (var li in a.ListItems.OrderBy(x => x.IdListItem))
+                    {
+                        if (li.IdDoctor != doc.IdDoctor || li.TimeEndServicing.HasValue)
+                            continue;
+                        if (inServiceLi != null && li.IdListItem == inServiceLi.IdListItem)
+                            continue;
+                        var (_, code) = QueueDashboardStatusMapper.ResolveForCurrentStep(li);
+                        if (!QueueDashboardStatusMapper.IsWaitingOrCalledCode(code))
+                            continue;
+                        if (!string.IsNullOrWhiteSpace(li.Specialty?.Definition))
+                        {
+                            specialtyDisplay = li.Specialty!.Definition.Trim();
+                            break;
+                        }
+                    }
+
+                    if (specialtyDisplay != "—")
+                        break;
+                }
+            }
+
+            var cabinet = inServiceLi?.Cabinet?.CabinetNumber is { } cabNum
+                ? $"Каб. {cabNum}"
+                : "";
+
+            cards.Add(new DoctorLoadCardViewModel
+            {
+                IdDoctor = doc.IdDoctor,
+                FullName = doc.FullName,
+                Specialty = specialtyDisplay,
+                Cabinet = cabinet,
+                IsInService = isInService,
+                CurrentServiceMinutes = currentMin,
+                NormServiceMinutes = normMin,
+                QueueLength = queueLen
+            });
+        }
+
+        static int OverDelta(DoctorLoadCardViewModel x) =>
+            x.IsInService && x.NormServiceMinutes is int n && x.CurrentServiceMinutes is int c && c > n
+                ? c - n
+                : int.MinValue;
+
+        static int Group(DoctorLoadCardViewModel x) =>
+            OverDelta(x) > int.MinValue ? 0 : x.IsInService ? 1 : 2;
+
+        cards.Sort((x, y) =>
+        {
+            var g = Group(x).CompareTo(Group(y));
+            if (g != 0) return g;
+            if (Group(x) == 0) return OverDelta(y).CompareTo(OverDelta(x));
+            return string.Compare(x.FullName, y.FullName, StringComparison.Ordinal);
+        });
+
+        return cards;
     }
 
     private static double WaitBeforeServiceMinutes(DateOnly dateArrival, TimeOnly timeArrival, TimeOnly timeCall) =>

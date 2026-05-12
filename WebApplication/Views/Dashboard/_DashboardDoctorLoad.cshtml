@@ -1,0 +1,79 @@
+@using WebApplication.Models
+@model IReadOnlyList<DoctorLoadCardViewModel>
+
+@{
+    var delaysCount = Model.Count(d =>
+        d.IsInService && d.NormServiceMinutes is int n && d.CurrentServiceMinutes is int c && c > n);
+}
+
+<div class="dashboard-panel">
+    <h3 class="dashboard-panel__title doctor-load-panel__title">
+        <span class="doctor-load-panel__title-text">Состояние врачей</span>
+        <span class="doctor-load-delays-badge" aria-label="Задержек: @delaysCount">Задержек: @delaysCount</span>
+    </h3>
+
+    <div class="table-toolbar doctor-load-toolbar">
+        <div class="table-toolbar__left">
+            @await Component.InvokeAsync("SearchBox", new SearchBoxViewModel
+            {
+                InputId = "doctor-state-search-input",
+                Placeholder = "Поиск",
+                OnInput = "DoctorLoadTable.filter(this.value)"
+            })
+        </div>
+    </div>
+
+    <div class="users-table-wrap doctor-load-table-scroll">
+        <table class="users-table doctor-load-table" aria-label="Состояние врачей">
+            <thead>
+                <tr>
+                    <th>Врач</th>
+                    <th>Статус</th>
+                    <th>Текущий приём</th>
+                    <th>Норма</th>
+                    <th>В очереди</th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (Model.Count == 0)
+            {
+                <tr><td colspan="5">Нет активных врачей</td></tr>
+            }
+            else
+            {
+                foreach (var d in Model)
+                {
+                    var hasCurrent = d.IsInService && d.CurrentServiceMinutes.HasValue;
+                    var hasNorm = d.NormServiceMinutes.HasValue;
+                    var norm = d.NormServiceMinutes ?? 0;
+                    var cur = d.CurrentServiceMinutes ?? 0;
+                    var over = hasCurrent && hasNorm && cur > norm;
+                    <tr data-doctor-load-row>
+                        <td>
+                            <div class="queue-row__doctor-name">@d.FullName</div>
+                            <div class="queue-row__doctor-specialty">@d.Specialty@(string.IsNullOrEmpty(d.Cabinet) ? "" : " · " + d.Cabinet)</div>
+                        </td>
+                        <td>
+                            @if (d.IsInService)
+                            {
+                                <span class="queue-status-badge queue-status-badge--in-service">На приёме</span>
+                            }
+                            else
+                            {
+                                <span class="queue-status-badge queue-status-badge--free">Свободен</span>
+                            }
+                        </td>
+                        <td class="@(over ? "doctor-load-table__cell--over" : "")">
+                            @(hasCurrent ? $"{cur} мин" : "—")
+                        </td>
+                        <td>
+                            @(hasNorm ? $"{norm} мин" : "—")
+                        </td>
+                        <td>@d.QueueLength</td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+</div>

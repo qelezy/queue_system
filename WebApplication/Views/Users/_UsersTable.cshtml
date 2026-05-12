@@ -1,5 +1,8 @@
 @using WebApplication.Models
 @model IReadOnlyList<UserRowViewModel>
+@{
+    var currentUserId = ViewData["CurrentUserId"]?.ToString() ?? "";
+}
 
 <div class="users-list-layout">
     @await Component.InvokeAsync("TableToolbar", new UsersToolbarViewModel
@@ -84,11 +87,25 @@
                                     onclick="UsersUI.openEdit('@user.Id')">
                                 <i class="bi bi-pencil"></i>
                             </button>
-                            <button class="icon-btn delete-btn"
-                                    title="Удалить"
-                                    onclick="UsersUI.delete('@user.Id')">
-                                <i class="bi bi-trash"></i>
-                            </button>
+                            @if (string.Equals(user.Id, currentUserId, StringComparison.Ordinal))
+                            {
+                                <button type="button"
+                                        class="icon-btn delete-btn"
+                                        disabled
+                                        aria-disabled="true"
+                                        title="Нельзя удалить свою учётную запись">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            }
+                            else
+                            {
+                                <button type="button"
+                                        class="icon-btn delete-btn"
+                                        title="Удалить"
+                                        aria-label="Удалить пользователя">
+                                    <i class="bi bi-trash" aria-hidden="true"></i>
+                                </button>
+                            }
                         </td>
                     </tr>
                 }

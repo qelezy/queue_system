@@ -5,6 +5,11 @@
         return document.getElementById(rootId);
     }
 
+    function getAntiForgeryToken() {
+        var tokenInput = document.querySelector('input[name="__RequestVerificationToken"]');
+        return tokenInput ? tokenInput.value : "";
+    }
+
     function syncColToggles() {
         var root = getRoot();
         if (!root) {
@@ -40,12 +45,45 @@
         });
     }
 
+    function countCheckedPerRole(root) {
+        var map = {};
+        root.querySelectorAll("input.access-matrix__checkbox[data-role][data-item]").forEach(function (input) {
+            if (!(input instanceof HTMLInputElement)) {
+                return;
+            }
+            var role = input.getAttribute("data-role");
+            if (!role) {
+                return;
+            }
+            if (!map[role]) {
+                map[role] = 0;
+            }
+            if (input.checked) {
+                map[role] += 1;
+            }
+        });
+        return map;
+    }
+
     window.AccessSettingsUI = {
-        save: function () {
+        save: async function () {
             var root = getRoot();
             if (!root) {
                 return;
             }
+            var toastManager = window.AppToasts && window.AppToasts.getManager("global-toast-stack");
+
+            var perRole = countCheckedPerRole(root);
+            var roles = Object.keys(perRole);
+            for (var i = 0; i < roles.length; i++) {
+                if (perRole[roles[i]] === 0) {
+                    var msg =
+                        "У каждой роли должно остаться хотя бы одно разрешение. Включите доступ хотя бы для одной строки.";
+                    toastManager && toastManager.show(msg, "warning");
+                    return;
+                }
+            }
+
             var entries = [];
             root.querySelectorAll("input.access-matrix__checkbox[data-role][data-item]").forEach(function (input) {
                 if (!(input instanceof HTMLInputElement)) {
@@ -57,9 +95,40 @@
                     granted: input.checked,
                 });
             });
-            var toastManager = window.AppToasts && window.AppToasts.getManager("global-toast-stack");
-            var msg = "Изменения сохранены (прототип, " + entries.length + " ячеек).";
-            toastManager && toastManager.show(msg, "success");
+
+            var url = root.getAttribute("data-save-matrix-url");
+            if (!url) {
+                toastManager && toastManager.show("Не задан URL сохранения.", "warning");
+                return;
+            }
+
+            try {
+                var response = await fetch(url, {
+                    method: "POST",
+                    credentials: "same-origin",
+                    headers: {
+                        "Content-Type": "application/json",
+                        RequestVerificationToken: getAntiForgeryToken(),
+                    },
+                    body: JSON.stringify({ entries: entries }),
+                });
+                var data = null;
+                try {
+                    data = await response.json();
+                } catch (e) {
+                    data = null;
+                }
+                if (!response.ok) {
+                    var errMsg =
+                        (data && data.message) ||
+                        "Не удалось сохранить настройки доступа.";
+                    toastManager && toastManager.show(errMsg, "warning");
+                    return;
+                }
+                toastManager && toastManager.show("Изменения сохранены.", "success");
+            } catch (e) {
+                toastManager && toastManager.show("Сеть недоступна или запрос прерван.", "warning");
+            }
         },
     };
 

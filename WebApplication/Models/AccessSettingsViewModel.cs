@@ -6,6 +6,7 @@ public class AccessSettingsViewModel
     public IReadOnlyList<AccessGroupViewModel> Groups { get; init; } = [];
     public string SaveOnClick { get; init; } = "AccessSettingsUI.save()";
     public string SaveButtonText { get; init; } = "Сохранить изменения";
+    public string SaveMatrixUrl { get; set; } = "";
 }
 
 public record AccessRoleColumn(string Key, string Label);

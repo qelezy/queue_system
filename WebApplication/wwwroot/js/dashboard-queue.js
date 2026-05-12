@@ -1,0 +1,79 @@
+(function () {
+    const table = document.querySelector(".queue-table-scroll .users-table");
+    if (!(table instanceof HTMLTableElement)) return;
+    const tbody = table.tBodies[0];
+    if (!tbody) return;
+
+    const dataRows = Array.from(tbody.querySelectorAll("tr[data-queue-row]"));
+    if (dataRows.length === 0) return;
+
+    const noResultsClass = "queue-no-results-row";
+    const colspan = table.tHead?.rows[0]?.cells.length ?? 6;
+
+    let searchQuery = "";
+    let specialty = "";
+    let status = "";
+    let waitMinThreshold = null;
+
+    function setNoResultsVisible(visible) {
+        let row = tbody.querySelector("." + noResultsClass);
+        if (visible) {
+            if (!row) {
+                row = document.createElement("tr");
+                row.className = noResultsClass;
+                row.innerHTML = `<td colspan="${colspan}">Записи не найдены</td>`;
+                tbody.appendChild(row);
+            }
+        } else if (row) {
+            row.remove();
+        }
+    }
+
+    function apply() {
+        let visibleCount = 0;
+        for (const row of dataRows) {
+            const text = row.textContent?.toLowerCase() ?? "";
+            const rowSpecialty = row.dataset.specialty ?? "";
+            const rowStatus = row.dataset.status ?? "";
+            const rowWait = Number(row.dataset.wait ?? "0");
+
+            const matchesSearch = !searchQuery || text.includes(searchQuery);
+            const matchesSpecialty = !specialty || rowSpecialty === specialty;
+            const matchesStatus = !status || rowStatus === status;
+            const matchesWait = waitMinThreshold === null || rowWait > waitMinThreshold;
+
+            const show = matchesSearch && matchesSpecialty && matchesStatus && matchesWait;
+            row.style.display = show ? "" : "none";
+            if (show) visibleCount++;
+        }
+        setNoResultsVisible(visibleCount === 0);
+    }
+
+    function search(query) {
+        searchQuery = (query ?? "").trim().toLowerCase();
+        apply();
+    }
+
+    function filterSpecialty(value) {
+        specialty = value ?? "";
+        apply();
+    }
+
+    function filterStatus(value) {
+        status = value ?? "";
+        apply();
+    }
+
+    function filterWait(raw) {
+        const trimmed = (raw ?? "").trim();
+        if (trimmed === "") {
+            waitMinThreshold = null;
+        } else {
+            const parsed = Number(trimmed);
+            waitMinThreshold = Number.isFinite(parsed) ? parsed : null;
+        }
+        apply();
+    }
+
+    window.QueueTable = { search, filterSpecialty, filterStatus, filterWait };
+})();

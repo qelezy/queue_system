@@ -488,7 +488,7 @@ body {
         background: #fafcfc;
     }
 
-    .users-table tr:last-child td {
+    .users-table tbody tr:last-child td {
         border-bottom: none;
     }
 
@@ -930,6 +930,10 @@ label.field-required::after {
         text-transform: uppercase;
         letter-spacing: 0.03em;
         background: #fafcfc;
+    }
+
+    .users-table tbody tr:last-child td {
+        border-bottom: none;
     }
 
 .register-panel {

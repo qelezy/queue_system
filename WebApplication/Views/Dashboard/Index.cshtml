@@ -1,108 +1,81 @@
-@using System.Text.Json
 @using WebApplication.Models
 @model DashboardViewModel
-@{
-    var jsonOpts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-    object? managerPayload = null;
-    if (Model.Manager != null)
-    {
-        var mgr = Model.Manager;
-        managerPayload = new
+
+<div class="dashboard-monitoring-page">
+    <div class="stats-row">
+        @if (Model.Ui.WaitingCard)
         {
-            queueHourLabels = mgr.QueueByHourLabels,
-            queueByDay = mgr.QueueByHourPerDay.Select(d => new { dayLabel = d.DayLabel, values = d.Values }),
-            queueDailyAvg = mgr.QueueByHourDailyAverage,
-            histogram = mgr.WaitHistogram.Select(h => new { label = h.Label, count = h.Count }),
-            avgWaitByDoctor = mgr.AvgWaitByDoctor.Select(x => new { name = x.Name, valueMinutes = x.ValueMinutes }),
-            avgServiceByDoctor = mgr.AvgServiceByDoctor.Select(x => new { name = x.Name, valueMinutes = x.ValueMinutes })
-        };
-    }
-
-    var chartPayload = new
-    {
-        hourly = new { labels = Model.HourlyLabels, wait = Model.HourlyWaitMinutes, service = Model.HourlyServiceMinutes },
-        load = new
+            <partial name="_StatCard" model="@(new StatCardViewModel {
+                Label = "Ожидают",
+                Value = Model.WaitingCount.ToString(),
+                Unit = "",
+                Hint = "пациенты, ожидающие приёма"
+            })" />
+        }
+        @if (Model.Ui.InServiceCard)
         {
-            cabinetLabels = Model.CabinetLoadLabels,
-            cabinetCompleted = Model.CabinetCompletedToday,
-            cabinetBusy = Model.CabinetBusyPercent,
-            doctorLabels = Model.DoctorLoadLabels,
-            doctorCompleted = Model.DoctorCompletedToday,
-            doctorBusy = Model.DoctorBusyPercent
-        },
-        manager = managerPayload
-    };
-
-    var chartJson = JsonSerializer.Serialize(chartPayload, jsonOpts);
-}
-
-@section Head {
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-}
-
-<script type="application/json" id="dashboard-chart-data">@Html.Raw(chartJson)</script>
-
-<div class="stats-row">
-    <partial name="_StatCard" model="@(new StatCardViewModel {
-        Label = "Ожидают",
-        Value = Model.WaitingCount.ToString(),
-        Unit = "",
-        Hint = "пациенты, ожидающие приёма"
-    })" />
-    <partial name="_StatCard" model="@(new StatCardViewModel {
-        Label = "На приёме",
-        Value = Model.InServiceCount.ToString(),
-        Unit = "",
-        Hint = "пациенты, находящиеся на приёме"
-    })" />
-    <partial name="_StatCard" model="@(new StatCardViewModel {
-        Label = "Среднее время ожидания",
-        Value = Model.AvgWaitMinutes.ToString(),
-        Unit = "мин",
-        SubLabel = "Максимум",
-        SubValue = Model.MaxWaitMinutes.ToString(),
-        SubUnit = "мин",
-        Hint = "по завершённым ожиданиям за сегодня"
-    })" />
-    <partial name="_StatCard" model="@(new StatCardViewModel {
-        Label = "Средняя длительность приёма",
-        Value = Model.AvgServiceMinutes.ToString(),
-        Unit = "мин",
-        SubLabel = "Максимум",
-        SubValue = Model.MaxServiceMinutes.ToString(),
-        SubUnit = "мин",
-        Hint = "по завершённым приёмам за сегодня"
-    })" />
-</div>
-
-<div class="charts-grid">
-    <partial name="_ChartCard" model="@(new ChartCardViewModel {
-        Title = "За сегодня по часам: среднее ожидание и средняя длительность приёма (мин)",
-        CanvasId = "chartWaitServeHourly"
-    })" />
-    <div class="chart-card">
-        <h4>Загруженность за сегодня</h4>
-        <div class="dashboard-toggle-group load-entity-toggle" role="group" aria-label="Кабинет или врач">
-            <button type="button" class="btn btn-secondary btn-sm is-active" data-entity="cabinet">Кабинеты</button>
-            <button type="button" class="btn btn-secondary btn-sm" data-entity="doctor">Врачи</button>
-        </div>
-        <div class="dashboard-toggle-group load-metric-toggle" role="group" aria-label="Метрика">
-            <button type="button" class="btn btn-secondary btn-sm is-active" data-metric="completed">Завершённые приёмы</button>
-            <button type="button" class="btn btn-secondary btn-sm" data-metric="busy">Доля занятого времени</button>
-        </div>
-        <div class="chart-canvas-wrap tall">
-            <canvas id="chartLoadToday"></canvas>
-        </div>
+            <partial name="_StatCard" model="@(new StatCardViewModel {
+                Label = "На приёме",
+                Value = Model.InServiceCount.ToString(),
+                Unit = "",
+                Hint = "пациенты, находящиеся на приёме"
+            })" />
+        }
+        @if (Model.Ui.AcceptedTodayCard)
+        {
+            <partial name="_StatCard" model="@(new StatCardViewModel {
+                Label = "Обслужено",
+                Value = Model.AcceptedTodayCount.ToString(),
+                Unit = "",
+                Hint = "завершённые приёмы за сегодня"
+            })" />
+        }
+        @if (Model.Ui.NoShowTodayCard)
+        {
+            <partial name="_StatCard" model="@(new StatCardViewModel {
+                Label = "Не явились",
+                Value = Model.NoShowTodayCount.ToString(),
+                Unit = "",
+                Hint = "неявки за сегодня"
+            })" />
+        }
+        @if (Model.Ui.AvgWaitCard)
+        {
+            <partial name="_StatCard" model="@(new StatCardViewModel {
+                Label = "Среднее время ожидания",
+                Value = Model.AvgWaitMinutes.ToString(),
+                Unit = "мин",
+                SubLabel = "Максимум",
+                SubValue = Model.MaxWaitMinutes.ToString(),
+                SubUnit = "мин",
+                Hint = "по завершённым ожиданиям за сегодня"
+            })" />
+        }
+        @if (Model.Ui.AvgServiceCard)
+        {
+            <partial name="_StatCard" model="@(new StatCardViewModel {
+                Label = "Средняя длительность приёма",
+                Value = Model.AvgServiceMinutes.ToString(),
+                Unit = "мин",
+                SubLabel = "Максимум",
+                SubValue = Model.MaxServiceMinutes.ToString(),
+                SubUnit = "мин",
+                Hint = "по завершённым приёмам за сегодня"
+            })" />
+        }
     </div>
+
+    @if (Model.Ui.DoctorLoad)
+    {
+        <partial name="_DashboardDoctorLoad" model="Model.DoctorLoadCards" />
+    }
+    @if (Model.Ui.QueueTable)
+    {
+        <partial name="_DashboardQueueTable" model="Model.ActiveQueue" />
+    }
 </div>
-
-<partial name="_DashboardQueueTable" model="Model.ActiveQueue" />
-
-@if (Model.Manager != null)
-{
-    <partial name="_DashboardManager" model="Model.Manager" />
-}
 
 @section Scripts {
-    <script src="~/js/dashboard-monitoring.js" asp-append-version="true"></script>
+    <script src="~/js/dashboard-doctor-load.js" asp-append-version="true"></script>
+    <script src="~/js/dashboard-queue.js" asp-append-version="true"></script>
 }

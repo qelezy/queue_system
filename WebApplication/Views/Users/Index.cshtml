@@ -4,6 +4,8 @@
     ViewData["Title"] = "Управление пользователями";
 }
 
+@Html.AntiForgeryToken()
+
 <div class="tabs-bar">
     <button class="is-active" data-tab="list">Список пользователей</button>
     <button data-tab="access">Настройка доступа</button>
