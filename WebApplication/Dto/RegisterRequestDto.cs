@@ -6,6 +6,6 @@ namespace WebApplication.Dto
 		public string LastName { get; set; } = string.Empty;
 		public string Patronymic { get; set; } = string.Empty;
 		public string Email { get; set; } = string.Empty;
-        public string Role { get; set; } = "Registrator";
+        public string Role { get; set; } = "Dispatcher";
     }
 }

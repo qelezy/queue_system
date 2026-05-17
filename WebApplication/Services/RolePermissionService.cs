@@ -8,7 +8,13 @@ namespace WebApplication.Services;
 
 public sealed class RolePermissionService : IRolePermissionService
 {
-    private static readonly string[] MatrixRoleNames = ["Admin", "Manager", "Registrator"];
+    private static readonly string[] MatrixRoleNames = ["Admin", "Manager", "Dispatcher"];
+
+    private static readonly Dictionary<string, string> LegacyReportPermissionIds = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["service-delays"] = "bottleneck-ranking",
+        ["no-shows-and-incomplete-service"] = "unserved-and-chain-breaks",
+    };
 
     private static readonly (string Name, string Title, string Description)[] DashboardLines =
     [
@@ -39,6 +45,8 @@ public sealed class RolePermissionService : IRolePermissionService
     public async Task SyncPermissionsAndSeedDefaultsAsync(CancellationToken cancellationToken = default)
     {
         await EnsurePermissionRowsAsync(cancellationToken).ConfigureAwait(false);
+        await MigrateLegacyReportPermissionsAsync(cancellationToken).ConfigureAwait(false);
+        await RemoveOrphanReportPermissionsAsync(cancellationToken).ConfigureAwait(false);
         await SeedDefaultRoleLinksIfEmptyAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -67,13 +75,104 @@ public sealed class RolePermissionService : IRolePermissionService
             await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    private async Task MigrateLegacyReportPermissionsAsync(CancellationToken cancellationToken)
+    {
+        foreach (var (currentId, legacyId) in LegacyReportPermissionIds)
+        {
+            var permissions = await _db.Permissions
+                .Where(p => p.PermissionName == currentId || p.PermissionName == legacyId)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var current = permissions.FirstOrDefault(p =>
+                string.Equals(p.PermissionName, currentId, StringComparison.OrdinalIgnoreCase));
+            var legacy = permissions.FirstOrDefault(p =>
+                string.Equals(p.PermissionName, legacyId, StringComparison.OrdinalIgnoreCase));
+
+            if (legacy is null)
+                continue;
+
+            if (current is null)
+            {
+                legacy.PermissionName = currentId;
+                continue;
+            }
+
+            if (legacy.PermissionId == current.PermissionId)
+                continue;
+
+            var legacyRoleIds = await _db.RolePermissions.AsNoTracking()
+                .Where(rp => rp.PermissionId == legacy.PermissionId)
+                .Select(rp => rp.RoleId)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var currentRoleIds = await _db.RolePermissions.AsNoTracking()
+                .Where(rp => rp.PermissionId == current.PermissionId)
+                .Select(rp => rp.RoleId)
+                .ToHashSetAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            foreach (var roleId in legacyRoleIds)
+            {
+                if (currentRoleIds.Contains(roleId))
+                    continue;
+
+                _db.RolePermissions.Add(new RolePermission
+                {
+                    RoleId = roleId,
+                    PermissionId = current.PermissionId,
+                });
+            }
+
+            await _db.RolePermissions
+                .Where(rp => rp.PermissionId == legacy.PermissionId)
+                .ExecuteDeleteAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            _db.Permissions.Remove(legacy);
+        }
+
+        if (_db.ChangeTracker.HasChanges())
+            await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task RemoveOrphanReportPermissionsAsync(CancellationToken cancellationToken)
+    {
+        var knownReportIds = _reportsCatalog.GetCatalog()
+            .Select(i => i.Id.Trim())
+            .Where(id => !string.IsNullOrEmpty(id))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var legacyId in LegacyReportPermissionIds.Values)
+            knownReportIds.Add(legacyId);
+
+        var orphans = await _db.Permissions
+            .Where(p => !p.PermissionName.StartsWith("dashboard."))
+            .Where(p => !knownReportIds.Contains(p.PermissionName))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        foreach (var orphan in orphans)
+        {
+            await _db.RolePermissions
+                .Where(rp => rp.PermissionId == orphan.PermissionId)
+                .ExecuteDeleteAsync(cancellationToken)
+                .ConfigureAwait(false);
+            _db.Permissions.Remove(orphan);
+        }
+
+        if (_db.ChangeTracker.HasChanges())
+            await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     private static bool DefaultGrant(string roleName, string permissionName)
     {
         if (permissionName.StartsWith("dashboard.manager.", StringComparison.OrdinalIgnoreCase))
-            return !string.Equals(roleName, "Registrator", StringComparison.OrdinalIgnoreCase);
+            return !string.Equals(roleName, "Dispatcher", StringComparison.OrdinalIgnoreCase);
         if (permissionName.StartsWith("dashboard.", StringComparison.OrdinalIgnoreCase))
             return true;
-        return !string.Equals(roleName, "Registrator", StringComparison.OrdinalIgnoreCase);
+        return !string.Equals(roleName, "Dispatcher", StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task SeedDefaultRoleLinksIfEmptyAsync(CancellationToken cancellationToken)
@@ -118,7 +217,7 @@ public sealed class RolePermissionService : IRolePermissionService
         [
             new("Admin", "Администратор"),
             new("Manager", "Менеджер"),
-            new("Registrator", "Регистратор"),
+            new("Dispatcher", "Диспетчер"),
         ];
 
         var roleIds = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -290,7 +389,18 @@ public sealed class RolePermissionService : IRolePermissionService
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        return names.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var set = names.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        ExpandLegacyReportPermissionNames(set);
+        return set;
+    }
+
+    private static void ExpandLegacyReportPermissionNames(HashSet<string> permissionNames)
+    {
+        foreach (var (currentId, legacyId) in LegacyReportPermissionIds)
+        {
+            if (permissionNames.Contains(legacyId))
+                permissionNames.Add(currentId);
+        }
     }
 
     public DashboardUiVisibility BuildDashboardVisibility(IReadOnlySet<string> permissionNames)

@@ -1,41 +1,647 @@
+/* ReportPreviewCore: встроено в этот файл (раньше отдельный report-preview-core.js), чтобы скрипт всегда поднимался одним запросом. */
+(function (global) {
+    'use strict';
+
+    var chartFactories = {
+        doughnut: mountDoughnutOrPie,
+        pie: mountDoughnutOrPie,
+        bar: mountBarChart,
+        groupedbar: mountGroupedBarChart
+    };
+
+    /** Синхронизировать с Services/Reports/ReportChartPalette.cs BaseRgb */
+    var REPORT_CHART_BASE_RGB = [
+        [0, 179, 184],
+        [148, 163, 184],
+        [251, 191, 36],
+        [239, 68, 68],
+        [99, 102, 241],
+        [16, 185, 129],
+        [37, 99, 235],
+        [168, 85, 247],
+        [236, 72, 153],
+        [6, 182, 212],
+        [234, 88, 12],
+        [255, 159, 67],
+        [132, 204, 22],
+        [153, 27, 27],
+        [202, 138, 4],
+        [133, 77, 14],
+        [192, 38, 211],
+        [13, 148, 136],
+        [244, 63, 94],
+        [109, 40, 217],
+        [101, 163, 13],
+        [157, 23, 77],
+        [52, 211, 153],
+        [217, 119, 6]
+    ];
+    var REPORT_CHART_PALETTE = (function () {
+        function rgbaFromBase(rgb, alpha) {
+            return 'rgba(' + rgb[0] + ', ' + rgb[1] + ', ' + rgb[2] + ', ' + alpha + ')';
+        }
+        function darken(rgb, factor) {
+            return [
+                Math.round(rgb[0] * factor),
+                Math.round(rgb[1] * factor),
+                Math.round(rgb[2] * factor)
+            ];
+        }
+        return {
+            bg: REPORT_CHART_BASE_RGB.map(function (rgb) { return rgbaFromBase(rgb, 0.88); }),
+            norm: REPORT_CHART_BASE_RGB.map(function (rgb) { return rgbaFromBase(rgb, 0.45); }),
+            border: REPORT_CHART_BASE_RGB.map(function (rgb) { return rgbaFromBase(darken(rgb, 0.84), 1); })
+        };
+    })();
+
+    function escapeHtml(text) {
+        if (text == null) return '';
+        var s = String(text);
+        var map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+        return s.replace(/[&<>"']/g, function (ch) { return map[ch] || ch; });
+    }
+
+    function escapeHtmlAttribute(text) {
+        return escapeHtml(text).replace(/`/g, '&#96;');
+    }
+
+    function sumNumericValues(arr) {
+        var sum = 0;
+        (arr || []).forEach(function (v) {
+            var n = Number(v);
+            if (!isNaN(n)) sum += n;
+        });
+        return sum;
+    }
+
+    function sumDescriptorChartValues(descriptor) {
+        if (!descriptor) return 0;
+        if (descriptor.datasets && descriptor.datasets.length) {
+            var total = 0;
+            descriptor.datasets.forEach(function (ds) {
+                total += sumNumericValues(ds.values);
+                total += sumNumericValues(ds.normValues);
+            });
+            return total;
+        }
+        return sumNumericValues(descriptor.values);
+    }
+
+    function extractChartDescriptors(result) {
+        if (!result) return [];
+        if (result.previewCharts && result.previewCharts.length > 0) {
+            return result.previewCharts;
+        }
+        var pie = result.previewPieChart;
+        if (pie && pie.labels && pie.values && pie.labels.length) {
+            return [{
+                kind: 'doughnut',
+                labels: pie.labels,
+                values: pie.values,
+                valueUnit: 'мин',
+                ariaLabel: 'Соотношение длительности обслуживания и простоя',
+                canvasElementId: 'report-preview-chart-0'
+            }];
+        }
+        return [];
+    }
+
+    function buildChartBlocksHtml(descriptors) {
+        var html = '';
+        (descriptors || []).forEach(function (d, i) {
+            var id = d.canvasElementId || ('report-preview-chart-' + i);
+            if (sumDescriptorChartValues(d) <= 0) return;
+            var aria = d.ariaLabel ? escapeHtmlAttribute(d.ariaLabel) : '';
+            html += '<div class="report-preview-modal__chart-wrap" role="presentation">' +
+                '<canvas id="' + escapeHtmlAttribute(id) + '"' +
+                (aria ? ' aria-label="' + aria + '"' : '') + '></canvas></div>';
+        });
+        return html;
+    }
+
+    function mountDoughnutOrPie(descriptor, canvas, chartsOut) {
+        if (typeof Chart === 'undefined' || !canvas) return;
+        var rawVals = descriptor.values || [];
+        var labels = (descriptor.labels || []).map(function (x) { return String(x); });
+        var vals = rawVals.map(function (v) {
+            var n = Number(v);
+            return isNaN(n) ? 0 : n;
+        });
+        while (vals.length < labels.length) vals.push(0);
+        if (vals.length > labels.length) vals = vals.slice(0, labels.length);
+        var sum = vals.reduce(function (a, b) { return a + b; }, 0);
+        if (sum <= 0) return;
+        var kind = (descriptor.kind || 'doughnut').toLowerCase() === 'pie' ? 'pie' : 'doughnut';
+        var unit = descriptor.valueUnit != null ? String(descriptor.valueUnit).trim() : '';
+        var paletteBg = REPORT_CHART_PALETTE.bg;
+        var paletteBorder = REPORT_CHART_PALETTE.border;
+        var bgColors = labels.map(function (_, i) {
+            return paletteBg[i % paletteBg.length];
+        });
+        var borderColors = labels.map(function (_, i) {
+            return paletteBorder[i % paletteBorder.length];
+        });
+        var chart = new Chart(canvas, {
+            type: kind,
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: vals,
+                    backgroundColor: bgColors,
+                    borderColor: borderColors,
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                layout: { padding: { top: 4, bottom: 4, left: 4, right: 4 } },
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        align: 'center',
+                        labels: {
+                            boxWidth: 14,
+                            padding: 12,
+                            font: { size: 12 },
+                            maxWidth: 900
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function (ctx) {
+                                var val = ctx.raw != null ? Number(ctx.raw) : 0;
+                                var pct = sum > 0 ? (100 * val / sum).toFixed(1) : '0';
+                                var lab = ctx.label || '';
+                                var mid = unit ? (val.toFixed(1) + ' ' + unit) : val.toFixed(1);
+                                return lab + ': ' + mid + ' (' + pct + '%)';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        if (chartsOut) chartsOut.push(chart);
+    }
+
+    function mountBarChart(descriptor, canvas, chartsOut) {
+        if (typeof Chart === 'undefined' || !canvas) return;
+        var labels = (descriptor.labels || []).map(function (x) { return String(x); });
+        var vals = (descriptor.values || []).map(function (v) {
+            var n = Number(v);
+            return isNaN(n) ? 0 : n;
+        });
+        while (vals.length < labels.length) vals.push(0);
+        if (vals.length > labels.length) vals = vals.slice(0, labels.length);
+        if (labels.length === 0 || vals.every(function (v) { return v <= 0; })) return;
+        var unit = descriptor.valueUnit != null ? String(descriptor.valueUnit).trim() : '';
+        var chart = new Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: vals,
+                    backgroundColor: 'rgba(0, 179, 184, 0.88)',
+                    borderColor: 'rgba(0, 153, 158, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                layout: { padding: { top: 4, bottom: 4, left: 4, right: 4 } },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: !!unit,
+                            text: unit || undefined
+                        }
+                    },
+                    x: {
+                        ticks: { maxRotation: 45, minRotation: 0 }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function (ctx) {
+                                var val = ctx.raw != null ? Number(ctx.raw) : 0;
+                                var lab = ctx.label || '';
+                                var mid = unit ? (val.toFixed(1) + ' ' + unit) : val.toFixed(1);
+                                return lab + ': ' + mid;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        if (chartsOut) chartsOut.push(chart);
+    }
+
+    function mountGroupedBarChart(descriptor, canvas, chartsOut) {
+        if (typeof Chart === 'undefined' || !canvas) return;
+        var dayLabels = (descriptor.labels || []).map(function (x) { return String(x); });
+        var series = descriptor.datasets || [];
+        if (!dayLabels.length || !series.length) return;
+        var paletteBg = REPORT_CHART_PALETTE.bg;
+        var paletteBorder = REPORT_CHART_PALETTE.border;
+        var paletteNorm = REPORT_CHART_PALETTE.norm;
+        var unit = descriptor.valueUnit != null ? String(descriptor.valueUnit).trim() : '';
+        var datasets = [];
+        var hasPositive = false;
+        var hasOverlayNorm = series.some(function (ds) {
+            var nv = ds.normValues;
+            return nv && nv.length > 0;
+        });
+        function normalizeVals(raw) {
+            var vals = (raw || []).map(function (v) {
+                var n = Number(v);
+                return isNaN(n) ? 0 : n;
+            });
+            while (vals.length < dayLabels.length) vals.push(0);
+            if (vals.length > dayLabels.length) vals = vals.slice(0, dayLabels.length);
+            vals.forEach(function (v) { if (v > 0) hasPositive = true; });
+            return vals;
+        }
+        function normBg(colorIdx) {
+            return paletteNorm[colorIdx % paletteNorm.length];
+        }
+        series.forEach(function (ds, si) {
+            var factVals = normalizeVals(ds.values);
+            var normVals = ds.normValues ? normalizeVals(ds.normValues) : null;
+            var colorIdx = si % paletteBg.length;
+            var sliceLabel = ds.label || ('Серия ' + si);
+            if (normVals && normVals.length === factVals.length) {
+                var stackId = 'slice-' + si;
+                datasets.push({
+                    type: 'bar',
+                    label: sliceLabel + ' · норм.',
+                    data: normVals,
+                    stack: stackId,
+                    backgroundColor: normBg(colorIdx),
+                    borderColor: paletteBorder[colorIdx],
+                    borderWidth: 1,
+                    order: 2,
+                    maxBarThickness: 18
+                });
+                datasets.push({
+                    type: 'bar',
+                    label: sliceLabel,
+                    data: factVals,
+                    stack: stackId,
+                    backgroundColor: paletteBg[colorIdx],
+                    borderColor: paletteBorder[colorIdx],
+                    borderWidth: 1,
+                    order: 1,
+                    maxBarThickness: 12
+                });
+            } else {
+                datasets.push({
+                    type: 'bar',
+                    label: sliceLabel,
+                    data: factVals,
+                    backgroundColor: paletteBg[colorIdx],
+                    borderColor: paletteBorder[colorIdx],
+                    borderWidth: 1
+                });
+            }
+        });
+        if (!hasPositive) return;
+        var slotCount = hasOverlayNorm ? series.length : datasets.length;
+        var chart = new Chart(canvas, {
+            type: 'bar',
+            data: { labels: dayLabels, datasets: datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                layout: { padding: { top: 4, bottom: 4, left: 4, right: 4 } },
+                datasets: {
+                    bar: {
+                        categoryPercentage: 0.82,
+                        barPercentage: 0.92,
+                        maxBarThickness: slotCount > 12 ? 10 : 14
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        stacked: false,
+                        title: { display: !!unit, text: unit || undefined }
+                    },
+                    x: {
+                        stacked: !!hasOverlayNorm,
+                        ticks: { maxRotation: 45, minRotation: 0 }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        align: 'center',
+                        labels: {
+                            boxWidth: 10,
+                            padding: 6,
+                            font: { size: 10 },
+                            filter: function () {
+                                return true;
+                            }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function (ctx) {
+                                var val = ctx.raw != null ? Number(ctx.raw) : 0;
+                                var seriesLabel = ctx.dataset && ctx.dataset.label ? ctx.dataset.label : '';
+                                var day = ctx.label || '';
+                                var mid = unit ? (val.toFixed(1) + ' ' + unit) : val.toFixed(1);
+                                return seriesLabel + ', ' + day + ': ' + mid;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        if (chartsOut) chartsOut.push(chart);
+    }
+
+    function mountChartsFromDescriptors(descriptors) {
+        var charts = [];
+        if (typeof Chart === 'undefined') return charts;
+        (descriptors || []).forEach(function (d, i) {
+            if (sumDescriptorChartValues(d) <= 0) return;
+            var id = d.canvasElementId || ('report-preview-chart-' + i);
+            var canvas = document.getElementById(id);
+            var kind = (d.kind || 'doughnut').toLowerCase();
+            var factory = chartFactories[kind] || chartFactories.doughnut;
+            factory(d, canvas, charts);
+        });
+        return charts;
+    }
+
+    function buildPreviewTruncationMessage(result) {
+        var truncatedPreview = result.previewRowsTotal != null && result.previewRowLimit != null &&
+            result.previewRowsTotal > (result.rows && result.rows.length ? result.rows.length : 0);
+        if (!truncatedPreview) return '';
+        var shown = result.rows ? result.rows.length : 0;
+        return 'Показано ' + shown + ' из ' + result.previewRowsTotal +
+            ' строк (лимит предпросмотра ' + result.previewRowLimit +
+            '). Полный отчёт — при сохранении в файл.';
+    }
+
+    function isArrivedCompletedDetailPreviewRow(row) {
+        if (!row || row.rowClass) return false;
+        var cells = row.cells || [];
+        if (cells.length < 6) return false;
+        var c0 = (cells[0] || '').trim();
+        if (c0 === 'Итого за период' || c0 === 'Итого (по полным данным)' || c0 === '…') return false;
+        var n = parseInt(String(cells[2] || '').trim(), 10);
+        return !isNaN(n);
+    }
+
+    function isRouteAndPausesDetailPreviewRow(row) {
+        if (!row || row.rowClass) return false;
+        var cells = row.cells || [];
+        if (cells.length < 6) return false;
+        var c0 = (cells[0] || '').trim();
+        if (c0 === 'Итого за период' || c0 === 'Итого (по полным данным)' || c0 === '…') return false;
+        var n = parseInt(String(cells[3] || '').trim(), 10);
+        return !isNaN(n);
+    }
+
+    function isAppointmentDurationDetailPreviewRow(row) {
+        if (!row || row.rowClass) return false;
+        var cells = row.cells || [];
+        if (cells.length < 8) return false;
+        var c0 = (cells[0] || '').trim();
+        if (c0 === 'Итого за период' || c0 === 'Итого (по полным данным)' || c0 === '…' || c0 === 'Итого за день') return false;
+        var countIdx = cells.length >= 9 ? 3 : 2;
+        var n = parseInt(String(cells[countIdx] || '').trim(), 10);
+        return !isNaN(n);
+    }
+
+    function isLoadDowntimeDetailPreviewRow(row) {
+        if (!row || row.rowClass) return false;
+        var cells = row.cells || [];
+        if (cells.length < 2) return false;
+        return String(cells[1] || '').trim() !== '—';
+    }
+
+    var pageReportsMetaCache = null;
+
+    function getPageReportsMeta() {
+        if (pageReportsMetaCache) return pageReportsMetaCache;
+        var node = document.getElementById('reports-page-data');
+        if (!node) {
+            pageReportsMetaCache = { dateRowspanReportIds: [], detailRowKindByReportId: {} };
+            return pageReportsMetaCache;
+        }
+        try {
+            var payload = JSON.parse(node.textContent || '{}');
+            pageReportsMetaCache = {
+                dateRowspanReportIds: Array.isArray(payload.dateRowspanReportIds)
+                    ? payload.dateRowspanReportIds.map(function (id) { return String(id || '').trim(); }).filter(Boolean)
+                    : [],
+                detailRowKindByReportId: payload.detailRowKindByReportId && typeof payload.detailRowKindByReportId === 'object'
+                    ? payload.detailRowKindByReportId
+                    : {}
+            };
+        } catch (_) {
+            pageReportsMetaCache = { dateRowspanReportIds: [], detailRowKindByReportId: {} };
+        }
+        return pageReportsMetaCache;
+    }
+
+    function usesDateRowspanInPreview(reportId) {
+        var rid = (reportId || '').trim();
+        if (!rid) return false;
+        return getPageReportsMeta().dateRowspanReportIds.some(function (id) {
+            return id.toLowerCase() === rid.toLowerCase();
+        });
+    }
+
+    function getDetailRowKindForReport(reportId) {
+        var rid = (reportId || '').trim();
+        if (!rid) return '';
+        var map = getPageReportsMeta().detailRowKindByReportId;
+        var key = Object.keys(map).find(function (k) {
+            return k.toLowerCase() === rid.toLowerCase();
+        });
+        return key ? String(map[key] || '').trim() : '';
+    }
+
+    function resolveDetailRowKind(reportId, detailRowKindFromResult) {
+        var fromResult = detailRowKindFromResult ? String(detailRowKindFromResult).trim() : '';
+        if (fromResult) return fromResult;
+        return getDetailRowKindForReport(reportId);
+    }
+
+    function isDateGroupedDetailPreviewRow(row, reportId, detailRowKindFromResult) {
+        var kind = resolveDetailRowKind(reportId, detailRowKindFromResult);
+        if (kind === 'loadDowntime') return isLoadDowntimeDetailPreviewRow(row);
+        if (kind === 'routeAndPauses') return isRouteAndPausesDetailPreviewRow(row);
+        if (kind === 'arrivedCompleted') return isArrivedCompletedDetailPreviewRow(row);
+        if (kind === 'appointmentDuration') return isAppointmentDurationDetailPreviewRow(row);
+        return false;
+    }
+
+    function usesDateRowspanForResult(result) {
+        if (result && String(result.tableLayout || '').toLowerCase() === 'daterowspan') return true;
+        return usesDateRowspanInPreview((result && result.generatedForReportId) || '');
+    }
+
+    function appendPreviewTableRowHtml(parts, row) {
+        var rc = row.rowClass;
+        var safeClass = typeof rc === 'string' && /^[a-zA-Z0-9 _-]+$/.test(rc) ? rc : '';
+        parts.push(safeClass ? '<tr class="' + escapeHtmlAttribute(safeClass) + '">' : '<tr>');
+        var cells = row.cells || [];
+        var colSpans = row.cellColSpans;
+        for (var ci = 0; ci < cells.length; ci++) {
+            var cSpan = (colSpans && colSpans.length > ci) ? colSpans[ci] : 1;
+            if (cSpan === 0) continue;
+            var attr = cSpan > 1 ? ' colspan="' + cSpan + '"' : '';
+            parts.push('<td' + attr + '>' + escapeHtml(cells[ci]) + '</td>');
+        }
+        parts.push('</tr>');
+    }
+
+    function appendArrivedCompletedRowspanGroup(parts, rows, iStart, jEnd) {
+        var rowSpan = jEnd - iStart;
+        for (var k = 0; k < rowSpan; k++) {
+            var row = rows[iStart + k];
+            var cells = row.cells || [];
+            var colSpans = row.cellColSpans;
+            var rc = row.rowClass;
+            var safeClass = typeof rc === 'string' && /^[a-zA-Z0-9 _-]+$/.test(rc) ? rc : '';
+            parts.push(safeClass ? '<tr class="' + escapeHtmlAttribute(safeClass) + '">' : '<tr>');
+            if (k === 0) {
+                parts.push('<td rowspan="' + rowSpan + '">' + escapeHtml(cells[0] || '') + '</td>');
+            }
+            for (var ci = 1; ci < cells.length; ci++) {
+                var cSpan = (colSpans && colSpans.length > ci) ? colSpans[ci] : 1;
+                if (cSpan === 0) continue;
+                var attr = cSpan > 1 ? ' colspan="' + cSpan + '"' : '';
+                parts.push('<td' + attr + '>' + escapeHtml(cells[ci]) + '</td>');
+            }
+            parts.push('</tr>');
+        }
+    }
+
+    function buildPreviewTableHtml(result) {
+        var html = '<div class="users-table-wrap report-preview-table"><table class="users-table users-table--report-preview"><thead><tr>';
+        result.columnHeaders.forEach(function (h) {
+            html += '<th>' + escapeHtml(h) + '</th>';
+        });
+        html += '</tr></thead><tbody>';
+        var rows = result.rows || [];
+        var rid = (result.generatedForReportId || '').trim();
+        var detailKind = result.detailRowKind;
+        if (usesDateRowspanForResult(result)) {
+            var parts = [];
+            var ii = 0;
+            while (ii < rows.length) {
+                var r = rows[ii];
+                if (!isDateGroupedDetailPreviewRow(r, rid, detailKind) || !String((r.cells && r.cells[0]) || '').trim()) {
+                    appendPreviewTableRowHtml(parts, r);
+                    ii++;
+                    continue;
+                }
+                var jj = ii + 1;
+                while (jj < rows.length && isDateGroupedDetailPreviewRow(rows[jj], rid, detailKind) && !String((rows[jj].cells && rows[jj].cells[0]) || '').trim()) {
+                    jj++;
+                }
+                appendArrivedCompletedRowspanGroup(parts, rows, ii, jj);
+                ii = jj;
+            }
+            html += parts.join('');
+        } else {
+            var plainParts = [];
+            rows.forEach(function (row) {
+                appendPreviewTableRowHtml(plainParts, row);
+            });
+            html += plainParts.join('');
+        }
+        html += '</tbody></table></div>';
+        return html;
+    }
+
+    function renderResultPreview(result, deps) {
+        deps = deps || {};
+        var root = deps.root || document.getElementById('report-preview-content');
+        if (!root) return;
+        if (typeof deps.destroyCharts === 'function') deps.destroyCharts();
+
+        if (!result || !result.columnHeaders || !result.rows) {
+            root.innerHTML = '<p class="report-params__empty">Нет данных для предпросмотра.</p>';
+            return;
+        }
+
+        var descriptors = extractChartDescriptors(result);
+        var chartHtml = buildChartBlocksHtml(descriptors);
+        var limitMsg = buildPreviewTruncationMessage(result);
+        root.innerHTML = chartHtml + buildPreviewTableHtml(result);
+
+        if (limitMsg && typeof deps.showInfoToast === 'function') {
+            deps.showInfoToast(limitMsg);
+        }
+
+        if (chartHtml && descriptors.length) {
+            window.requestAnimationFrame(function () {
+                var charts = mountChartsFromDescriptors(descriptors);
+                window.requestAnimationFrame(function () {
+                    (charts || []).forEach(function (ch) {
+                        if (ch && typeof ch.resize === 'function') ch.resize();
+                    });
+                });
+                if (typeof deps.onChartsMounted === 'function') deps.onChartsMounted(charts);
+            });
+        } else if (typeof deps.onChartsMounted === 'function') {
+            deps.onChartsMounted([]);
+        }
+    }
+
+    function buildReportRequestPayload(state) {
+        var sel = state.selectedReportId || '';
+        var custom = (state.filters && state.filters.customByReport && state.filters.customByReport[sel])
+            ? state.filters.customByReport[sel]
+            : {};
+        return {
+            reportId: sel,
+            dateFrom: state.filters && state.filters.periodFrom ? state.filters.periodFrom : null,
+            dateTo: state.filters && state.filters.periodTo ? state.filters.periodTo : null,
+            weekStart: custom.weekStart || null,
+            cabinetId: custom.cabinetId ? Number(custom.cabinetId) : null,
+            doctorId: custom.doctorId ? Number(custom.doctorId) : null,
+            customParams: custom || {}
+        };
+    }
+
+    function registerChartKind(kind, factory) {
+        if (kind && typeof factory === 'function') {
+            chartFactories[String(kind).toLowerCase()] = factory;
+        }
+    }
+
+    global.ReportPreviewCore = {
+        escapeHtml: escapeHtml,
+        buildReportRequestPayload: buildReportRequestPayload,
+        renderResultPreview: renderResultPreview,
+        registerChartKind: registerChartKind
+    };
+})(typeof window !== 'undefined' ? window : this);
+
 (function () {
     'use strict';
 
+    /** Контракт: сервер отдаёт ReportResultViewModel; поля формы — reportCustomConfig ниже. */
     var modalId = 'report-workflow-modal';
 
-    var reportCustomConfig = {
-        'load-and-downtime': [
-            {
-                key: 'analysisMode',
-                label: 'Срез',
-                type: 'select',
-                options: [
-                    { value: 'doctor', label: 'По врачам' },
-                    { value: 'cabinet', label: 'По кабинетам' }
-                ]
-            }
-        ],
-        'service-categories-comparison': [
-            {
-                key: 'categoryId',
-                label: 'Категория',
-                type: 'select-dynamic',
-                source: 'categoryOptions',
-                placeholderLabel: 'Все категории'
-            }
-        ],
-        'queue-summary': [
-            { key: 'cabinetId', label: 'Кабинет', type: 'select-dynamic', source: 'cabinetOptions' },
-            { key: 'doctorId', label: 'Врач', type: 'select-dynamic', source: 'doctorOptions' }
-        ],
-        'cabinet-load': [
-            { key: 'weekStart', label: 'Неделя с (понедельник)', type: 'date' }
-        ]
-    };
+    var reportCustomConfig = {};
 
     var state = {
         selectedReportId: '',
         titlesById: {},
+        descriptionsById: {},
         filters: {
             periodFrom: '',
             periodTo: '',
@@ -43,7 +649,7 @@
         },
         options: { cabinetOptions: [], doctorOptions: [], categoryOptions: [] },
         lastResult: null,
-        loadPreviewChart: null
+        previewCharts: []
     };
 
     function getModal() {
@@ -90,7 +696,7 @@
         modal.classList.remove('is-preview');
         setModalHiddenState(modal, true);
         clearGenerateStatus();
-        destroyLoadPreviewChart();
+        destroyPreviewCharts();
         if (lastFocusedElement && document.contains(lastFocusedElement)) {
             lastFocusedElement.focus();
         }
@@ -108,16 +714,28 @@
             state.options.cabinetOptions = payload.toolbar && payload.toolbar.cabinetOptions ? payload.toolbar.cabinetOptions : [];
             state.options.doctorOptions = payload.toolbar && payload.toolbar.doctorOptions ? payload.toolbar.doctorOptions : [];
             state.options.categoryOptions = payload.toolbar && payload.toolbar.categoryOptions ? payload.toolbar.categoryOptions : [];
-            state.filters.customByReport['queue-summary'] = {
-                cabinetId: payload.toolbar && payload.toolbar.cabinetId != null ? String(payload.toolbar.cabinetId) : '',
-                doctorId: payload.toolbar && payload.toolbar.doctorId != null ? String(payload.toolbar.doctorId) : ''
-            };
-            state.filters.customByReport['cabinet-load'] = {
-                weekStart: payload.toolbar && payload.toolbar.weekStart ? payload.toolbar.weekStart : ''
-            };
+            reportCustomConfig = payload.reportCustomConfig && typeof payload.reportCustomConfig === 'object'
+                ? payload.reportCustomConfig
+                : {};
+            applyCatalogTitles(payload.catalog);
         } catch (_) {
             state.selectedReportId = '';
         }
+    }
+
+    function applyCatalogTitles(catalog) {
+        var titlesById = {};
+        var descriptionsById = {};
+        if (Array.isArray(catalog)) {
+            catalog.forEach(function (item) {
+                var id = item && item.id ? String(item.id).trim() : '';
+                if (!id) return;
+                if (item.title) titlesById[id] = String(item.title).trim();
+                if (item.description) descriptionsById[id] = String(item.description).trim();
+            });
+        }
+        state.titlesById = titlesById;
+        state.descriptionsById = descriptionsById;
     }
 
     function toDateTimeLocal(raw) {
@@ -194,13 +812,14 @@
     }
 
     function collectReportTitles() {
-        var titlesById = {};
-        document.querySelectorAll('.report-catalog-card[data-report-id]').forEach(function (card) {
-            var id = card.getAttribute('data-report-id') || '';
-            var t = card.querySelector('.report-catalog-card__title');
-            if (id && t) titlesById[id] = t.textContent.trim();
-        });
-        state.titlesById = titlesById;
+        if (Object.keys(state.titlesById).length > 0)
+            return;
+        var node = document.getElementById('reports-page-data');
+        if (!node) return;
+        try {
+            var payload = JSON.parse(node.textContent || '{}');
+            applyCatalogTitles(payload.catalog);
+        } catch (_) { /* ignore */ }
     }
 
     function setModalTitle(title) {
@@ -226,7 +845,7 @@
         if (!value || typeof value !== 'string') return '…';
         var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value.trim());
         if (!m) return value;
-        return m[3] + '-' + m[2] + '-' + m[1] + ' ' + m[4] + ':' + m[5];
+        return m[3] + '.' + m[2] + '.' + m[1] + ' ' + m[4] + ':' + m[5];
     }
 
     function formatPeriodHint() {
@@ -370,132 +989,40 @@
         });
     }
 
-    function destroyLoadPreviewChart() {
-        if (state.loadPreviewChart) {
+    function destroyPreviewCharts() {
+        (state.previewCharts || []).forEach(function (ch) {
             try {
-                state.loadPreviewChart.destroy();
+                ch.destroy();
             } catch (_) { /* ignore */ }
-            state.loadPreviewChart = null;
-        }
-    }
-
-    function mountLoadPreviewPieChart(pie) {
-        if (typeof Chart === 'undefined') return;
-        var rawVals = pie.values || [];
-        var labels = (pie.labels || []).map(function (x) { return String(x); });
-        var vals = rawVals.map(function (v) {
-            var n = Number(v);
-            return isNaN(n) ? 0 : n;
         });
-        while (vals.length < labels.length) vals.push(0);
-        if (vals.length > labels.length) vals = vals.slice(0, labels.length);
-        var sum = vals.reduce(function (a, b) { return a + b; }, 0);
-        if (sum <= 0) return;
-        var canvas = document.getElementById('report-load-preview-pie');
-        if (!canvas) return;
-        state.loadPreviewChart = new Chart(canvas, {
-            type: 'doughnut',
-            data: {
-                labels: labels,
-                datasets: [{
-                    data: vals,
-                    backgroundColor: ['rgba(0, 179, 184, 0.88)', 'rgba(148, 163, 184, 0.78)'],
-                    borderColor: ['rgba(0, 153, 158, 1)', 'rgba(100, 116, 139, 0.95)'],
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                aspectRatio: 1.15,
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: { boxWidth: 12, padding: 10, font: { size: 12 } }
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function (ctx) {
-                                var val = ctx.raw != null ? Number(ctx.raw) : 0;
-                                var pct = sum > 0 ? (100 * val / sum).toFixed(1) : '0';
-                                var lab = ctx.label || '';
-                                return lab + ': ' + val.toFixed(1) + ' мин (' + pct + '%)';
-                            }
-                        }
-                    }
-                }
-            }
-        });
+        state.previewCharts = [];
     }
 
     function renderPreviewTable(result) {
-        var root = document.getElementById('report-preview-content');
-        if (!root) return;
-        destroyLoadPreviewChart();
-        if (!result || !result.columnHeaders || !result.rows) {
-            root.innerHTML = '<p class="report-params__empty">Нет данных для предпросмотра.</p>';
+        var core = window.ReportPreviewCore;
+        if (!core || typeof core.renderResultPreview !== 'function') {
+            var root = document.getElementById('report-preview-content');
+            if (root) root.innerHTML = '<p class="report-params__empty">Не загружен модуль предпросмотра.</p>';
             return;
         }
-
-        var pie = result.previewPieChart;
-        var chartBlock = '';
-        if (pie && pie.labels && pie.values && typeof Chart !== 'undefined') {
-            var valsCheck = (pie.values || []).map(function (v) { var n = Number(v); return isNaN(n) ? 0 : n; });
-            var sumCheck = valsCheck.reduce(function (a, b) { return a + b; }, 0);
-            if (sumCheck > 0) {
-                chartBlock = '<div class="report-preview-modal__chart-wrap" role="presentation">' +
-                    '<canvas id="report-load-preview-pie" aria-label="Соотношение длительности обслуживания и простоя"></canvas></div>';
+        core.renderResultPreview(result, {
+            destroyCharts: destroyPreviewCharts,
+            showInfoToast: showInfoToast,
+            onChartsMounted: function (charts) {
+                state.previewCharts = charts || [];
             }
-        }
-
-        var html = chartBlock;
-        html += '<div class="users-table-wrap report-preview-table"><table class="users-table users-table--report-preview"><thead><tr>';
-        result.columnHeaders.forEach(function (h) {
-            html += '<th>' + String(h) + '</th>';
         });
-        html += '</tr></thead><tbody>';
-        result.rows.forEach(function (row) {
-            var rc = row.rowClass;
-            var safeClass = typeof rc === 'string' && /^[a-zA-Z0-9 _-]+$/.test(rc) ? rc : '';
-            html += safeClass ? '<tr class="' + safeClass + '">' : '<tr>';
-            var cells = row.cells || [];
-            var colSpans = row.cellColSpans;
-            for (var ci = 0; ci < cells.length; ci++) {
-                var span = (colSpans && colSpans.length > ci) ? colSpans[ci] : 1;
-                if (span === 0) continue;
-                var attr = span > 1 ? ' colspan="' + span + '"' : '';
-                html += '<td' + attr + '>' + String(cells[ci]) + '</td>';
-            }
-            html += '</tr>';
-        });
-        html += '</tbody></table></div>';
-        root.innerHTML = html;
-        if (chartBlock && pie) {
-            window.requestAnimationFrame(function () {
-                mountLoadPreviewPieChart(pie);
-            });
-        }
     }
 
     async function generateReport() {
+        // Предпросмотр: POST /Reports/Generate — таблица может быть усечена; диаграммы из previewCharts/previewPieChart (полные агрегаты на сервере).
         if (!state.selectedReportId) return;
         collectFiltersFromUi();
         setGenerating(true);
-        var payload = {
-            reportId: state.selectedReportId,
-            dateFrom: state.filters.periodFrom || null,
-            dateTo: state.filters.periodTo || null,
-            weekStart: state.filters.customByReport[state.selectedReportId] && state.filters.customByReport[state.selectedReportId].weekStart
-                ? state.filters.customByReport[state.selectedReportId].weekStart
-                : null,
-            cabinetId: state.filters.customByReport[state.selectedReportId] && state.filters.customByReport[state.selectedReportId].cabinetId
-                ? Number(state.filters.customByReport[state.selectedReportId].cabinetId)
-                : null,
-            doctorId: state.filters.customByReport[state.selectedReportId] && state.filters.customByReport[state.selectedReportId].doctorId
-                ? Number(state.filters.customByReport[state.selectedReportId].doctorId)
-                : null,
-            customParams: state.filters.customByReport[state.selectedReportId] || {}
-        };
+        var core = window.ReportPreviewCore;
+        var payload = core && typeof core.buildReportRequestPayload === 'function'
+            ? core.buildReportRequestPayload(state)
+            : { reportId: state.selectedReportId, dateFrom: null, dateTo: null, weekStart: null, cabinetId: null, doctorId: null, customParams: {} };
         try {
             var response = await fetch('/Reports/Generate', {
                 method: 'POST',
@@ -545,22 +1072,12 @@
 
     function collectExportPayload(format) {
         collectFiltersFromUi();
-        return {
-            reportId: state.selectedReportId,
-            format: format,
-            dateFrom: state.filters.periodFrom || null,
-            dateTo: state.filters.periodTo || null,
-            weekStart: state.filters.customByReport[state.selectedReportId] && state.filters.customByReport[state.selectedReportId].weekStart
-                ? state.filters.customByReport[state.selectedReportId].weekStart
-                : null,
-            cabinetId: state.filters.customByReport[state.selectedReportId] && state.filters.customByReport[state.selectedReportId].cabinetId
-                ? Number(state.filters.customByReport[state.selectedReportId].cabinetId)
-                : null,
-            doctorId: state.filters.customByReport[state.selectedReportId] && state.filters.customByReport[state.selectedReportId].doctorId
-                ? Number(state.filters.customByReport[state.selectedReportId].doctorId)
-                : null,
-            customParams: state.filters.customByReport[state.selectedReportId] || {}
-        };
+        var core = window.ReportPreviewCore;
+        var base = core && typeof core.buildReportRequestPayload === 'function'
+            ? core.buildReportRequestPayload(state)
+            : { reportId: state.selectedReportId, dateFrom: null, dateTo: null, weekStart: null, cabinetId: null, doctorId: null, customParams: {} };
+        base.format = format;
+        return base;
     }
 
     function parseFileNameFromContentDisposition(header) {
@@ -583,6 +1100,8 @@
         var n = (name || '').toLowerCase();
         if (n.endsWith('.xlsx')) return 'xlsx';
         if (n.endsWith('.pdf')) return 'pdf';
+        if (n.endsWith('.html')) return 'html';
+        if (n.endsWith('.htm')) return 'html';
         if (n.endsWith('.csv')) return 'csv';
         return 'csv';
     }
@@ -593,6 +1112,7 @@
     }
 
     async function fetchExportBlob(format) {
+        // Файл: POST /Reports/Export — полный пересчёт отчёта на сервере, без лимита строк предпросмотра.
         var payload = collectExportPayload(format);
         var response = await fetch('/Reports/Export', {
             method: 'POST',
@@ -629,11 +1149,12 @@
             try {
                 var base = defaultExportBaseName();
                 var handle = await window.showSaveFilePicker({
-                    suggestedName: base + '.csv',
+                    suggestedName: base + '.pdf',
                     types: [
+                        { description: 'PDF', accept: { 'application/pdf': ['.pdf'] } },
+                        { description: 'HTML', accept: { 'text/html': ['.html', '.htm'] } },
                         { description: 'CSV', accept: { 'text/csv': ['.csv'] } },
-                        { description: 'Excel', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } },
-                        { description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }
+                        { description: 'Excel', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }
                     ]
                 });
                 var format = formatFromFileName(handle.name);

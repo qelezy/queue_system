@@ -1,6 +1,11 @@
 database name = ElectronicQueueProf
 
-Таблицы бд, из которых беру данные для аналитики
+Полная схема (все таблицы, PK/FK, раздел «для мониторинга»):
+  electronic-queue-prof-schema.md
+Повторное снятие схемы с SQL Server:
+  scripts/export-electronic-queue-schema.sql
+
+Таблицы бд, из которых беру данные для аналитики (8 таблиц — см. electronic-queue-prof-schema.md)
 
 Cabinet
 id_cabinet

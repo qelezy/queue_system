@@ -13,7 +13,7 @@
     const roleTextByValue = {
         Admin: "Администратор",
         Manager: "Менеджер",
-        Registrator: "Регистратор"
+        Dispatcher: "Диспетчер"
     };
 
     function getFullName(lastName, firstName, patronymic) {

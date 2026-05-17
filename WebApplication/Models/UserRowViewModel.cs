@@ -11,7 +11,7 @@ public class UserRowViewModel
 
     public string Email { get; set; } = "";
 
-    public string Role { get; set; } = "Registrator";
+    public string Role { get; set; } = "Dispatcher";
 
     public string RoleName { get; set; } = "";
 }

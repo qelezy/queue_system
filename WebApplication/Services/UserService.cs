@@ -33,7 +33,7 @@ namespace WebApplication.Services
             }
 
             var normalizedRole = (request.Role ?? string.Empty).Trim();
-            var roleToAssign = string.IsNullOrWhiteSpace(normalizedRole) ? "Registrator" : normalizedRole;
+            var roleToAssign = string.IsNullOrWhiteSpace(normalizedRole) ? "Dispatcher" : normalizedRole;
 
             await _userManager.AddToRoleAsync(user, roleToAssign);
 
@@ -104,7 +104,7 @@ namespace WebApplication.Services
                 LastName = user.LastName ?? string.Empty,
                 Patronymic = user.Patronymic,
                 Email = user.Email,
-                Role = (await _userManager.GetRolesAsync(user)).FirstOrDefault() ?? "Registrator"
+                Role = (await _userManager.GetRolesAsync(user)).FirstOrDefault() ?? "Dispatcher"
             });
         }
 

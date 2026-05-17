@@ -9,11 +9,15 @@ using WebApplication.Data;
 using WebApplication.Services;
 using Scalar.AspNetCore;
 using System.Text;
+using QuestPDF.Infrastructure;
 using WebApplication.Models;
 using WebApplication.Services.Reports;
+using WebApplication.Services.Reports.Catalog;
 using WebApplication.Services.Reports.LoadAndDowntime;
 
 Env.TraversePath().Load();
+
+QuestPDF.Settings.License = LicenseType.Community;
 
 var builder = Microsoft.AspNetCore.Builder.WebApplication.CreateBuilder(args);
 
@@ -117,11 +121,19 @@ builder.Services.Configure<ReportsOptions>(builder.Configuration.GetSection("Rep
 builder.Services.Configure<MonitoringOptions>(builder.Configuration.GetSection(MonitoringOptions.SectionName));
 builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<IReportsCatalog, ReportsCatalog>();
+builder.Services.AddSingleton<ReportCatalogMetadataEnricher>();
 builder.Services.AddScoped<IElectronicQueueAvailability, ElectronicQueueAvailabilityService>();
 builder.Services.AddScoped<QueueDashboardService>();
 builder.Services.AddScoped<MockQueueDashboardService>();
 builder.Services.AddScoped<IQueueDashboardService, ResilientQueueDashboardService>();
 builder.Services.AddScoped<IReportGenerator, LoadAndDowntimeReportGenerator>();
+builder.Services.AddScoped<IReportGenerator, ArrivedAndCompletedReportGenerator>();
+builder.Services.AddScoped<IReportGenerator, UnservedAndChainBreaksReportGenerator>();
+builder.Services.AddScoped<IReportGenerator, WaitingBeforeAppointmentReportGenerator>();
+builder.Services.AddScoped<IReportGenerator, AppointmentDurationReportGenerator>();
+builder.Services.AddScoped<IReportGenerator, RouteAndPausesReportGenerator>();
+builder.Services.AddScoped<IReportGenerator, ServiceCategoriesComparisonReportGenerator>();
+builder.Services.AddScoped<IReportGenerator, BottleneckRankingReportGenerator>();
 builder.Services.AddScoped<ReportGeneratorRegistry>();
 builder.Services.AddScoped<ReportGenerationService>();
 builder.Services.AddScoped<MockReportGenerationService>();
@@ -129,6 +141,14 @@ builder.Services.AddScoped<IReportGenerationService, ResilientReportGenerationSe
 builder.Services.AddScoped<IRolePermissionService, RolePermissionService>();
 
 var app = builder.Build();
+
+using (var validateScope = app.Services.CreateScope())
+{
+    var catalog = validateScope.ServiceProvider.GetRequiredService<IReportsCatalog>();
+    var generators = validateScope.ServiceProvider.GetServices<IReportGenerator>().ToList();
+    ReportsConfigurationValidator.Validate(catalog, generators);
+}
+
 var jwtOptions = app.Services.GetRequiredService<IOptions<JwtOptions>>().Value;
 
 // Configure the HTTP request pipeline.
@@ -190,7 +210,7 @@ using (var scope = app.Services.CreateScope())
 
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
-    string[] roles = { "Admin", "Manager", "Registrator" };
+    string[] roles = { "Admin", "Manager", "Dispatcher" };
 
     foreach (var role in roles)
     {

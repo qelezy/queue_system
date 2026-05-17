@@ -21,6 +21,7 @@ public sealed class ElectronicQueueDbContext : DbContext
     public DbSet<EqCabinet> Cabinets => Set<EqCabinet>();
     public DbSet<EqDoctor> Doctors => Set<EqDoctor>();
     public DbSet<EqCategory> Categories => Set<EqCategory>();
+    public DbSet<EqSettingQueue> SettingQueues => Set<EqSettingQueue>();
     public DbSet<EqSpecialty> Specialties => Set<EqSpecialty>();
     public DbSet<EqAppointment> Appointments => Set<EqAppointment>();
     public DbSet<EqListItem> ListItems => Set<EqListItem>();
@@ -53,13 +54,28 @@ public sealed class ElectronicQueueDbContext : DbContext
             entity.Property(x => x.FullName).HasColumnName("full_name").HasMaxLength(500);
         });
 
+        builder.Entity<EqSettingQueue>(entity =>
+        {
+            entity.ToTable("Setting_queue");
+            entity.HasKey(x => x.IdSetting);
+            entity.Property(x => x.IdSetting).HasColumnName("id_setting");
+            entity.Property(x => x.StartIdSpecialty).HasColumnName("start_id_specialty");
+            entity.Property(x => x.EndIdSpecialty).HasColumnName("end_id_specialty");
+        });
+
         builder.Entity<EqCategory>(entity =>
         {
             entity.ToTable("Category");
             entity.HasKey(x => x.IdCategory);
             entity.Property(x => x.IdCategory).HasColumnName("id_category");
+            entity.Property(x => x.IdSetting).HasColumnName("id_setting");
             entity.Property(x => x.Name).HasColumnName("name").HasMaxLength(500);
             entity.Property(x => x.Priority).HasColumnName("priority");
+
+            entity.HasOne(x => x.Setting)
+                .WithMany(x => x.Categories)
+                .HasForeignKey(x => x.IdSetting)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         builder.Entity<EqSpecialty>(entity =>
@@ -79,6 +95,7 @@ public sealed class ElectronicQueueDbContext : DbContext
             entity.Property(x => x.IdCategory).HasColumnName("id_category");
             entity.Property(x => x.DateArrival).HasColumnName("date_arrival");
             entity.Property(x => x.TimeArrival).HasColumnName("time_arrival");
+            entity.Property(x => x.Number).HasColumnName("number").HasMaxLength(64);
             entity.Property(x => x.TimeStartPause).HasColumnName("time_start_pause");
             entity.Property(x => x.Priority).HasColumnName("priority");
             entity.Property(x => x.Info).HasColumnName("info").HasMaxLength(1000);

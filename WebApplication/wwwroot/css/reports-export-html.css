@@ -1,0 +1,28 @@
+/* Оболочка скачанного HTML-отчёта (подключается в ReportTabularExporter вместе с reports-export-shared.css) */
+body.report-export-html {
+    font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+    margin: 24px;
+    color: #0f172a;
+    background: #fff;
+}
+
+.report-export-html__inner {
+    max-width: 100%;
+}
+
+.report-export-html__title {
+    font-size: 1.25rem;
+    margin: 0 0 8px;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.report-export-html__period {
+    margin: 0 0 16px;
+    font-size: 0.9rem;
+    color: #475569;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}

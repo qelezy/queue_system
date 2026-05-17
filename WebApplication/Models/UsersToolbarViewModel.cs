@@ -19,7 +19,7 @@ namespace WebApplication.Models
         {
             new() { Value = "Администратор", Label = "Администраторы" },
             new() { Value = "Менеджер", Label = "Менеджеры" },
-            new() { Value = "Регистратор", Label = "Регистраторы" }
+            new() { Value = "Диспетчер", Label = "Диспетчеры" }
         };
         public string CreateButtonText { get; set; } = "Регистрация пользователя";
         public string CreateButtonOnClick { get; set; } = "UsersUI.openCreate()";

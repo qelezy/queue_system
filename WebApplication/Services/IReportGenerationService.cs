@@ -7,9 +7,8 @@ public interface IReportGenerationService
     IReadOnlyList<ReportSelectOption> GetCabinetOptions();
     IReadOnlyList<ReportSelectOption> GetDoctorOptions();
     IReadOnlyList<ReportSelectOption> GetCategoryOptions();
-    ReportGenerateResponse Generate(ReportGenerateRequest request);
+    /// <param name="purpose"><see cref="ReportGenerationPurpose.JsonPreview"/> для <c>/Reports/Generate</c>; <see cref="ReportGenerationPurpose.ExportOrFull"/> для экспорта и полных пересчётов.</param>
+    ReportGenerateResponse Generate(ReportGenerateRequest request, ReportGenerationPurpose purpose = ReportGenerationPurpose.ExportOrFull);
     (byte[] Bytes, string ContentType, string FileName) BuildExport(ReportExportRequest request);
-    ReportResultViewModel GenerateQueueSummary(QueueSummaryReportParametersViewModel parameters);
-    ReportResultViewModel GenerateCabinetLoad(CabinetLoadReportParametersViewModel parameters);
-    byte[] BuildMockCsv(string reportId);
+    byte[] BuildMockCsv(string reportId, string? analysisMode = null);
 }

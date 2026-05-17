@@ -19,42 +19,62 @@ public sealed class ResilientReportGenerationService : IReportGenerationService
     }
 
     public IReadOnlyList<ReportSelectOption> GetCabinetOptions() =>
-        _availability.TryGetCachedAvailability(out var ok) && ok
-            ? _live.GetCabinetOptions()
-            : _mock.GetCabinetOptions();
+        TryLiveOrMock(_live.GetCabinetOptions, _mock.GetCabinetOptions);
 
     public IReadOnlyList<ReportSelectOption> GetDoctorOptions() =>
-        _availability.TryGetCachedAvailability(out var ok) && ok
-            ? _live.GetDoctorOptions()
-            : _mock.GetDoctorOptions();
+        TryLiveOrMock(_live.GetDoctorOptions, _mock.GetDoctorOptions);
 
     public IReadOnlyList<ReportSelectOption> GetCategoryOptions() =>
-        _availability.TryGetCachedAvailability(out var ok) && ok
-            ? _live.GetCategoryOptions()
-            : _mock.GetCategoryOptions();
+        TryLiveOrMock(_live.GetCategoryOptions, _mock.GetCategoryOptions);
 
-    public ReportGenerateResponse Generate(ReportGenerateRequest request) =>
-        _availability.TryGetCachedAvailability(out var ok) && ok
-            ? _live.Generate(request)
-            : _mock.Generate(request);
+    public ReportGenerateResponse Generate(
+        ReportGenerateRequest request,
+        ReportGenerationPurpose purpose = ReportGenerationPurpose.ExportOrFull) =>
+        TryLiveOrMock(
+            () =>
+            {
+                var liveResponse = _live.Generate(request, purpose);
+                if (!liveResponse.Implemented && _mock.IsImplementedOffline(request.ReportId))
+                    return _mock.Generate(request, purpose);
+                return liveResponse;
+            },
+            () => _mock.Generate(request, purpose));
 
     public (byte[] Bytes, string ContentType, string FileName) BuildExport(ReportExportRequest request) =>
-        _availability.TryGetCachedAvailability(out var ok) && ok
-            ? _live.BuildExport(request)
-            : _mock.BuildExport(request);
+        TryLiveOrMock(
+            () => _live.BuildExport(request),
+            () => _mock.BuildExport(request));
 
-    public ReportResultViewModel GenerateQueueSummary(QueueSummaryReportParametersViewModel parameters) =>
-        _availability.TryGetCachedAvailability(out var ok) && ok
-            ? _live.GenerateQueueSummary(parameters)
-            : _mock.GenerateQueueSummary(parameters);
+    public byte[] BuildMockCsv(string reportId, string? analysisMode = null) =>
+        TryLiveOrMock(
+            () => _live.BuildMockCsv(reportId, analysisMode),
+            () => _mock.BuildMockCsv(reportId, analysisMode));
 
-    public ReportResultViewModel GenerateCabinetLoad(CabinetLoadReportParametersViewModel parameters) =>
-        _availability.TryGetCachedAvailability(out var ok) && ok
-            ? _live.GenerateCabinetLoad(parameters)
-            : _mock.GenerateCabinetLoad(parameters);
+    private T TryLiveOrMock<T>(Func<T> live, Func<T> mock)
+    {
+        if (!_availability.TryGetCachedAvailability(out var ok) || !ok)
+            return mock();
 
-    public byte[] BuildMockCsv(string reportId) =>
-        _availability.TryGetCachedAvailability(out var ok) && ok
-            ? _live.BuildMockCsv(reportId)
-            : _mock.BuildMockCsv(reportId);
+        Exception? liveFailure = null;
+        try
+        {
+            return live();
+        }
+        catch (Exception ex)
+        {
+            liveFailure = ex;
+            _availability.MarkUnavailable();
+        }
+
+        try
+        {
+            return mock();
+        }
+        catch (Exception mockEx) when (liveFailure is not null)
+        {
+            throw new InvalidOperationException(
+                "Не удалось сформировать отчёт по демо-данным после сбоя подключения к БД.",
+                mockEx);
+        }
+    }
 }

@@ -15,7 +15,7 @@
         public T? Data { get; set; }
 
         public static ServiceResult<T> Success(T data, string? message = null) => new ServiceResult<T> { Succeeded = true, Data = data, Message = message };
-        public static ServiceResult<T> Fail(IEnumerable<string> errors, string? message = null) => new ServiceResult<T> { Succeeded = false, Errors = errors, Message = message };
+        public static new ServiceResult<T> Fail(IEnumerable<string> errors, string? message = null) => new ServiceResult<T> { Succeeded = false, Errors = errors, Message = message };
     
     }
 }

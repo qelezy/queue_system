@@ -24,6 +24,6 @@ namespace WebApplication.Models
 
         [Required]
         [Display(Name = "Роль")]
-        public string Role { get; set; } = "Registrator";
+        public string Role { get; set; } = "Dispatcher";
     }
 }

@@ -1,12 +1,51 @@
 using System.Globalization;
-using System.Linq;
 using System.Text;
 using WebApplication.Models;
+using WebApplication.Services.Reports;
+using WebApplication.Services.Reports.Catalog;
+using WebApplication.Services.Reports.LoadAndDowntime;
 
 namespace WebApplication.Services;
 
 public sealed class MockReportGenerationService : IReportGenerationService
 {
+    private readonly IReportsCatalog _catalog;
+    private readonly ReportCatalogMetadataEnricher _metadataEnricher;
+    private readonly IReadOnlyDictionary<ReportGeneratorKind, Func<ReportGenerateRequest, ReportGenerationPurpose, ReportResultViewModel>> _offlineByKind;
+
+    public MockReportGenerationService(
+        IReportsCatalog catalog,
+        ReportCatalogMetadataEnricher metadataEnricher)
+    {
+        _catalog = catalog;
+        _metadataEnricher = metadataEnricher;
+        _offlineByKind = new Dictionary<ReportGeneratorKind, Func<ReportGenerateRequest, ReportGenerationPurpose, ReportResultViewModel>>
+        {
+            [ReportGeneratorKind.LoadAndDowntime] = GenerateLoadAndDowntimeOffline,
+            [ReportGeneratorKind.ArrivedAndCompleted] = GenerateArrivedAndCompletedOffline,
+            [ReportGeneratorKind.WaitingBeforeAppointment] = GenerateWaitingBeforeAppointmentOffline,
+            [ReportGeneratorKind.AppointmentDuration] = GenerateAppointmentDurationOffline,
+            [ReportGeneratorKind.ServiceDelays] = GenerateBottleneckRankingOffline,
+            [ReportGeneratorKind.RouteAndPauses] = GenerateRouteAndPausesOffline,
+            [ReportGeneratorKind.NoShowsAndIncomplete] = GenerateUnservedAndChainBreaksOffline,
+            [ReportGeneratorKind.ServiceCategoriesComparison] = GenerateServiceCategoriesComparisonOffline
+        };
+    }
+
+    public bool IsImplementedOffline(string? reportId) =>
+        _catalog.TryGetItem(reportId, out var item)
+        && item is not null
+        && _offlineByKind.ContainsKey(item.GeneratorKind);
+
+    private static readonly string[] AppointmentDurationMockSpecialties =
+    [
+        "Терапия",
+        "Кардиология",
+        "Неврология",
+        "Офтальмология",
+        "ЛОР"
+    ];
+
     public IReadOnlyList<ReportSelectOption> GetCabinetOptions() =>
         ElectronicQueueMockData.Cabinets
             .Select(c => new ReportSelectOption { Id = c.Id, Label = c.Label })
@@ -22,531 +61,279 @@ public sealed class MockReportGenerationService : IReportGenerationService
             .Select(c => new ReportSelectOption { Id = c.Id, Label = c.Name })
             .ToList();
 
-    public ReportGenerateResponse Generate(ReportGenerateRequest request)
+    public ReportGenerateResponse Generate(ReportGenerateRequest request, ReportGenerationPurpose purpose = ReportGenerationPurpose.ExportOrFull)
     {
         var reportId = request.ReportId?.Trim() ?? "";
-        if (string.Equals(reportId, ReportIds.QueueSummary, StringComparison.OrdinalIgnoreCase))
+        if (!_catalog.TryGetItem(reportId, out var item)
+            || item is null
+            || !_offlineByKind.TryGetValue(item.GeneratorKind, out var factory))
         {
-            var model = new QueueSummaryReportParametersViewModel
+            return new ReportGenerateResponse
             {
-                DateFrom = string.IsNullOrWhiteSpace(request.DateFrom) ? DateTime.UtcNow.AddDays(-6).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : request.DateFrom!,
-                DateTo = string.IsNullOrWhiteSpace(request.DateTo) ? DateTime.UtcNow.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : request.DateTo!,
-                CabinetId = request.CabinetId,
-                DoctorId = request.DoctorId
+                Success = true,
+                Implemented = false,
+                Message = "Формирование выбранного отчета пока не реализовано."
             };
-            return new ReportGenerateResponse { Success = true, Implemented = true, Result = GenerateQueueSummary(model) };
         }
 
-        if (string.Equals(reportId, ReportIds.CabinetLoad, StringComparison.OrdinalIgnoreCase))
-        {
-            var model = new CabinetLoadReportParametersViewModel
-            {
-                WeekStart = string.IsNullOrWhiteSpace(request.WeekStart) ? DateTime.UtcNow.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : request.WeekStart!
-            };
-            return new ReportGenerateResponse { Success = true, Implemented = true, Result = GenerateCabinetLoad(model) };
-        }
-
-        if (string.Equals(reportId, ReportIds.DoctorCabinetLoadDowntime, StringComparison.OrdinalIgnoreCase))
-            return new ReportGenerateResponse { Success = true, Implemented = true, Result = GenerateLoadAndDowntimeOffline(request) };
-
-        return new ReportGenerateResponse
-        {
-            Success = true,
-            Implemented = false,
-            Message = "Формирование выбранного отчета пока не реализовано."
-        };
+        var result = factory(request, purpose);
+        _metadataEnricher.ApplyToResult(result, reportId);
+        return new ReportGenerateResponse { Success = true, Implemented = true, Result = result };
     }
 
     public (byte[] Bytes, string ContentType, string FileName) BuildExport(ReportExportRequest request)
     {
-        var generated = Generate(request);
+        var generated = Generate(request, ReportGenerationPurpose.ExportOrFull);
         if (!generated.Implemented || generated.Result is null)
         {
-            return (Encoding.UTF8.GetBytes("report;status\nnot_implemented;true\n"), "text/csv; charset=utf-8", "report-not-implemented.csv");
+            var stub = new ReportResultViewModel
+            {
+                GeneratedForReportId = "report",
+                DownloadFileName = "report-not-implemented.csv",
+                ColumnHeaders = ["report", "status"],
+                Rows = [new ReportResultRowViewModel { Cells = ["not_implemented", "true"] }]
+            };
+            return ReportTabularExporter.Export(stub, "csv", request);
         }
 
-        var format = (request.Format ?? "csv").Trim().ToLowerInvariant();
-        if (format == "xlsx")
-        {
-            var bytes = ToCsvBytes(generated.Result);
-            return (bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"{generated.Result.GeneratedForReportId}.xlsx");
-        }
-
-        if (format == "pdf")
-        {
-            var bytes = Encoding.UTF8.GetBytes("PDF export placeholder\n" + Encoding.UTF8.GetString(ToCsvBytes(generated.Result)));
-            return (bytes, "application/pdf", $"{generated.Result.GeneratedForReportId}.pdf");
-        }
-
-        return (ToCsvBytes(generated.Result), "text/csv; charset=utf-8", $"{generated.Result.GeneratedForReportId}.csv");
+        return ReportTabularExporter.Export(generated.Result, request.Format, request);
     }
 
-    public ReportResultViewModel GenerateQueueSummary(QueueSummaryReportParametersViewModel parameters)
+    public ReportResultViewModel GenerateLoadAndDowntimeOffline(
+        ReportGenerateRequest request,
+        ReportGenerationPurpose purpose = ReportGenerationPurpose.ExportOrFull)
     {
-        var period = $"{parameters.DateFrom} — {parameters.DateTo}";
-        var cab = parameters.CabinetId is null
-            ? "все"
-            : ElectronicQueueMockData.Cabinets.FirstOrDefault(c => c.Id == parameters.CabinetId.Value).Label ?? "—";
-        var doc = parameters.DoctorId is null
-            ? "все"
-            : ElectronicQueueMockData.Doctors.FirstOrDefault(d => d.Id == parameters.DoctorId.Value).Name ?? "—";
-
-        return new ReportResultViewModel
+        if (!DateTime.TryParse(
+                request.DateFrom,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var periodFrom)
+            || !DateTime.TryParse(
+                request.DateTo,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var periodTo))
         {
-            GeneratedForReportId = ReportIds.QueueSummary,
-            Title = "Сводка по очереди",
-            DownloadFileName = "queue-summary.csv",
-            ColumnHeaders = ["Показатель", "Значение", "Комментарий"],
-            Rows =
-            [
-                new ReportResultRowViewModel { Cells = ["Период", period, "БД очереди недоступна — примерные значения"] },
-                new ReportResultRowViewModel { Cells = ["Кабинет", cab, "фильтр"] },
-                new ReportResultRowViewModel { Cells = ["Врач", doc, "фильтр"] },
-                new ReportResultRowViewModel
-                {
-                    Cells = ["Завершённых талонов (уникальных)", "42", "оценка"]
-                },
-                new ReportResultRowViewModel
-                {
-                    Cells = ["Среднее ожидание до вызова, мин", "18,5", "оценка"]
-                },
-                new ReportResultRowViewModel
-                {
-                    Cells = ["Средняя длительность обслуживания, мин", "22,0", "оценка"]
-                }
-            ]
-        };
+            periodFrom = DateTime.UtcNow.Date.AddDays(-7);
+            periodTo = DateTime.UtcNow;
+        }
+
+        if (periodFrom > periodTo)
+            (periodFrom, periodTo) = (periodTo, periodFrom);
+
+        var byCabinet = request.CustomParams is not null
+                        && request.CustomParams.TryGetValue("analysisMode", out var am)
+                        && string.Equals(am?.Trim(), "cabinet", StringComparison.OrdinalIgnoreCase);
+
+        var fromDo = DateOnly.FromDateTime(periodFrom);
+        var toDoOnly = DateOnly.FromDateTime(periodTo);
+        var (rawLogs, listRows) = MockReportOfflineSeed.BuildLoadAndDowntimeData(fromDo, toDoOnly);
+
+        return LoadAndDowntimeReportBuilder.BuildReport(
+            rawLogs,
+            listRows,
+            MockReportOfflineSeed.MockDoctorNames(),
+            MockReportOfflineSeed.MockCabinetNumbers(),
+            periodFrom,
+            periodTo,
+            byCabinet,
+            purpose);
     }
 
-    public ReportResultViewModel GenerateLoadAndDowntimeOffline(ReportGenerateRequest request)
+    public byte[] BuildMockCsv(string reportId, string? analysisMode = null)
     {
-        var byCabinet = request.CustomParams is not null && request.CustomParams.TryGetValue("analysisMode", out var am) && string.Equals(am?.Trim(), "cabinet", StringComparison.OrdinalIgnoreCase);
+        var rid = reportId.Trim();
+        if (!_catalog.TryGetItem(rid, out var item) || item is null)
+            return Encoding.UTF8.GetBytes("reportId;status\nunknown;not_found\n");
 
-        const int n = 12;
-        var headers = new List<string>
+        var p = new ReportGenerateRequest
         {
-            "Дата",
-            "Интервал работы",
-            "Врач",
-            "Специализация врача",
-            "Кабинет",
-            "Длительность смены, мин",
-            "Общая длительность обслуживания, мин",
-            "Общая длительность простоя, мин",
-            "Средняя длительность простоя, мин",
-            "Число интервалов простоя",
-            "Загрузка рабочего времени, %",
-            "Число завершённых приёмов"
+            ReportId = rid,
+            DateFrom = DateTime.UtcNow.AddDays(-7).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
+            DateTo = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
+            CustomParams = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
         };
 
-        var rows = new List<ReportResultRowViewModel>();
-
-        if (byCabinet)
+        if (item.GeneratorKind is ReportGeneratorKind.LoadAndDowntime or ReportGeneratorKind.ServiceDelays)
         {
-            rows.AddRange(
-            [
-                new()
-                {
-                    Cells =
-                    [
-                        "2026-05-01",
-                        "07:45–18:30",
-                        "Иванов И.И.; Петров П.П.",
-                        "Терапия; Хирургия",
-                        "Каб. 101",
-                        "600",
-                        "350",
-                        "250",
-                        "62,5",
-                        "4",
-                        "58,3",
-                        "7"
-                    ]
-                },
-                new()
-                {
-                    Cells =
-                    [
-                        "",
-                        "11:00–15:30",
-                        "Петров П.П.",
-                        "Хирургия",
-                        "Каб. 102",
-                        "360",
-                        "200",
-                        "160",
-                        "40",
-                        "4",
-                        "55,6",
-                        "4"
-                    ]
-                },
-                new()
-                {
-                    Cells =
-                    [
-                        "2026-05-02",
-                        "09:00–13:00",
-                        "Иванов И.И.",
-                        "Терапия",
-                        "Каб. 101",
-                        "240",
-                        "100",
-                        "140",
-                        "70",
-                        "2",
-                        "41,7",
-                        "2"
-                    ]
-                }
-            ]);
-            rows.Add(PadRow(
-                n,
-                "Итого по кабинетам",
-                "",
-                "report-load-table__row--totals-start",
-                LoadDowntimeTotalsLabelColSpans));
-            rows.Add(new()
-            {
-                Cells =
-                [
-                    "",
-                    "—",
-                    "—",
-                    "Терапия; Хирургия",
-                    "Каб. 101",
-                    "840",
-                    "450",
-                    "390",
-                    "65",
-                    "6",
-                    "53,6",
-                    "11"
-                ]
-            });
-            rows.Add(new()
-            {
-                Cells =
-                [
-                    "",
-                    "—",
-                    "—",
-                    "Хирургия",
-                    "Каб. 102",
-                    "360",
-                    "200",
-                    "160",
-                    "40",
-                    "4",
-                    "55,6",
-                    "4"
-                ]
-            });
+            p.CustomParams["analysisMode"] = string.Equals(analysisMode?.Trim(), "cabinet", StringComparison.OrdinalIgnoreCase)
+                ? "cabinet"
+                : "doctor";
         }
-        else
+        else if (item.GeneratorKind == ReportGeneratorKind.AppointmentDuration)
         {
-            rows.Add(new()
-            {
-                Cells =
-                [
-                    "2026-05-01",
-                    "08:15–14:00",
-                    "Иванов И.И.",
-                    "Терапия",
-                    "Каб. 101",
-                    "480",
-                    "250",
-                    "230",
-                    "57,5",
-                    "4",
-                    "52,1",
-                    "5"
-                ]
-            });
-            rows.Add(new()
-            {
-                Cells =
-                [
-                    "",
-                    "14:30–19:45",
-                    "Иванов И.И.",
-                    "Терапия",
-                    "Каб. 205",
-                    "240",
-                    "150",
-                    "90",
-                    "45",
-                    "2",
-                    "62,5",
-                    "3"
-                ]
-            });
-            rows.Add(new()
-            {
-                Cells =
-                [
-                    "",
-                    "10:00–16:00",
-                    "Петров П.П.",
-                    "Хирургия",
-                    "Каб. 102",
-                    "360",
-                    "200",
-                    "160",
-                    "40",
-                    "4",
-                    "55,6",
-                    "4"
-                ]
-            });
-            rows.Add(PadRow(
-                n,
-                "Итого за день",
-                "",
-                "report-load-table__row--day-totals-heading",
-                LoadDowntimeTotalsLabelColSpans));
-            rows.Add(new()
-            {
-                Cells =
-                [
-                    "",
-                    "—",
-                    "Иванов И.И.",
-                    "Терапия",
-                    "—",
-                    "720",
-                    "400",
-                    "320",
-                    "53,3",
-                    "6",
-                    "55,6",
-                    "8"
-                ]
-            });
-            rows.Add(new()
-            {
-                RowClass = "report-load-table__row--day-totals-end",
-                Cells =
-                [
-                    "",
-                    "—",
-                    "Петров П.П.",
-                    "Хирургия",
-                    "—",
-                    "360",
-                    "200",
-                    "160",
-                    "40",
-                    "4",
-                    "55,6",
-                    "4"
-                ]
-            });
-            rows.Add(new()
-            {
-                Cells =
-                [
-                    "2026-05-02",
-                    "08:30–12:30",
-                    "Иванов И.И.",
-                    "Терапия",
-                    "Каб. 101",
-                    "240",
-                    "100",
-                    "140",
-                    "70",
-                    "2",
-                    "41,7",
-                    "2"
-                ]
-            });
-            rows.Add(PadRow(
-                n,
-                "Итого за день",
-                "",
-                "report-load-table__row--day-totals-heading",
-                LoadDowntimeTotalsLabelColSpans));
-            rows.Add(new()
-            {
-                RowClass = "report-load-table__row--day-totals-end",
-                Cells =
-                [
-                    "",
-                    "—",
-                    "Иванов И.И.",
-                    "Терапия",
-                    "—",
-                    "240",
-                    "100",
-                    "140",
-                    "70",
-                    "2",
-                    "41,7",
-                    "2"
-                ]
-            });
-            rows.Add(PadRow(
-                n,
-                "Итого по врачам",
-                "",
-                "report-load-table__row--totals-start",
-                LoadDowntimeTotalsLabelColSpans));
-            rows.Add(new()
-            {
-                Cells =
-                [
-                    "",
-                    "—",
-                    "Иванов И.И.",
-                    "Терапия",
-                    "—",
-                    "960",
-                    "500",
-                    "460",
-                    "57,5",
-                    "8",
-                    "52,1",
-                    "9"
-                ]
-            });
-            rows.Add(new()
-            {
-                Cells =
-                [
-                    "",
-                    "—",
-                    "Петров П.П.",
-                    "Хирургия",
-                    "—",
-                    "360",
-                    "200",
-                    "160",
-                    "40",
-                    "4",
-                    "55,6",
-                    "4"
-                ]
-            });
+            p.CustomParams["analysisMode"] = AppointmentDurationReportBuilder.ParseAnalysisMode(
+                new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["analysisMode"] = string.IsNullOrWhiteSpace(analysisMode) ? "doctor" : analysisMode.Trim()
+                });
         }
 
-        return new ReportResultViewModel
-        {
-            GeneratedForReportId = ReportIds.DoctorCabinetLoadDowntime,
-            Title = "Загрузка и простои",
-            DownloadFileName = "load-and-downtime.csv",
-            ColumnHeaders = headers,
-            Rows = rows,
-            PreviewPieChart = MockLoadDowntimePreviewPie(byCabinet)
-        };
+        var generated = Generate(p, ReportGenerationPurpose.ExportOrFull);
+        if (!generated.Implemented || generated.Result is null)
+            return Encoding.UTF8.GetBytes("reportId;status\nunknown;not_found\n");
+
+        return ReportTabularExporter.WriteCsvBytes(generated.Result);
     }
 
-    private static ReportPreviewPieChart MockLoadDowntimePreviewPie(bool byCabinet) =>
-        byCabinet
-            ? new ReportPreviewPieChart
+    /// <summary>Демо-отчёт «Длительность приёма» без БД (структура как у live).</summary>
+    public static ReportResultViewModel GenerateAppointmentDurationOffline(
+        ReportGenerateRequest request,
+        ReportGenerationPurpose purpose = ReportGenerationPurpose.ExportOrFull)
+    {
+        var (_, _, fromDo, toDo) = CatalogReportShared.ParsePeriod(request);
+        var analysisMode = AppointmentDurationReportBuilder.ParseAnalysisMode(request.CustomParams);
+        var periodSeed = Math.Abs(fromDo.DayNumber * 41 + toDo.DayNumber * 19);
+        var observations = new List<AppointmentDurationReportBuilder.DurationObservation>();
+
+        for (var day = fromDo; day <= toDo; day = day.AddDays(1))
+        {
+            var daySeed = Math.Abs(periodSeed + day.DayNumber * 23);
+
+            if (analysisMode == AppointmentDurationReportBuilder.ModeDoctor)
             {
-                Labels = ["Обслуживание (мин)", "Простой (мин)"],
-                Values = [650, 550]
+                foreach (var doc in ElectronicQueueMockData.Doctors)
+                {
+                    var count = 2 + (daySeed + doc.Id * 7) % 6;
+                    for (var n = 0; n < count; n++)
+                    {
+                        var svc = 12.0 + (daySeed + doc.Id * 11 + n * 5) % 28;
+                        var si = (doc.Id + n) % AppointmentDurationMockSpecialties.Length;
+                        var norm = 15 + (daySeed + doc.Id + n) % 31;
+                        var idAppointment = day.DayNumber * 10000 + doc.Id * 100 + n;
+                        observations.Add(new AppointmentDurationReportBuilder.DurationObservation(
+                            day,
+                            doc.Name,
+                            idAppointment,
+                            svc,
+                            norm,
+                            AppointmentDurationMockSpecialties[si]));
+                    }
+                }
             }
-            : new ReportPreviewPieChart
+            else if (analysisMode == AppointmentDurationReportBuilder.ModeCabinet)
             {
-                Labels = ["Обслуживание (мин)", "Простой (мин)"],
-                Values = [700, 620]
-            };
-
-    private static readonly List<int> LoadDowntimeTotalsLabelColSpans =
-        [2, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
-
-    private static ReportResultRowViewModel PadRow(
-        int colCount,
-        string c0,
-        string c1,
-        string? rowClass = null,
-        IReadOnlyList<int>? cellColSpans = null)
-    {
-        var cells = new List<string> { c0, c1 };
-        while (cells.Count < colCount)
-            cells.Add("");
-        return new ReportResultRowViewModel
-        {
-            Cells = cells,
-            RowClass = rowClass,
-            CellColSpans = cellColSpans is null ? null : cellColSpans.ToList()
-        };
-    }
-
-    public ReportResultViewModel GenerateCabinetLoad(CabinetLoadReportParametersViewModel parameters)
-    {
-        var rows = ElectronicQueueMockData.Cabinets.Select((c, i) => new ReportResultRowViewModel
-        {
-            Cells =
-            [
-                c.Label,
-                (35 + i * 12 % 50).ToString(CultureInfo.InvariantCulture) + "%",
-                parameters.WeekStart
-            ]
-        }).ToList();
-
-        return new ReportResultViewModel
-        {
-            GeneratedForReportId = ReportIds.CabinetLoad,
-            Title = "Загрузка кабинетов",
-            DownloadFileName = "cabinet-load.csv",
-            ColumnHeaders = ["Кабинет", "Загрузка %", "Неделя с"],
-            Rows = rows
-        };
-    }
-
-    public byte[] BuildMockCsv(string reportId)
-    {
-        if (string.Equals(reportId, ReportIds.QueueSummary, StringComparison.OrdinalIgnoreCase))
-        {
-            var p = new QueueSummaryReportParametersViewModel
+                foreach (var cab in ElectronicQueueMockData.Cabinets)
+                {
+                    var count = 1 + (daySeed + cab.Id * 9) % 5;
+                    for (var n = 0; n < count; n++)
+                    {
+                        var svc = 10.0 + (daySeed + cab.Id * 13 + n * 4) % 32;
+                        var label = AppointmentDurationReportBuilder.FormatCabinetLabel(
+                            cab.Label.Replace("Каб. ", "", StringComparison.Ordinal));
+                        var norm = 15 + (daySeed + cab.Id + n * 3) % 31;
+                        var idAppointment = day.DayNumber * 10000 + cab.Id * 100 + n;
+                        observations.Add(new AppointmentDurationReportBuilder.DurationObservation(
+                            day, label, idAppointment, svc, norm, null));
+                    }
+                }
+            }
+            else
             {
-                DateFrom = DateTime.UtcNow.AddDays(-7).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                DateTo = DateTime.UtcNow.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
-            };
-            return ToCsvBytes(GenerateQueueSummary(p));
+                for (var si = 0; si < AppointmentDurationMockSpecialties.Length; si++)
+                {
+                    var count = 1 + (daySeed + si * 11) % 4;
+                    for (var n = 0; n < count; n++)
+                    {
+                        var svc = 14.0 + (daySeed + si * 17 + n * 6) % 26;
+                        var norm = 15 + (daySeed + si + n * 2) % 31;
+                        var idAppointment = day.DayNumber * 10000 + si * 100 + n;
+                        observations.Add(new AppointmentDurationReportBuilder.DurationObservation(
+                            day,
+                            AppointmentDurationMockSpecialties[si],
+                            idAppointment,
+                            svc,
+                            norm,
+                            AppointmentDurationMockSpecialties[si]));
+                    }
+                }
+            }
         }
 
-        if (string.Equals(reportId, ReportIds.CabinetLoad, StringComparison.OrdinalIgnoreCase))
-        {
-            var p = new CabinetLoadReportParametersViewModel
-            {
-                WeekStart = DateTime.UtcNow.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
-            };
-            return ToCsvBytes(GenerateCabinetLoad(p));
-        }
-
-        if (string.Equals(reportId, ReportIds.DoctorCabinetLoadDowntime, StringComparison.OrdinalIgnoreCase))
-        {
-            var p = new ReportGenerateRequest
-            {
-                ReportId = ReportIds.DoctorCabinetLoadDowntime,
-                DateFrom = DateTime.UtcNow.AddDays(-7).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
-                DateTo = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
-                CustomParams = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase) { ["analysisMode"] = "doctor" }
-            };
-            return ToCsvBytes(GenerateLoadAndDowntimeOffline(p));
-        }
-
-        return Encoding.UTF8.GetBytes("reportId;status\nunknown;not_found\n");
+        return AppointmentDurationReportBuilder.BuildReport(observations, fromDo, toDo, analysisMode, purpose);
     }
 
-    private static byte[] ToCsvBytes(ReportResultViewModel result)
+    /// <summary>Демо-отчёт «Ожидание до приёма» без БД (структура как у live).</summary>
+    public static ReportResultViewModel GenerateWaitingBeforeAppointmentOffline(
+        ReportGenerateRequest request,
+        ReportGenerationPurpose purpose = ReportGenerationPurpose.ExportOrFull)
     {
-        var sb = new StringBuilder();
-        sb.AppendLine(string.Join(";", result.ColumnHeaders.Select(EscapeCsv)));
-        foreach (var row in result.Rows)
-            sb.AppendLine(string.Join(";", row.Cells.Select(EscapeCsv)));
+        var (periodFrom, periodTo, fromDo, toDo) = CatalogReportShared.ParsePeriod(request);
+        var periodSeed = Math.Abs(fromDo.DayNumber * 37 + toDo.DayNumber * 13);
+        var observations = new List<WaitingBeforeAppointmentReportBuilder.WaitingObservation>();
 
-        return Encoding.UTF8.GetBytes(sb.ToString());
+        for (var day = fromDo; day <= toDo; day = day.AddDays(1))
+        {
+            foreach (var slot in WaitingBeforeAppointmentReportBuilder.GetHourSlotsForDay(day, periodFrom, periodTo))
+            {
+                var callTime = TimeOnly.FromTimeSpan(TimeSpan.FromHours(slot.Hour) + TimeSpan.FromMinutes(30));
+                if (!WaitingBeforeAppointmentReportBuilder.IsCallInPeriod(day, callTime, periodFrom, periodTo))
+                    continue;
+
+                var seed = Math.Abs(periodSeed + day.DayNumber * 31 + slot.Hour * 17);
+                var count = seed % 5;
+                for (var n = 0; n < count; n++)
+                {
+                    var wait = 5.0 + (seed + n * 3) % 35 + slot.Hour * 0.2;
+                    observations.Add(new WaitingBeforeAppointmentReportBuilder.WaitingObservation(day, slot.Hour, wait));
+                }
+            }
+        }
+
+        return WaitingBeforeAppointmentReportBuilder.BuildReport(
+            observations, fromDo, toDo, periodFrom, periodTo, purpose);
     }
 
-    private static string EscapeCsv(string? cell)
+    /// <summary>Демо-отчёт «Планируемые и завершённые приёмы» без БД (структура как у live).</summary>
+    public static ReportResultViewModel GenerateArrivedAndCompletedOffline(
+        ReportGenerateRequest request,
+        ReportGenerationPurpose purpose = ReportGenerationPurpose.ExportOrFull)
     {
-        var s = cell ?? "";
-        if (s.Contains(';') || s.Contains('"') || s.Contains('\n') || s.Contains('\r'))
-            return "\"" + s.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
-        return s;
+        var (_, _, fromDo, toDo) = CatalogReportShared.ParsePeriod(request);
+        var (appointments, listItems, categories) = MockReportOfflineSeed.BuildArrivedAndCompletedData(fromDo, toDo);
+        return ArrivedAndCompletedReportBuilder.BuildReport(appointments, listItems, categories, purpose);
+    }
+
+    public static ReportResultViewModel GenerateBottleneckRankingOffline(
+        ReportGenerateRequest request,
+        ReportGenerationPurpose purpose = ReportGenerationPurpose.ExportOrFull)
+    {
+        var (_, _, fromDo, toDo) = CatalogReportShared.ParsePeriod(request);
+        var analysisMode = BottleneckRankingReportBuilder.ParseAnalysisMode(request.CustomParams);
+        var stages = MockReportOfflineSeed.BuildBottleneckStages(fromDo, toDo);
+        var entityLabels = MockReportOfflineSeed.BuildBottleneckResourceLabels(analysisMode);
+        var metrics = BottleneckRankingQueries.BuildEntityMetrics(stages, entityLabels, analysisMode);
+        return BottleneckRankingReportBuilder.BuildReport(metrics, analysisMode, purpose);
+    }
+
+    public static ReportResultViewModel GenerateRouteAndPausesOffline(
+        ReportGenerateRequest request,
+        ReportGenerationPurpose purpose = ReportGenerationPurpose.ExportOrFull)
+    {
+        var (periodFrom, periodTo, fromDo, toDo) = CatalogReportShared.ParsePeriod(request);
+        var stages = MockReportOfflineSeed.BuildRouteStageObservations(fromDo, toDo);
+        return RouteAndPausesReportBuilder.BuildReport(stages, periodFrom, periodTo, purpose);
+    }
+
+    public static ReportResultViewModel GenerateUnservedAndChainBreaksOffline(
+        ReportGenerateRequest request,
+        ReportGenerationPurpose purpose = ReportGenerationPurpose.ExportOrFull)
+    {
+        var (_, _, fromDo, toDo) = CatalogReportShared.ParsePeriod(request);
+        var (appointments, listItems, categories) = MockReportOfflineSeed.BuildArrivedAndCompletedData(fromDo, toDo);
+        return UnservedAndChainBreaksReportBuilder.BuildReport(
+            appointments,
+            listItems,
+            categories,
+            purpose);
+    }
+
+    public static ReportResultViewModel GenerateServiceCategoriesComparisonOffline(
+        ReportGenerateRequest request,
+        ReportGenerationPurpose purpose = ReportGenerationPurpose.ExportOrFull)
+    {
+        var (_, _, fromDo, toDo) = CatalogReportShared.ParsePeriod(request);
+        var observations = MockReportOfflineSeed.BuildServiceCategoryObservations(fromDo, toDo);
+        return ServiceCategoriesComparisonReportBuilder.BuildReport(observations, purpose);
     }
 }

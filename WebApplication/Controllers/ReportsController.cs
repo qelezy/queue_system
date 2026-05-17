@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -10,15 +9,6 @@ namespace WebApplication.Controllers;
 [Authorize]
 public class ReportsController : Controller
 {
-    public const string TempDataReportResultKey = "reportResultJson";
-
-    private static readonly JsonSerializerOptions JsonSerializerOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        PropertyNameCaseInsensitive = true,
-        WriteIndented = false
-    };
-
     private readonly IReportsCatalog _catalog;
     private readonly IReportGenerationService _generation;
     private readonly IElectronicQueueAvailability _queueAvailability;
@@ -44,8 +34,6 @@ public class ReportsController : Controller
         string? selected,
         string? from,
         string? to,
-        long? cabinetId,
-        long? doctorId,
         CancellationToken cancellationToken)
     {
         ViewData["Title"] = "Отчёты";
@@ -57,92 +45,27 @@ public class ReportsController : Controller
         var catalog = FilterCatalog(fullCatalog, permissionNames);
         var selectedId = NormalizeSelected(selected, catalog);
 
-        var lastResult = TryConsumeResultFromTempData();
-
         var today = DateTime.UtcNow.Date;
         var range = ResolveToolbarRange(from, to, today);
-        var queueParams = CreateDefaultQueueSummaryParams(range.To);
-        queueParams.DateFrom = range.From.ToString("yyyy-MM-dd");
-        queueParams.DateTo = range.To.ToString("yyyy-MM-dd");
-        queueParams.CabinetId = cabinetId;
-        queueParams.DoctorId = doctorId;
-        FillSelectOptions(queueParams);
 
         var hub = new ReportsHubViewModel
         {
             Catalog = catalog,
             CatalogByCategory = FilterCatalogByCategory(_catalog.GetCatalogByCategory(), permissionNames),
             SelectedReportId = selectedId,
-            LastResult = lastResult,
-            ToolbarDateFrom = queueParams.DateFrom,
-            ToolbarDateTo = queueParams.DateTo,
-            ToolbarWeekStart = CreateDefaultCabinetLoadParams(range.From).WeekStart,
-            ToolbarCabinetId = queueParams.CabinetId,
-            ToolbarDoctorId = queueParams.DoctorId,
-            ToolbarCabinetOptions = queueParams.CabinetOptions,
-            ToolbarDoctorOptions = queueParams.DoctorOptions,
-            ToolbarCategoryOptions = _generation.GetCategoryOptions(),
-            QueueSummaryParams = queueParams,
-            CabinetLoadParams = CreateDefaultCabinetLoadParams(range.From),
+            ToolbarDateFrom = range.From.ToString("yyyy-MM-dd"),
+            ToolbarDateTo = range.To.ToString("yyyy-MM-dd"),
+            ToolbarCabinetOptions = _generation.GetCabinetOptions().ToList(),
+            ToolbarDoctorOptions = _generation.GetDoctorOptions().ToList(),
+            ToolbarCategoryOptions = _generation.GetCategoryOptions().ToList(),
             UsingElectronicQueueMockData = !live
         };
 
         return View(hub);
     }
 
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> RunQueueSummary(
-        QueueSummaryReportParametersViewModel model,
-        CancellationToken cancellationToken)
-    {
-        if (!await CanAccessReportAsync(ReportIds.QueueSummary, cancellationToken).ConfigureAwait(false))
-            return Forbid();
-
-        await _queueAvailability.CanQueryLiveDataAsync(cancellationToken).ConfigureAwait(false);
-        FillSelectOptions(model);
-        if (!ModelState.IsValid)
-            return await InvalidQueueSummary(model, cancellationToken).ConfigureAwait(false);
-
-        var result = _generation.GenerateQueueSummary(model);
-        TempData[TempDataReportResultKey] = JsonSerializer.Serialize(result, JsonSerializerOptions);
-        return RedirectToAction(nameof(Index), new
-        {
-            selected = ReportIds.QueueSummary,
-            from = model.DateFrom,
-            to = model.DateTo,
-            cabinetId = model.CabinetId,
-            doctorId = model.DoctorId
-        });
-    }
-
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> RunCabinetLoad(
-        CabinetLoadReportParametersViewModel model,
-        CancellationToken cancellationToken)
-    {
-        if (!await CanAccessReportAsync(ReportIds.CabinetLoad, cancellationToken).ConfigureAwait(false))
-            return Forbid();
-
-        await _queueAvailability.CanQueryLiveDataAsync(cancellationToken).ConfigureAwait(false);
-        if (!ModelState.IsValid)
-            return await InvalidCabinetLoad(model, cancellationToken).ConfigureAwait(false);
-
-        var result = _generation.GenerateCabinetLoad(model);
-        TempData[TempDataReportResultKey] = JsonSerializer.Serialize(result, JsonSerializerOptions);
-        if (!DateTime.TryParse(model.WeekStart, out var weekStart))
-            weekStart = DateTime.UtcNow.Date;
-        return RedirectToAction(nameof(Index), new
-        {
-            selected = ReportIds.CabinetLoad,
-            from = weekStart.ToString("yyyy-MM-dd"),
-            to = weekStart.AddDays(6).ToString("yyyy-MM-dd")
-        });
-    }
-
     [HttpGet]
-    public async Task<IActionResult> Download(string reportId, CancellationToken cancellationToken)
+    public async Task<IActionResult> Download(string reportId, string? analysisMode, CancellationToken cancellationToken)
     {
         if (!_catalog.TryGetItem(reportId, out _))
             return NotFound();
@@ -151,7 +74,7 @@ public class ReportsController : Controller
             return Forbid();
 
         await _queueAvailability.CanQueryLiveDataAsync(cancellationToken).ConfigureAwait(false);
-        var bytes = _generation.BuildMockCsv(reportId);
+        var bytes = _generation.BuildMockCsv(reportId, analysisMode);
         var fileName = $"{reportId.Trim().ToLowerInvariant()}.csv";
         return File(bytes, "text/csv; charset=utf-8", fileName);
     }
@@ -171,8 +94,30 @@ public class ReportsController : Controller
         if (!await CanAccessReportAsync(request.ReportId, cancellationToken).ConfigureAwait(false))
             return Json(new ReportGenerateResponse { Success = false, Message = "Нет доступа к этому отчёту." });
 
-        var result = _generation.Generate(request);
-        return Json(result);
+        try
+        {
+            var result = _generation.Generate(request, ReportGenerationPurpose.JsonPreview);
+            ApplyReportPreviewRowLimit(result.Result);
+            return Json(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new ReportGenerateResponse
+            {
+                Success = false,
+                Message = "Не удалось сформировать отчёт: " + ex.Message
+            });
+        }
+    }
+
+    private static void ApplyReportPreviewRowLimit(ReportResultViewModel? model)
+    {
+        // Страховка для отчётов без внутреннего лимита строк (load-and-downtime и arrived-and-completed усечены в генераторах).
+        if (model?.Rows is null || model.Rows.Count <= ReportPreviewLimits.MaxTableRows)
+            return;
+        model.PreviewRowsTotal = model.Rows.Count;
+        model.PreviewRowLimit = ReportPreviewLimits.MaxTableRows;
+        model.Rows = model.Rows.Take(ReportPreviewLimits.MaxTableRows).ToList();
     }
 
     [HttpPost]
@@ -198,8 +143,8 @@ public class ReportsController : Controller
     {
         var user = await _userManager.GetUserAsync(User).ConfigureAwait(false);
         var roleName = user is null
-            ? "Registrator"
-            : (await _userManager.GetRolesAsync(user).ConfigureAwait(false)).FirstOrDefault() ?? "Registrator";
+            ? "Dispatcher"
+            : (await _userManager.GetRolesAsync(user).ConfigureAwait(false)).FirstOrDefault() ?? "Dispatcher";
         return await _rolePermissionService.GetPermissionNamesForRoleAsync(roleName, cancellationToken)
             .ConfigureAwait(false);
     }
@@ -237,85 +182,6 @@ public class ReportsController : Controller
         return result;
     }
 
-    private async Task<IActionResult> InvalidQueueSummary(
-        QueueSummaryReportParametersViewModel model,
-        CancellationToken cancellationToken)
-    {
-        ViewData["Title"] = "Отчёты";
-        var live = await _queueAvailability.CanQueryLiveDataAsync(cancellationToken).ConfigureAwait(false);
-        var permissionNames = await GetPermissionNamesAsync(cancellationToken).ConfigureAwait(false);
-        var fullCatalog = _catalog.GetCatalog();
-        var catalog = FilterCatalog(fullCatalog, permissionNames);
-        FillSelectOptions(model);
-        var hub = new ReportsHubViewModel
-        {
-            Catalog = catalog,
-            CatalogByCategory = FilterCatalogByCategory(_catalog.GetCatalogByCategory(), permissionNames),
-            SelectedReportId = ReportIds.QueueSummary,
-            LastResult = null,
-            ToolbarDateFrom = model.DateFrom,
-            ToolbarDateTo = model.DateTo,
-            ToolbarWeekStart = CreateDefaultCabinetLoadParams(DateTime.UtcNow.Date).WeekStart,
-            ToolbarCabinetId = model.CabinetId,
-            ToolbarDoctorId = model.DoctorId,
-            ToolbarCabinetOptions = model.CabinetOptions,
-            ToolbarDoctorOptions = model.DoctorOptions,
-            ToolbarCategoryOptions = _generation.GetCategoryOptions(),
-            QueueSummaryParams = model,
-            CabinetLoadParams = CreateDefaultCabinetLoadParams(DateTime.UtcNow.Date),
-            UsingElectronicQueueMockData = !live
-        };
-        return View("Index", hub);
-    }
-
-    private async Task<IActionResult> InvalidCabinetLoad(
-        CabinetLoadReportParametersViewModel model,
-        CancellationToken cancellationToken)
-    {
-        ViewData["Title"] = "Отчёты";
-        var live = await _queueAvailability.CanQueryLiveDataAsync(cancellationToken).ConfigureAwait(false);
-        var permissionNames = await GetPermissionNamesAsync(cancellationToken).ConfigureAwait(false);
-        var fullCatalog = _catalog.GetCatalog();
-        var catalog = FilterCatalog(fullCatalog, permissionNames);
-        var hub = new ReportsHubViewModel
-        {
-            Catalog = catalog,
-            CatalogByCategory = FilterCatalogByCategory(_catalog.GetCatalogByCategory(), permissionNames),
-            SelectedReportId = ReportIds.CabinetLoad,
-            LastResult = null,
-            QueueSummaryParams = CreateDefaultQueueSummaryParams(DateTime.UtcNow.Date),
-            CabinetLoadParams = model,
-            UsingElectronicQueueMockData = !live
-        };
-        hub.ToolbarDateFrom = hub.QueueSummaryParams.DateFrom;
-        hub.ToolbarDateTo = hub.QueueSummaryParams.DateTo;
-        hub.ToolbarWeekStart = model.WeekStart;
-        hub.ToolbarCabinetId = hub.QueueSummaryParams.CabinetId;
-        hub.ToolbarDoctorId = hub.QueueSummaryParams.DoctorId;
-        hub.ToolbarCabinetOptions = hub.QueueSummaryParams.CabinetOptions;
-        hub.ToolbarDoctorOptions = hub.QueueSummaryParams.DoctorOptions;
-        hub.ToolbarCategoryOptions = _generation.GetCategoryOptions();
-        return View("Index", hub);
-    }
-
-    private void FillSelectOptions(QueueSummaryReportParametersViewModel model)
-    {
-        model.CabinetOptions = _generation.GetCabinetOptions().ToList();
-        model.DoctorOptions = _generation.GetDoctorOptions().ToList();
-    }
-
-    private QueueSummaryReportParametersViewModel CreateDefaultQueueSummaryParams(DateTime today)
-    {
-        var from = today.AddDays(-6);
-        var m = new QueueSummaryReportParametersViewModel
-        {
-            DateFrom = from.ToString("yyyy-MM-dd"),
-            DateTo = today.ToString("yyyy-MM-dd")
-        };
-        FillSelectOptions(m);
-        return m;
-    }
-
     private static (DateTime From, DateTime To) ResolveToolbarRange(string? from, string? to, DateTime today)
     {
         var toDate = TryParseDateOrDefault(to, today);
@@ -347,18 +213,6 @@ public class ReportsController : Controller
         request.DateTo = to.ToString("yyyy-MM-dd HH:mm:ss");
     }
 
-    private static CabinetLoadReportParametersViewModel CreateDefaultCabinetLoadParams(DateTime today)
-    {
-        var d = (int)today.DayOfWeek;
-        var diff = d == (int)DayOfWeek.Sunday ? 6 : d - (int)DayOfWeek.Monday;
-        var weekStart = today.AddDays(-diff);
-
-        return new CabinetLoadReportParametersViewModel
-        {
-            WeekStart = weekStart.ToString("yyyy-MM-dd")
-        };
-    }
-
     private static string? NormalizeSelected(string? selected, IReadOnlyList<ReportCatalogItemViewModel> catalog)
     {
         if (catalog.Count == 0)
@@ -369,24 +223,5 @@ public class ReportsController : Controller
             return match.Id;
 
         return null;
-    }
-
-    private ReportResultViewModel? TryConsumeResultFromTempData()
-    {
-        if (!TempData.TryGetValue(TempDataReportResultKey, out var value))
-            return null;
-
-        var raw = value as string;
-        if (string.IsNullOrWhiteSpace(raw))
-            return null;
-
-        try
-        {
-            return JsonSerializer.Deserialize<ReportResultViewModel>(raw, JsonSerializerOptions);
-        }
-        catch
-        {
-            return null;
-        }
     }
 }

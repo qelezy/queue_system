@@ -29,7 +29,7 @@ namespace WebApplication.Controllers
 
             foreach (var user in dbUsers)
             {
-                var role = (await _userManager.GetRolesAsync(user)).FirstOrDefault() ?? "Registrator";
+                var role = (await _userManager.GetRolesAsync(user)).FirstOrDefault() ?? "Dispatcher";
                 var firstName = user.FirstName ?? string.Empty;
                 var lastName = user.LastName ?? string.Empty;
                 var patronymic = user.Patronymic ?? string.Empty;
@@ -48,7 +48,8 @@ namespace WebApplication.Controllers
                     {
                         "Admin" => "Администратор",
                         "Manager" => "Менеджер",
-                        _ => "Регистратор"
+                        "Dispatcher" => "Диспетчер",
+                        _ => role
                     }
                 });
             }

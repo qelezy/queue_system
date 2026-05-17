@@ -49,7 +49,16 @@ public sealed class ElectronicQueueAvailabilityService : IElectronicQueueAvailab
             ok = false;
         }
 
-        _cache.Set(CacheKey, ok, new MemoryCacheEntryOptions { AbsoluteExpirationRelativeToNow = ttl });
+        _cache.Set(CacheKey, ok, CacheEntryOptions(ttl));
         return ok;
     }
+
+    public void MarkUnavailable()
+    {
+        var ttl = TimeSpan.FromSeconds(Math.Max(5, _opt.QueueAvailabilityCacheSeconds));
+        _cache.Set(CacheKey, false, CacheEntryOptions(ttl));
+    }
+
+    private static MemoryCacheEntryOptions CacheEntryOptions(TimeSpan ttl) =>
+        new() { AbsoluteExpirationRelativeToNow = ttl };
 }

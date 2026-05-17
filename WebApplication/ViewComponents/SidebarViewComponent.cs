@@ -38,7 +38,7 @@ public class SidebarViewComponent : ViewComponent
 
         if (user != null)
         {
-            var roleName = (await _userManager.GetRolesAsync(user)).FirstOrDefault() ?? "Registrator";
+            var roleName = (await _userManager.GetRolesAsync(user)).FirstOrDefault() ?? "Dispatcher";
             var permissions = await _rolePermissionService.GetPermissionNamesForRoleAsync(roleName);
             var reportIds = _reportsCatalog.GetCatalog().Select(x => x.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
             var canReports = permissions.Any(p => reportIds.Contains(p));

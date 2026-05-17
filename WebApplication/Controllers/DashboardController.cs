@@ -31,8 +31,8 @@ public class DashboardController : Controller
 
         var user = await _userManager.GetUserAsync(User).ConfigureAwait(false);
         var roleName = user is null
-            ? "Registrator"
-            : (await _userManager.GetRolesAsync(user).ConfigureAwait(false)).FirstOrDefault() ?? "Registrator";
+            ? "Dispatcher"
+            : (await _userManager.GetRolesAsync(user).ConfigureAwait(false)).FirstOrDefault() ?? "Dispatcher";
 
         var permissionNames = await _rolePermissionService.GetPermissionNamesForRoleAsync(roleName, cancellationToken)
             .ConfigureAwait(false);

@@ -16,4 +16,9 @@ public sealed class MonitoringOptions
 
     /// <summary>Кэш результата проверки подключения к ElectronicQueue (секунды).</summary>
     public int QueueAvailabilityCacheSeconds { get; set; } = 30;
+
+    /// <summary>
+    /// Минимальная длительность межэтапной паузы (мин) для строки реестра в отчёте «Необслуженные и разрывы».
+    /// </summary>
+    public int InterStagePauseIncidentThresholdMinutes { get; set; } = 30;
 }

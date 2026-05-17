@@ -2,6 +2,12 @@ using System.ComponentModel.DataAnnotations;
 
 namespace WebApplication.Models;
 
+/// <summary>
+/// Тело POST для <c>/Reports/Generate</c> и <c>/Reports/Export</c>. Доп. поля отчёта — в <see cref="CustomParams"/>
+/// и/или встроенных свойствах; на клиенте источник значений — форма и <c>reportCustomConfig</c>.
+/// Контроллер вызывает генерацию с <see cref="ReportGenerationPurpose.JsonPreview"/> только для <c>/Reports/Generate</c>;
+/// для <c>/Reports/Export</c> используется <see cref="ReportGenerationPurpose.ExportOrFull"/> (полная таблица в файле).
+/// </summary>
 public class ReportGenerateRequest
 {
     [Required]

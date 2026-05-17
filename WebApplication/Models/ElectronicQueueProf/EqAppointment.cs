@@ -10,6 +10,7 @@ public sealed class EqAppointment
     public int IdCategory { get; set; }
     public DateOnly DateArrival { get; set; }
     public TimeOnly TimeArrival { get; set; }
+    public string? Number { get; set; }
     public TimeOnly? TimeStartPause { get; set; }
     public int Priority { get; set; }
     public string Info { get; set; } = "";

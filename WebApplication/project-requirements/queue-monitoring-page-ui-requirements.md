@@ -1,10 +1,10 @@
 # Спецификация UI страницы «Мониторинг очереди»
 
-Используй этот документ как **единый источник требований к интерфейсу** при доработке или переработке страницы мониторинга очереди (Razor + JS, см. также [reusable-ui-components-requirements.md](reusable-ui-components-requirements.md)). Страница доступна по маршруту `/Dashboard` и является точкой входа для роли «Регистратор».
+Используй этот документ как **единый источник требований к интерфейсу** при доработке или переработке страницы мониторинга очереди (Razor + JS, см. также [reusable-ui-components-requirements.md](reusable-ui-components-requirements.md)). Страница доступна по маршруту `/Dashboard` и является точкой входа для роли «Диспетчер».
 
 ## Цель экрана
 
-Регистратор и менеджер видят **live-картину очереди** в реальном времени:
+Диспетчер и менеджер видят **live-картину очереди** в реальном времени:
 
 - сколько пациентов сейчас ожидает приёма;
 - сколько находится на приёме;
@@ -18,7 +18,7 @@
 ## Принципы UX (обязательные)
 
 1. **Один экран без вкладок.** Контент идёт сверху вниз тремя смысловыми блоками: верхняя панель карточек метрик → таблица текущей очереди → загрузка врачей.
-2. **Live-обновление.** Данные на странице периодически обновляются без действий пользователя; поведение наследуется от текущей реализации в [wwwroot/js/dashboard-monitoring.js](wwwroot/js/dashboard-monitoring.js).
+2. **Live-обновление.** Данные на странице периодически обновляются без действий пользователя; транспорт и серверный контур — [dashboard-live-monitoring-minimum.md](dashboard-live-monitoring-minimum.md) (SignalR, snapshot `DashboardViewModel`).
 3. **Единый формат карточек метрик.** Все карточки верхней панели используют общий partial [Views/Shared/_StatCard.cshtml](Views/Shared/_StatCard.cshtml) и стили `stat-card*`; новые карточки добавляются той же раскладкой.
 4. **Минимум переключателей и фильтров.** Live-страница не дублирует функционал отчётов: на ней нет фильтров по периоду, кабинету, категории и т. п. (это домен страницы «Отчёты» / менеджерской аналитики).
 5. **Статус как бейдж.** В таблице очереди и в карточках врачей статус выделяется цветным бейджем — пользователь должен распознавать состояние без чтения текста.
@@ -173,7 +173,7 @@
 - ViewModel страницы: [Models/DashboardViewModel.cs](Models/DashboardViewModel.cs)
 - Контроллер: [Controllers/DashboardController.cs](Controllers/DashboardController.cs)
 - Сервис live-данных: [Services/QueueDashboardService.cs](Services/QueueDashboardService.cs); маппинг статусов: [Services/QueueDashboardStatusMapper.cs](Services/QueueDashboardStatusMapper.cs); демо при недоступной БД: [Services/MockQueueDashboardService.cs](Services/MockQueueDashboardService.cs) через [Services/ResilientQueueDashboardService.cs](Services/ResilientQueueDashboardService.cs)
-- Скрипты страницы: [wwwroot/js/dashboard-monitoring.js](wwwroot/js/dashboard-monitoring.js)
+- Скрипты страницы: [wwwroot/js/dashboard-queue.js](../wwwroot/js/dashboard-queue.js), [wwwroot/js/dashboard-doctor-load.js](../wwwroot/js/dashboard-doctor-load.js); live-контур (при реализации): `wwwroot/js/dashboard-live.js` — см. [dashboard-live-monitoring-minimum.md](dashboard-live-monitoring-minimum.md)
 - Стили: [wwwroot/css/site.css](wwwroot/css/site.css), [wwwroot/css/additions.css](wwwroot/css/additions.css)
 
 Переработка визуала и потока должна **сохранять или улучшать** описанные выше сценарии; при изменении путей — обновить раздел «Связь с реализацией» в этом файле.

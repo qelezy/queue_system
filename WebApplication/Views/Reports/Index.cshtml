@@ -1,4 +1,6 @@
+@using WebApplication.Services
 @model ReportsHubViewModel
+@inject IReportsCatalog ReportsCatalog
 
 @{
     var selectedId = Model.SelectedReportId ?? "";
@@ -8,19 +10,26 @@
 @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new
 {
     selectedReportId = selectedId,
+    catalog = Model.Catalog.Select(x => new { id = x.Id, title = x.Title, description = x.Description, category = x.Category }),
+    categories = Model.CatalogByCategory.Select(c => new { id = c.Id, title = c.Title }),
+    dateRowspanReportIds = ReportsCatalog.GetIdsWithTableLayout(ReportTableLayouts.DateRowspan),
+    tableLayoutByReportId = ReportsCatalog.GetTableLayoutByReportId(),
+    detailRowKindByReportId = ReportsCatalog.GetDetailRowKindByReportId(),
+    reportCustomConfig = ReportsUiConfiguration.BuildCustomConfigByReportId(Model.Catalog),
     toolbar = new
     {
         dateFrom = Model.ToolbarDateFrom,
         dateTo = Model.ToolbarDateTo,
-        weekStart = Model.ToolbarWeekStart,
-        cabinetId = Model.ToolbarCabinetId,
-        doctorId = Model.ToolbarDoctorId,
         cabinetOptions = Model.ToolbarCabinetOptions.Select(x => new { id = x.Id, label = x.Label }),
         doctorOptions = Model.ToolbarDoctorOptions.Select(x => new { id = x.Id, label = x.Label }),
         categoryOptions = Model.ToolbarCategoryOptions.Select(x => new { id = x.Id, label = x.Label })
     }
 }))
 </script>
+
+@section Head {
+    <link rel="stylesheet" href="~/css/reports-export-shared.css" asp-append-version="true" />
+}
 
 <div class="report-hub">
     @if (Model.Catalog.Count == 0)

@@ -339,7 +339,7 @@
         if (lastNameInput instanceof HTMLInputElement) lastNameInput.value = row.dataset.lastName ?? "";
         if (patronymicInput instanceof HTMLInputElement) patronymicInput.value = row.dataset.patronymic ?? "";
         if (emailInput instanceof HTMLInputElement) emailInput.value = row.dataset.email ?? "";
-        if (roleInput instanceof HTMLSelectElement) roleInput.value = row.dataset.role ?? "Registrator";
+        if (roleInput instanceof HTMLSelectElement) roleInput.value = row.dataset.role ?? "Dispatcher";
 
         openModal("edit");
     }

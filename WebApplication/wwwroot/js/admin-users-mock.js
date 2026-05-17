@@ -5,7 +5,7 @@
             id: "1",
             fullName: "Иванова Е.С.",
             email: "e.ivanova@medcenter.local",
-            roleName: "Регистратор"
+            roleName: "Диспетчер"
         },
         {
             id: "2",
@@ -17,7 +17,7 @@
             id: "3",
             fullName: "Козлов Д.C.",
             email: "d.kozlov@medcenter.local",
-            roleName: "Регистратор"
+            roleName: "Диспетчер"
         }
     ];
 
