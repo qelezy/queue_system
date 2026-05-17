@@ -1,6 +1,5 @@
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
 using WebApplication.Data;
-using WebApplication.Models;
 
 namespace WebApplication.Services.Reports;
 

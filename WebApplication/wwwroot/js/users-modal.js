@@ -75,7 +75,7 @@
         btn.disabled = true;
 
         try {
-            const response = await fetch(`/api/user/${encodeURIComponent(trimmed)}`, { method: "DELETE" });
+            const response = await fetch(`/api/users/${encodeURIComponent(trimmed)}`, { method: "DELETE" });
             const result = await response.json().catch(() => ({}));
             if (response.ok && result.success) {
                 const row = Array.from(document.querySelectorAll(".users-table tbody tr[data-user-id]")).find(

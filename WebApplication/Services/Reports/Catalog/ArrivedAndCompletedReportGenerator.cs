@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using WebApplication.Data;
-using WebApplication.Models;
 
 namespace WebApplication.Services.Reports.Catalog;
 

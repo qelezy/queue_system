@@ -1,5 +1,4 @@
-using WebApplication.Models;
-
+﻿
 namespace WebApplication.Services.Reports;
 
 public sealed class ReportCatalogMetadataEnricher

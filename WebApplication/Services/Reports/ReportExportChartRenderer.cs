@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Text;
 using SkiaSharp;
-using WebApplication.Models;
 
 namespace WebApplication.Services.Reports;
 

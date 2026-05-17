@@ -1,0 +1,63 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>WebApplication</RootNamespace>
+    <AssemblyName>WebApplication</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="WebApplication.Models.Identity" />
+    <Using Include="WebApplication.Models.Configuration" />
+    <Using Include="WebApplication.Models.Configuration.Reports" />
+    <Using Include="WebApplication.Models.ViewModels.Dashboard" />
+    <Using Include="WebApplication.Models.ViewModels.Users" />
+    <Using Include="WebApplication.Models.ViewModels.Profile" />
+    <Using Include="WebApplication.Models.ViewModels.Shared" />
+    <Using Include="WebApplication.Models.Reports.ViewModels" />
+    <Using Include="WebApplication.Models.Reports.Constants" />
+    <Using Include="WebApplication.Models.Reports.Configuration" />
+    <Using Include="WebApplication.Models.Reports.Contracts" />
+    <Using Include="WebApplication.Models.Reports.Charts" />
+    <Using Include="WebApplication.Services.Auth" />
+    <Using Include="WebApplication.Services.Dashboard" />
+    <Using Include="WebApplication.Services.Users" />
+    <Using Include="WebApplication.Services.Reports" />
+    <Using Include="WebApplication.Dto.Auth" />
+    <Using Include="WebApplication.Dto.Users" />
+    <Using Include="WebApplication.Dto.Common" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="WebApplication.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\Fonts\NotoSans-Regular.ttf" />
+    <EmbeddedResource Include="wwwroot\css\reports-export-html.css" />
+    <EmbeddedResource Include="wwwroot\css\reports-export-shared.css" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ClosedXML" Version="0.105.0" />
+    <PackageReference Include="CsvHelper" Version="33.1.0" />
+    <PackageReference Include="DotNetEnv" Version="3.2.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.3" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.3" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.3" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.3" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.3" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.3">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="QuestPDF" Version="2026.5.0" />
+    <PackageReference Include="Scalar.AspNetCore" Version="2.12.37" />
+    <PackageReference Include="SendGrid" Version="9.29.3" />
+    <PackageReference Include="SkiaSharp" Version="3.119.2" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.15.0" />
+  </ItemGroup>
+
+</Project>

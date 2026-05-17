@@ -1,6 +1,5 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using WebApplication.Data;
-using WebApplication.Models;
 using WebApplication.Models.ElectronicQueueProf;
 
 namespace WebApplication.Services.Reports.Catalog;
@@ -53,7 +52,7 @@ public sealed class AppointmentDurationReportGenerator : IReportGenerator
         var observations = new List<AppointmentDurationReportBuilder.DurationObservation>(raw.Count);
         foreach (var x in raw)
         {
-            var svcMin = ComputeSvcMinutes(x.DateArrival, x.Start, x.End);
+            var svcMin = CatalogReportAnalysisHelper.ComputeSvcMinutes(x.DateArrival, x.Start, x.End);
             if (svcMin is null)
                 continue;
 
@@ -81,10 +80,4 @@ public sealed class AppointmentDurationReportGenerator : IReportGenerator
         return observations;
     }
 
-    private static double? ComputeSvcMinutes(DateOnly dateArrival, TimeOnly start, TimeOnly end)
-    {
-        var svcMin = (EqDateTimeExtensions.CombineOnArrivalDate(dateArrival, end)
-                      - EqDateTimeExtensions.CombineOnArrivalDate(dateArrival, start)).TotalMinutes;
-        return svcMin >= 0 && svcMin < 10080 ? svcMin : null;
-    }
 }

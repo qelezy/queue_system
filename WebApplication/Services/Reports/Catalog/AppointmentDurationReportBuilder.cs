@@ -1,5 +1,4 @@
 using System.Globalization;
-using WebApplication.Models;
 
 namespace WebApplication.Services.Reports.Catalog;
 

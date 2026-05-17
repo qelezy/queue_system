@@ -1,7 +1,6 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using WebApplication.Data;
-using WebApplication.Models;
 using WebApplication.Services.Reports.Catalog;
 
 namespace WebApplication.Services.Reports.LoadAndDowntime;

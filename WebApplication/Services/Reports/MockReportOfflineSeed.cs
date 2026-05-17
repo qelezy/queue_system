@@ -140,11 +140,11 @@ internal static class MockReportOfflineSeed
         return (appointments, listItems, categories);
     }
 
-    internal static List<BottleneckRankingQueries.StageObservation> BuildBottleneckStages(
+    internal static List<ServiceDelaysQueries.StageObservation> BuildServiceDelaysStages(
         DateOnly fromDo,
         DateOnly toDo)
     {
-        var stages = new List<BottleneckRankingQueries.StageObservation>();
+        var stages = new List<ServiceDelaysQueries.StageObservation>();
         var nextApptId = 50_000;
         var nextListItemId = 60_000;
         const int normMin = 15;
@@ -162,7 +162,7 @@ internal static class MockReportOfflineSeed
                     var callTime = new TimeOnly(8 + n, 0);
                     var startTime = callTime.Add(TimeSpan.FromMinutes(5 + n * 8));
                     var endTime = startTime.Add(TimeSpan.FromMinutes(normMin + (n == 0 ? 20 : 0)));
-                    stages.Add(new BottleneckRankingQueries.StageObservation(
+                    stages.Add(new ServiceDelaysQueries.StageObservation(
                         nextListItemId++,
                         nextApptId++,
                         day,
@@ -186,7 +186,7 @@ internal static class MockReportOfflineSeed
                 var callTime = new TimeOnly(10, 0);
                 var startTime = callTime.Add(TimeSpan.FromMinutes(12));
                 var endTime = startTime.Add(TimeSpan.FromMinutes(normMin + 10));
-                stages.Add(new BottleneckRankingQueries.StageObservation(
+                stages.Add(new ServiceDelaysQueries.StageObservation(
                     nextListItemId++,
                     nextApptId++,
                     day,
@@ -203,13 +203,13 @@ internal static class MockReportOfflineSeed
         return stages;
     }
 
-    internal static Dictionary<int, string> BuildBottleneckResourceLabels(string analysisMode)
+    internal static Dictionary<int, string> BuildServiceDelaysResourceLabels(string analysisMode)
     {
-        if (string.Equals(analysisMode, BottleneckRankingReportBuilder.ModeCabinet, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(analysisMode, ServiceDelaysReportBuilder.ModeCabinet, StringComparison.OrdinalIgnoreCase))
         {
             return ElectronicQueueMockData.Cabinets.ToDictionary(
                 c => c.Id,
-                c => BottleneckRankingReportBuilder.FormatCabinetLabel(
+                c => ServiceDelaysReportBuilder.FormatCabinetLabel(
                     c.Label.Replace("Каб. ", "", StringComparison.Ordinal).Trim()));
         }
 

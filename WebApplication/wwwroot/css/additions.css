@@ -467,7 +467,6 @@
     margin-top: 16px;
 }
 
-/* Standalone ReportPreviewModal (без workflow): широкий предпросмотр */
 .app-modal:not(.report-workflow-modal) .report-preview-modal__dialog {
     width: min(1680px, 99vw);
 }

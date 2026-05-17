@@ -1,5 +1,4 @@
 using System.Globalization;
-using WebApplication.Models;
 using WebApplication.Models.ElectronicQueueProf;
 using WebApplication.Services.Reports.Intervals;
 
