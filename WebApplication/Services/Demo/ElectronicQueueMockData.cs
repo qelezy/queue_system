@@ -1,14 +1,13 @@
-
-namespace WebApplication.Services.Dashboard;
+namespace WebApplication.Services.Demo;
 
 /// <summary>Согласованные демо-идентификаторы и подписи для mock ElectronicQueue.</summary>
 public static class ElectronicQueueMockData
 {
     public static IReadOnlyList<(int Id, string Label)> Cabinets { get; } =
     [
-        (1, "Каб. 101"),
-        (2, "Каб. 102"),
-        (3, "Каб. 103")
+        (1, "101"),
+        (2, "102"),
+        (3, "103")
     ];
 
     public static IReadOnlyList<(int Id, string Name)> Doctors { get; } =

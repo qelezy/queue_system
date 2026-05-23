@@ -8,18 +8,19 @@ public sealed class RolePermissionService : IRolePermissionService
 {
     private static readonly string[] MatrixRoleNames = ["Admin", "Manager", "Dispatcher"];
 
-    private static readonly Dictionary<string, string> LegacyReportPermissionIds = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["service-delays"] = "bottleneck-ranking",
-        ["no-shows-and-incomplete-service"] = "unserved-and-chain-breaks",
-    };
+    private static readonly (string CurrentId, string LegacyId)[] LegacyReportPermissionMappings =
+    [
+        ("service-delays", "bottleneck-ranking"),
+        ("service-route-outcomes", "unserved-and-chain-breaks"),
+        ("service-route-outcomes", "no-shows-and-incomplete-service"),
+        ("service-route-outcomes", "arrived-and-completed"),
+    ];
 
     private static readonly (string Name, string Title, string Description)[] DashboardLines =
     [
         ("dashboard.waiting", "Ожидают", "Карточка: записи в очереди без вызова к врачу, приём ещё не завершён."),
         ("dashboard.in-service", "На приёме", "Карточка: пациенты с начатым и ещё не завершённым приёмом."),
         ("dashboard.accepted-today", "Обслужено", "Карточка: завершённые приёмы за сегодня."),
-        ("dashboard.noshow-today", "Не явились", "Карточка: неявки за сегодня."),
         ("dashboard.avg-wait", "Среднее время ожидания", "Карточка: среднее и максимальное время ожидания (мин.) по завершённым ожиданиям за сегодня."),
         ("dashboard.avg-service", "Средняя длительность приёма", "Карточка: средняя и максимальная длительность приёма (мин.) за сегодня."),
         ("dashboard.chart-cabinets-load", "Состояние врачей", "Таблица: врач, статус, длительность текущего приёма, норма, число записей в очереди."),
@@ -75,7 +76,7 @@ public sealed class RolePermissionService : IRolePermissionService
 
     private async Task MigrateLegacyReportPermissionsAsync(CancellationToken cancellationToken)
     {
-        foreach (var (currentId, legacyId) in LegacyReportPermissionIds)
+        foreach (var (currentId, legacyId) in LegacyReportPermissionMappings)
         {
             var permissions = await _db.Permissions
                 .Where(p => p.PermissionName == currentId || p.PermissionName == legacyId)
@@ -142,7 +143,7 @@ public sealed class RolePermissionService : IRolePermissionService
             .Where(id => !string.IsNullOrEmpty(id))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var legacyId in LegacyReportPermissionIds.Values)
+        foreach (var (_, legacyId) in LegacyReportPermissionMappings)
             knownReportIds.Add(legacyId);
 
         var orphans = await _db.Permissions
@@ -394,7 +395,7 @@ public sealed class RolePermissionService : IRolePermissionService
 
     private static void ExpandLegacyReportPermissionNames(HashSet<string> permissionNames)
     {
-        foreach (var (currentId, legacyId) in LegacyReportPermissionIds)
+        foreach (var (currentId, legacyId) in LegacyReportPermissionMappings)
         {
             if (permissionNames.Contains(legacyId))
                 permissionNames.Add(currentId);
@@ -410,7 +411,6 @@ public sealed class RolePermissionService : IRolePermissionService
             WaitingCard = Has("dashboard.waiting"),
             InServiceCard = Has("dashboard.in-service"),
             AcceptedTodayCard = Has("dashboard.accepted-today"),
-            NoShowTodayCard = Has("dashboard.noshow-today"),
             AvgWaitCard = Has("dashboard.avg-wait"),
             AvgServiceCard = Has("dashboard.avg-service"),
             QueueTable = Has("dashboard.queue-table"),

@@ -25,6 +25,7 @@
     <Using Include="WebApplication.Services.Dashboard" />
     <Using Include="WebApplication.Services.Users" />
     <Using Include="WebApplication.Services.Reports" />
+    <Using Include="WebApplication.Services.Demo" />
     <Using Include="WebApplication.Dto.Auth" />
     <Using Include="WebApplication.Dto.Users" />
     <Using Include="WebApplication.Dto.Common" />

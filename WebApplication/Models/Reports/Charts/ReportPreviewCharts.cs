@@ -1,4 +1,6 @@
-﻿namespace WebApplication.Models.Reports.Charts;
+﻿using System.Text.Json.Serialization;
+
+namespace WebApplication.Models.Reports.Charts;
 
 /// <summary>
 /// Данные для круговой диаграммы в предпросмотре; при экспорте в CSV отражаются в блоке перед таблицей.
@@ -31,15 +33,21 @@ public sealed class ReportPreviewChartDescriptor
 
     /// <summary>Серии для <c>groupedBar</c>: подпись (час) и значения по дням (ось X — <see cref="Labels"/>).</summary>
     public List<ReportPreviewChartDataset>? Datasets { get; set; }
+
+    /// <summary>Сноска под диаграммой (например при агрегации оси X по неделям).</summary>
+    public string? Footnote { get; set; }
 }
 
 /// <summary>Одна серия grouped bar (например час суток).</summary>
 public sealed class ReportPreviewChartDataset
 {
     public string Label { get; set; } = "";
+
+    [JsonConverter(typeof(ChartDatasetValueListJsonConverter))]
     public List<double> Values { get; set; } = new();
 
     /// <summary>Норматив по дням (параллельно <see cref="Values"/>); наложение на один столбец среза.</summary>
+    [JsonConverter(typeof(ChartDatasetValueListJsonConverter))]
     public List<double>? NormValues { get; set; }
 
     /// <summary>Устаревающее; для новых отчётов использовать <see cref="NormValues"/>.</summary>
@@ -62,54 +70,29 @@ public static class ReportPreviewChartDescriptors
                 Labels = [..pie.Labels],
                 Values = [..pie.Values],
                 ValueUnit = "мин",
-                AriaLabel = "Соотношение длительности обслуживания и простоя",
+                AriaLabel = "Соотношение длительности занятости и простоя",
                 CanvasElementId = "report-preview-chart-0"
             }
         ];
     }
 
-    /// <summary>
-    /// Doughnut (итоги периода) и groupedBar (по дням) для отчёта «Необслуженные и разрывы».
-    /// </summary>
-    public static List<ReportPreviewChartDescriptor>? ForNoShowsAndIncompleteCharts(
-        int noShowCount,
+    /// <summary>Doughnut (итоги) и groupedBar (по дням) для отчёта «Исходы обслуживания».</summary>
+    public static List<ReportPreviewChartDescriptor>? ForServiceRouteOutcomesCharts(
+        int completedCount,
         int incompleteCount,
         IReadOnlyList<string> dailyDayLabels,
-        IReadOnlyList<double> noShowPerDay,
+        IReadOnlyList<double> completedPerDay,
         IReadOnlyList<double> incompletePerDay)
     {
         var outList = new List<ReportPreviewChartDescriptor>();
 
-        var pieLabels = new List<string>();
-        var pieValues = new List<double>();
-        if (noShowCount > 0)
-        {
-            pieLabels.Add("Неявок на приёмы");
-            pieValues.Add(noShowCount);
-        }
+        var doughnut = ForServiceRouteOutcomesMix(completedCount, incompleteCount);
+        if (doughnut is not null)
+            outList.AddRange(doughnut);
 
-        if (incompleteCount > 0)
-        {
-            pieLabels.Add("Приёмов с незавершённым обслуживанием");
-            pieValues.Add(incompleteCount);
-        }
-
-        if (pieLabels.Count > 0)
-        {
-            outList.Add(new ReportPreviewChartDescriptor
-            {
-                Kind = "doughnut",
-                Labels = pieLabels,
-                Values = pieValues,
-                ValueUnit = "шт.",
-                AriaLabel = "Неявки и незавершённое обслуживание за период",
-                CanvasElementId = "report-preview-chart-0"
-            });
-        }
-
-        var bar = ForNoShowsAndIncompleteDailyGroupedBar(
+        var bar = ForServiceRouteOutcomesDailyGroupedBar(
             dailyDayLabels,
-            noShowPerDay,
+            completedPerDay,
             incompletePerDay);
         if (bar is not null)
             outList.AddRange(bar);
@@ -117,10 +100,46 @@ public static class ReportPreviewChartDescriptors
         return outList.Count == 0 ? null : outList;
     }
 
-    /// <summary>Ось X — дни; серии: неявки; незавершённое обслуживание (шт.).</summary>
-    public static List<ReportPreviewChartDescriptor>? ForNoShowsAndIncompleteDailyGroupedBar(
+    /// <summary>Doughnut по исходам талонов за период: завершённый маршрут; незавершённое обслуживание.</summary>
+    public static List<ReportPreviewChartDescriptor>? ForServiceRouteOutcomesMix(
+        int completedRoute,
+        int incomplete)
+    {
+        var labels = new List<string>();
+        var values = new List<double>();
+        if (completedRoute > 0)
+        {
+            labels.Add("С завершённым маршрутом");
+            values.Add(completedRoute);
+        }
+
+        if (incomplete > 0)
+        {
+            labels.Add("С незавершённым обслуживанием");
+            values.Add(incomplete);
+        }
+
+        if (labels.Count == 0)
+            return null;
+
+        return
+        [
+            new ReportPreviewChartDescriptor
+            {
+                Kind = "doughnut",
+                Labels = labels,
+                Values = values,
+                ValueUnit = "приёмов",
+                AriaLabel = "Исходы обслуживания за период: завершённый маршрут и незавершённое обслуживание",
+                CanvasElementId = "report-preview-chart-0"
+            }
+        ];
+    }
+
+    /// <summary>Ось X — дни; серии: завершённый маршрут; незавершённое обслуживание (шт.).</summary>
+    public static List<ReportPreviewChartDescriptor>? ForServiceRouteOutcomesDailyGroupedBar(
         IReadOnlyList<string> dayLabels,
-        IReadOnlyList<double> noShowPerDay,
+        IReadOnlyList<double> completedPerDay,
         IReadOnlyList<double> incompletePerDay)
     {
         if (dayLabels.Count == 0)
@@ -137,10 +156,10 @@ public static class ReportPreviewChartDescriptors
         }
 
         var n = dayLabels.Count;
-        var dsNo = Pad(noShowPerDay, n);
-        var dsInc = Pad(incompletePerDay, n);
+        var dsCompleted = Pad(completedPerDay, n);
+        var dsIncomplete = Pad(incompletePerDay, n);
 
-        if (dsNo.All(x => x <= 0) && dsInc.All(x => x <= 0))
+        if (dsCompleted.All(x => x <= 0) && dsIncomplete.All(x => x <= 0))
             return null;
 
         return
@@ -151,17 +170,16 @@ public static class ReportPreviewChartDescriptors
                 Labels = [..dayLabels],
                 Datasets =
                 [
-                    new ReportPreviewChartDataset { Label = "Неявок на приёмы", Values = dsNo },
-                    new ReportPreviewChartDataset { Label = "Приёмов с незавершённым обслуживанием", Values = dsInc }
+                    new ReportPreviewChartDataset { Label = "С завершённым маршрутом", Values = dsCompleted },
+                    new ReportPreviewChartDataset { Label = "С незавершённым обслуживанием", Values = dsIncomplete }
                 ],
                 ValueUnit = "шт.",
-                AriaLabel = "Неявки и незавершённое обслуживание по дням",
+                AriaLabel = "Исходы обслуживания по дням",
                 CanvasElementId = "report-preview-chart-1"
             }
         ];
     }
 
-    /// <summary>Doughnut по итоговым одно- и многоэтапным маршрутам за период (C = число этапов List_item на приём).</summary>
     public static List<ReportPreviewChartDescriptor>? ForMultiStageRoutesMix(int single, int multi)
     {
         var labels = new List<string>();
@@ -195,48 +213,12 @@ public static class ReportPreviewChartDescriptors
         ];
     }
 
-    /// <summary>Doughnut по исходам приёма за период: неявки; завершённый маршрут; незавершённое обслуживание (суммы колонок 4–6).</summary>
+
+    /// <summary>Устаревший alias — делегирует в <see cref="ForServiceRouteOutcomesMix"/>.</summary>
     public static List<ReportPreviewChartDescriptor>? ForArrivedCompletedAppointmentMix(
-        int noShows,
         int completedRoute,
-        int incomplete)
-    {
-        var labels = new List<string>();
-        var values = new List<double>();
-        if (noShows > 0)
-        {
-            labels.Add("Неявок на приёмы");
-            values.Add(noShows);
-        }
-
-        if (completedRoute > 0)
-        {
-            labels.Add("Приёмов с завершённым маршрутом");
-            values.Add(completedRoute);
-        }
-
-        if (incomplete > 0)
-        {
-            labels.Add("Приёмов с незавершённым обслуживанием");
-            values.Add(incomplete);
-        }
-
-        if (labels.Count == 0)
-            return null;
-
-        return
-        [
-            new ReportPreviewChartDescriptor
-            {
-                Kind = "doughnut",
-                Labels = labels,
-                Values = values,
-                ValueUnit = "приёмов",
-                AriaLabel = "Зарегистрированные приёмы за период: неявки, завершённый маршрут, незавершённое обслуживание",
-                CanvasElementId = "report-preview-chart-0"
-            }
-        ];
-    }
+        int incomplete) =>
+        ForServiceRouteOutcomesMix(completedRoute, incomplete);
 
     /// <summary>Grouped bar: по оси X — дни, серии — часы 00:00–23:00, значение — среднее ожидание (мин).</summary>
     public static List<ReportPreviewChartDescriptor>? ForWaitingBeforeAppointmentDailyGroupedBar(
@@ -256,7 +238,7 @@ public static class ReportPreviewChartDescriptors
             })
             .ToList();
 
-        if (datasets.All(d => d.Values.All(v => v <= 0)))
+        if (datasets.All(d => !ChartDatasetValues.HasFiniteValue(d.Values)))
             return null;
 
         return
@@ -296,8 +278,8 @@ public static class ReportPreviewChartDescriptors
             })
             .ToList();
 
-        if (datasets.All(d => d.Values.All(v => v <= 0) &&
-                              (d.NormValues is null || d.NormValues.All(v => v <= 0))))
+        if (datasets.All(d => !ChartDatasetValues.HasFiniteValue(d.Values)
+                              && (d.NormValues is null || !ChartDatasetValues.HasFiniteValue(d.NormValues))))
             return null;
 
         return

@@ -1,10 +1,9 @@
 using System.Globalization;
 using System.Text;
-using WebApplication.Services.Reports;
 using WebApplication.Services.Reports.Catalog;
 using WebApplication.Services.Reports.LoadAndDowntime;
 
-namespace WebApplication.Services.Reports;
+namespace WebApplication.Services.Demo;
 
 public sealed class MockReportGenerationService : IReportGenerationService
 {
@@ -21,12 +20,11 @@ public sealed class MockReportGenerationService : IReportGenerationService
         _offlineByKind = new Dictionary<ReportGeneratorKind, Func<ReportGenerateRequest, ReportGenerationPurpose, ReportResultViewModel>>
         {
             [ReportGeneratorKind.LoadAndDowntime] = GenerateLoadAndDowntimeOffline,
-            [ReportGeneratorKind.ArrivedAndCompleted] = GenerateArrivedAndCompletedOffline,
             [ReportGeneratorKind.WaitingBeforeAppointment] = GenerateWaitingBeforeAppointmentOffline,
             [ReportGeneratorKind.AppointmentDuration] = GenerateAppointmentDurationOffline,
             [ReportGeneratorKind.ServiceDelays] = GenerateServiceDelaysOffline,
             [ReportGeneratorKind.RouteAndPauses] = GenerateRouteAndPausesOffline,
-            [ReportGeneratorKind.NoShowsAndIncomplete] = GenerateNoShowsAndIncompleteOffline,
+            [ReportGeneratorKind.ServiceRouteOutcomes] = GenerateServiceRouteOutcomesOffline,
             [ReportGeneratorKind.ServiceCategoriesComparison] = GenerateServiceCategoriesComparisonOffline
         };
     }
@@ -92,10 +90,20 @@ public sealed class MockReportGenerationService : IReportGenerationService
                 ColumnHeaders = ["report", "status"],
                 Rows = [new ReportResultRowViewModel { Cells = ["not_implemented", "true"] }]
             };
-            return ReportTabularExporter.Export(stub, "csv", request);
+            return ReportTabularExporter.Export(stub, "csv", request, ResolveGeneratorKind(request.ReportId));
         }
 
-        return ReportTabularExporter.Export(generated.Result, request.Format, request);
+        return ReportTabularExporter.Export(
+            generated.Result,
+            request.Format,
+            request,
+            ResolveGeneratorKind(request.ReportId));
+    }
+
+    private ReportGeneratorKind? ResolveGeneratorKind(string? reportId)
+    {
+        var rid = reportId?.Trim() ?? "";
+        return _catalog.TryGetItem(rid, out var item) && item is not null ? item.GeneratorKind : null;
     }
 
     public ReportResultViewModel GenerateLoadAndDowntimeOffline(
@@ -218,8 +226,7 @@ public sealed class MockReportGenerationService : IReportGenerationService
                     for (var n = 0; n < count; n++)
                     {
                         var svc = 10.0 + (daySeed + cab.Id * 13 + n * 4) % 32;
-                        var label = AppointmentDurationReportBuilder.FormatCabinetLabel(
-                            cab.Label.Replace("Каб. ", "", StringComparison.Ordinal));
+                        var label = AppointmentDurationReportBuilder.FormatCabinetLabel(cab.Label);
                         var norm = 15 + (daySeed + cab.Id + n * 3) % 31;
                         var idAppointment = day.DayNumber * 10000 + cab.Id * 100 + n;
                         observations.Add(new AppointmentDurationReportBuilder.DurationObservation(
@@ -259,7 +266,50 @@ public sealed class MockReportGenerationService : IReportGenerationService
     {
         var (periodFrom, periodTo, fromDo, toDo) = CatalogReportShared.ParsePeriod(request);
         var periodSeed = Math.Abs(fromDo.DayNumber * 37 + toDo.DayNumber * 13);
+        var rows = new List<CatalogReportWaitingHelper.WaitStageRow>();
         var observations = new List<WaitingBeforeAppointmentReportBuilder.WaitingObservation>();
+
+        if (fromDo <= toDo)
+        {
+            var demoDay = fromDo;
+            const int multiStageApptId = 9001;
+            rows.Add(new CatalogReportWaitingHelper.WaitStageRow(
+                900101,
+                multiStageApptId,
+                demoDay,
+                new TimeOnly(8, 0),
+                new TimeOnly(8, 15),
+                new TimeOnly(8, 15),
+                new TimeOnly(10, 0)));
+            rows.Add(new CatalogReportWaitingHelper.WaitStageRow(
+                900102,
+                multiStageApptId,
+                demoDay,
+                new TimeOnly(8, 0),
+                new TimeOnly(10, 15),
+                new TimeOnly(10, 15),
+                new TimeOnly(10, 30)));
+
+            const int fallbackApptId = 9002;
+            rows.Add(new CatalogReportWaitingHelper.WaitStageRow(
+                900201,
+                fallbackApptId,
+                demoDay,
+                new TimeOnly(9, 0),
+                new TimeOnly(9, 10),
+                new TimeOnly(9, 10),
+                null));
+            rows.Add(new CatalogReportWaitingHelper.WaitStageRow(
+                900202,
+                fallbackApptId,
+                demoDay,
+                new TimeOnly(9, 0),
+                new TimeOnly(9, 40),
+                new TimeOnly(9, 40),
+                new TimeOnly(10, 0)));
+
+            observations.AddRange(CatalogReportWaitingHelper.BuildWaitingObservations(rows, periodFrom, periodTo));
+        }
 
         for (var day = fromDo; day <= toDo; day = day.AddDays(1))
         {
@@ -280,17 +330,17 @@ public sealed class MockReportGenerationService : IReportGenerationService
         }
 
         return WaitingBeforeAppointmentReportBuilder.BuildReport(
-            observations, fromDo, toDo, periodFrom, periodTo, purpose);
+            observations, fromDo, toDo, periodFrom, periodTo, purpose, 8, 19);
     }
 
-    /// <summary>Демо-отчёт «Планируемые и завершённые приёмы» без БД (структура как у live).</summary>
-    public static ReportResultViewModel GenerateArrivedAndCompletedOffline(
+    /// <summary>Демо-отчёт «Исходы обслуживания» без БД (структура как у live).</summary>
+    public static ReportResultViewModel GenerateServiceRouteOutcomesOffline(
         ReportGenerateRequest request,
         ReportGenerationPurpose purpose = ReportGenerationPurpose.ExportOrFull)
     {
         var (_, _, fromDo, toDo) = CatalogReportShared.ParsePeriod(request);
         var (appointments, listItems, categories) = MockReportOfflineSeed.BuildArrivedAndCompletedData(fromDo, toDo);
-        return ArrivedAndCompletedReportBuilder.BuildReport(appointments, listItems, categories, purpose);
+        return ServiceRouteOutcomesReportBuilder.BuildReport(appointments, listItems, categories, purpose);
     }
 
     public static ReportResultViewModel GenerateServiceDelaysOffline(
@@ -312,19 +362,6 @@ public sealed class MockReportGenerationService : IReportGenerationService
         var (periodFrom, periodTo, fromDo, toDo) = CatalogReportShared.ParsePeriod(request);
         var stages = MockReportOfflineSeed.BuildRouteStageObservations(fromDo, toDo);
         return RouteAndPausesReportBuilder.BuildReport(stages, periodFrom, periodTo, purpose);
-    }
-
-    public static ReportResultViewModel GenerateNoShowsAndIncompleteOffline(
-        ReportGenerateRequest request,
-        ReportGenerationPurpose purpose = ReportGenerationPurpose.ExportOrFull)
-    {
-        var (_, _, fromDo, toDo) = CatalogReportShared.ParsePeriod(request);
-        var (appointments, listItems, categories) = MockReportOfflineSeed.BuildArrivedAndCompletedData(fromDo, toDo);
-        return NoShowsAndIncompleteReportBuilder.BuildReport(
-            appointments,
-            listItems,
-            categories,
-            purpose);
     }
 
     public static ReportResultViewModel GenerateServiceCategoriesComparisonOffline(

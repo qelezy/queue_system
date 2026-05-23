@@ -5,6 +5,13 @@ namespace WebApplication.Services.Reports.Catalog;
 
 internal static class CatalogReportShared
 {
+    internal static bool HasAssignedDoctor(int? id) => id is > 0;
+
+    internal static bool HasAssignedCabinet(int? id) => id is > 0;
+
+    internal static bool HasAssignedDoctorAndCabinet(int? doctorId, int? cabinetId) =>
+        HasAssignedDoctor(doctorId) && HasAssignedCabinet(cabinetId);
+
     internal static (DateTime PeriodFrom, DateTime PeriodTo, DateOnly FromDo, DateOnly ToDo) ParsePeriod(
         ReportGenerateRequest request)
     {
@@ -42,7 +49,19 @@ internal static class CatalogReportShared
         model.Rows = model.Rows.Take(ReportPreviewLimits.MaxTableRows).ToList();
     }
 
-    internal static string F1(double v) => Math.Round(v, 1).ToString(CultureInfo.InvariantCulture);
+    internal const int MetricDecimalPlaces = 4;
+
+    internal static double RoundMetric(double v) =>
+        Math.Round(v, MetricDecimalPlaces);
+
+    internal static string FormatMetric(double v)
+    {
+        var rounded = RoundMetric(v);
+        if (rounded == 0)
+            return "0";
+
+        return rounded.ToString("0.####", CultureInfo.InvariantCulture);
+    }
 
     /// <summary>Число этапов <c>List_item</c> по каждому <c>id_appointment</c> (C для одно-/многоэтапных талонов).</summary>
     internal static Dictionary<int, int> CountListItemsPerAppointment(IEnumerable<int> listItemAppointmentIds) =>
@@ -53,7 +72,7 @@ internal static class CatalogReportShared
     internal static string FormatMultiStageSharePercent(int single, int multi)
     {
         var total = single + multi;
-        return total == 0 ? "0" : F1(multi * 100.0 / total);
+        return total == 0 ? "0" : FormatMetric(multi * 100.0 / total);
     }
 
     /// <summary>Подпись дня на оси X диаграмм отчётов каталога.</summary>
@@ -61,21 +80,7 @@ internal static class CatalogReportShared
         day.ToString("dd-MM-yyyy", CultureInfo.InvariantCulture);
 
     /// <summary>
-    /// В отчётах каталога <b>неявка на приём</b> — запись <c>Appointment</c> без ни одной строки <c>List_item</c>
-    /// (в выборке по <paramref name="appointmentIds"/> нет <paramref name="listItemAppointmentIds"/>).
-    /// Классификация этапов по времени не использует имя статуса «неяв» как синоним этой неявки.
-    /// </summary>
-    internal static int CountAppointmentsWithoutListItems(
-        IReadOnlyCollection<int> appointmentIds,
-        IEnumerable<int> listItemAppointmentIds)
-    {
-        var with = listItemAppointmentIds.ToHashSet();
-        return appointmentIds.Count(id => !with.Contains(id));
-    }
-
-    /// <summary>
-    /// Незавершённый фактический маршрут: есть этапы и хотя бы у одного нет <c>time_end_servicing</c>
-    /// (как в отчёте «Поступило и завершено»).
+    /// Незавершённый фактический маршрут: есть этапы и хотя бы у одного нет <c>time_end_servicing</c>.
     /// </summary>
     internal static bool AppointmentHasIncompleteRoute(IReadOnlyList<TimeOnly?> timeEndServicingPerStage)
     {
@@ -119,5 +124,5 @@ internal static class CatalogReportShared
     internal static string FormatProblemSharePercent(int appointmentsCount, int withProblemCount) =>
         appointmentsCount <= 0
             ? "—"
-            : F1(withProblemCount * 100.0 / appointmentsCount);
+            : FormatMetric(withProblemCount * 100.0 / appointmentsCount);
 }

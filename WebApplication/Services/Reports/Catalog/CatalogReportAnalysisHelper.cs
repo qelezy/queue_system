@@ -7,7 +7,7 @@ internal static class CatalogReportAnalysisHelper
     internal static string FormatCabinetLabel(string? cabinetNumber) =>
         string.IsNullOrWhiteSpace(cabinetNumber)
             ? "—"
-            : "Каб. " + cabinetNumber.Trim();
+            : cabinetNumber.Trim();
 
     internal static double? ComputeSvcMinutes(DateOnly dateArrival, TimeOnly start, TimeOnly end)
     {

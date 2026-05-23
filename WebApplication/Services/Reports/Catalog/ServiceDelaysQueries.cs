@@ -10,8 +10,8 @@ internal static class ServiceDelaysQueries
         int IdListItem,
         int IdAppointment,
         DateOnly DateArrival,
-        int IdDoctor,
-        int IdCabinet,
+        int? IdDoctor,
+        int? IdCabinet,
         TimeOnly? TimeCall,
         TimeOnly? TimeStartServicing,
         TimeOnly? TimeEndServicing,
@@ -140,8 +140,11 @@ internal static class ServiceDelaysQueries
     private static bool IsCabinetMode(string analysisMode) =>
         string.Equals(analysisMode, ServiceDelaysReportBuilder.ModeCabinet, StringComparison.OrdinalIgnoreCase);
 
-    private static int ResolveEntityId(StageObservation stage, bool byCabinet) =>
-        byCabinet ? stage.IdCabinet : stage.IdDoctor;
+    private static int ResolveEntityId(StageObservation stage, bool byCabinet)
+    {
+        var id = byCabinet ? stage.IdCabinet : stage.IdDoctor;
+        return id is > 0 ? id.Value : 0;
+    }
 
     private sealed class IncidentAggregate
     {

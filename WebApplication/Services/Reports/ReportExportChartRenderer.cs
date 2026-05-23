@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using SkiaSharp;
+using WebApplication.Services.Reports.Catalog;
 
 namespace WebApplication.Services.Reports;
 
@@ -27,7 +28,7 @@ public static class ReportExportChartRenderer
                     Labels = [..pie.Labels],
                     Values = [..pie.Values],
                     ValueUnit = "мин",
-                    AriaLabel = "Соотношение длительности обслуживания и простоя",
+                    AriaLabel = "Соотношение длительности занятости и простоя",
                     CanvasElementId = "report-preview-chart-0"
                 }
             ];
@@ -109,10 +110,8 @@ public static class ReportExportChartRenderer
         {
             var v = values[i];
             var pct = sum > 0 ? 100.0 * v / sum : 0;
-            var valStr = unit.Length > 0
-                ? string.Create(CultureInfo.InvariantCulture, $"{v:0.##} {unit}")
-                : string.Create(CultureInfo.InvariantCulture, $"{v:0.##}");
-            var line = $"{labels[i]}: {valStr} ({pct:0.#}%)";
+            var valStr = FormatChartMetricWithUnit(v, unit);
+            var line = $"{labels[i]}: {valStr} ({FormatChartMetric(pct)}%)";
             maxLegendChars = Math.Max(maxLegendChars, line.Length);
         }
 
@@ -161,10 +160,8 @@ public static class ReportExportChartRenderer
             var fill = SvgSegmentFill(i);
             var v = values[i];
             var pct = sum > 0 ? 100.0 * v / sum : 0;
-            var valStr = unit.Length > 0
-                ? string.Create(CultureInfo.InvariantCulture, $"{v:0.##} {unit}")
-                : string.Create(CultureInfo.InvariantCulture, $"{v:0.##}");
-            var line = $"{labels[i]}: {valStr} ({pct:0.#}%)";
+            var valStr = FormatChartMetricWithUnit(v, unit);
+            var line = $"{labels[i]}: {valStr} ({FormatChartMetric(pct)}%)";
             sb.Append(CultureInfo.InvariantCulture, $"<rect x=\"{legendLeft:0.##}\" y=\"{y - 12:0.##}\" width=\"{legendIconW:0.##}\" height=\"{legendIconW:0.##}\" fill=\"{fill}\" rx=\"1\"/>");
             sb.Append("<text xml:space=\"preserve\" x=\"")
                 .Append((legendLeft + legendIconW + legendGap).ToString("0.##", CultureInfo.InvariantCulture))
@@ -244,10 +241,8 @@ public static class ReportExportChartRenderer
         {
             var v = values[i];
             var pct = sum > 0 ? 100.0 * v / sum : 0;
-            var valStr = unit.Length > 0
-                ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{v:0.##} {unit}")
-                : string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{v:0.##}");
-            var line = $"{labels[i]}: {valStr} ({pct:0.#}%)";
+            var valStr = FormatChartMetricWithUnit(v, unit);
+            var line = $"{labels[i]}: {valStr} ({FormatChartMetric(pct)}%)";
             maxLegendChars = Math.Max(maxLegendChars, line.Length);
         }
 
@@ -332,10 +327,8 @@ public static class ReportExportChartRenderer
 
             var v = values[i];
             var pct = sum > 0 ? 100.0 * v / sum : 0;
-            var valStr = unit.Length > 0
-                ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{v:0.##} {unit}")
-                : string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{v:0.##}");
-            var line = $"{labels[i]}: {valStr} ({pct:0.#}%)";
+            var valStr = FormatChartMetricWithUnit(v, unit);
+            var line = $"{labels[i]}: {valStr} ({FormatChartMetric(pct)}%)";
             var clippedLine = ClipText(line, legendFont, legendPaint, canvasW - padX * 2 - 20f);
             canvas.DrawText(clippedLine, padX + 20f, y, SKTextAlign.Left, legendFont, legendPaint);
         }
@@ -434,6 +427,7 @@ public static class ReportExportChartRenderer
             .SelectMany(s => s.NormValues is not null
                 ? s.Values.Concat(s.NormValues)
                 : s.Values)
+            .Where(static v => double.IsFinite(v))
             .DefaultIfEmpty(0)
             .Max();
         if (maxVal <= 0)
@@ -481,10 +475,10 @@ public static class ReportExportChartRenderer
         const double padR = 20;
         const double padT = 20;
         const double padB = 72;
-        const double plotH = 280;
+        const double plotH = 240;
         var fullPageContentWidth = ReportTabularExporter.PdfLandscapeContentWidthPoints();
-        var canvasW = Math.Max(fullPageContentWidth, 560 + numDays * 32);
-        canvasW = Math.Min(canvasW, 1150);
+        var canvasW = Math.Max(fullPageContentWidth, 560 + numDays * 28);
+        canvasW = Math.Min(canvasW, 1100);
         var plotW = canvasW - padL - padR;
         var compactLegend = numSeries > 12;
         var legendColWidth = compactLegend ? 120.0 : 140.0;
@@ -495,7 +489,7 @@ public static class ReportExportChartRenderer
         var legendFontSize = compactLegend ? 10 : 11;
         var legendRows = (int)Math.Ceiling(numSeries / (double)legendCols);
         var legendH = Math.Max(28, legendRows * legendRowHeight + 12);
-        var canvasH = padT + plotH + padB + legendH;
+        var canvasH = Math.Min(420, padT + plotH + padB + legendH);
         var originY = padT + plotH;
         var numBarSeries = Math.Max(1, numSeries);
         var groupW = plotW / Math.Max(1, numDays);
@@ -535,9 +529,7 @@ public static class ReportExportChartRenderer
                 .Append("\" x2=\"").Append(F(layout.PadL + layout.PlotW))
                 .Append("\" y2=\"").Append(F(y))
                 .Append("\" stroke=\"#e2e8f0\" stroke-width=\"1\"/>");
-            var tickLabel = unit.Length > 0
-                ? string.Create(CultureInfo.InvariantCulture, $"{yVal:0.#} {unit}")
-                : string.Create(CultureInfo.InvariantCulture, $"{yVal:0.#}");
+            var tickLabel = FormatChartMetricWithUnit(yVal, unit);
             sb.Append("<text x=\"").Append(F(layout.PadL - 6))
                 .Append("\" y=\"").Append(F(y + 4))
                 .Append("\" text-anchor=\"end\" font-family=\"system-ui,Segoe UI,sans-serif\" font-size=\"11\" fill=\"#64748b\">")
@@ -583,7 +575,7 @@ public static class ReportExportChartRenderer
                 if (bar.NormValues is not null)
                 {
                     var normVal = bar.NormValues[di];
-                    if (normVal > 0)
+                    if (double.IsFinite(normVal) && normVal > 0)
                     {
                         var normH = normVal / maxVal * layout.PlotH;
                         var normY = layout.OriginY - normH;
@@ -599,7 +591,7 @@ public static class ReportExportChartRenderer
                 }
 
                 var val = bar.Values[di];
-                if (val <= 0)
+                if (!double.IsFinite(val) || val <= 0)
                     continue;
 
                 var barH = val / maxVal * layout.PlotH;
@@ -625,9 +617,7 @@ public static class ReportExportChartRenderer
         double value,
         string unit)
     {
-        var valStr = unit.Length > 0
-            ? string.Create(CultureInfo.InvariantCulture, $"{value:0.#} {unit}")
-            : string.Create(CultureInfo.InvariantCulture, $"{value:0.#}");
+        var valStr = FormatChartMetricWithUnit(value, unit);
         sb.Append("<title>")
             .Append(EscapeSvgText($"{seriesLabel}, {dayLabel}: {valStr}"))
             .Append("</title>");
@@ -681,6 +671,14 @@ public static class ReportExportChartRenderer
 
     private static string F(double value) => value.ToString("0.##", CultureInfo.InvariantCulture);
 
+    private static string FormatChartMetric(double value) =>
+        CatalogReportShared.FormatMetric(value);
+
+    private static string FormatChartMetricWithUnit(double value, string unit) =>
+        unit.Length > 0
+            ? $"{FormatChartMetric(value)} {unit}"
+            : FormatChartMetric(value);
+
     private static bool TryNormalizeGroupedBarData(
         ReportPreviewChartDescriptor d,
         out List<string> dayLabels,
@@ -697,18 +695,20 @@ public static class ReportExportChartRenderer
             if (string.Equals(ds.ChartSeriesType, "norm", StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            var vals = (ds.Values ?? []).Select(static v => double.IsFinite(v) ? Math.Max(0, v) : 0).ToList();
+            var vals = (ds.Values ?? []).Select(static v =>
+                double.IsFinite(v) ? Math.Max(0, v) : ChartDatasetValues.Missing).ToList();
             while (vals.Count < dayLabels.Count)
-                vals.Add(0);
+                vals.Add(ChartDatasetValues.Missing);
             if (vals.Count > dayLabels.Count)
                 vals = vals.Take(dayLabels.Count).ToList();
 
             List<double>? normVals = null;
             if (ds.NormValues is { Count: > 0 })
             {
-                normVals = ds.NormValues.Select(static v => double.IsFinite(v) ? Math.Max(0, v) : 0).ToList();
+                normVals = ds.NormValues.Select(static v =>
+                    double.IsFinite(v) ? Math.Max(0, v) : ChartDatasetValues.Missing).ToList();
                 while (normVals.Count < dayLabels.Count)
-                    normVals.Add(0);
+                    normVals.Add(ChartDatasetValues.Missing);
                 if (normVals.Count > dayLabels.Count)
                     normVals = normVals.Take(dayLabels.Count).ToList();
             }

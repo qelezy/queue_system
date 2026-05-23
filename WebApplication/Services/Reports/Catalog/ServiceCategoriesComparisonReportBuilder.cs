@@ -75,7 +75,7 @@ internal static class ServiceCategoriesComparisonReportBuilder
     }
 
     private static string FormatStat(IReadOnlyList<double> values, double? stat) =>
-        values.Count == 0 || stat is null ? "—" : CatalogReportShared.F1(stat.Value);
+        values.Count == 0 || stat is null ? "—" : CatalogReportShared.FormatMetric(stat.Value);
 
     private static (int Single, int Multi) AggregateStageMixCounts(
         IReadOnlyList<CategoryStageObservation> observations)
@@ -104,38 +104,28 @@ internal static class ServiceCategoriesComparisonReportBuilder
 
         if (detailRows.Count > ReportPreviewLimits.MaxTableRows)
         {
-            const int previewTailReserved = 1;
-            var maxDetail = Math.Max(0, ReportPreviewLimits.MaxTableRows - previewTailReserved);
             model.PreviewRowsTotal = detailRows.Count;
             model.PreviewRowLimit = ReportPreviewLimits.MaxTableRows;
-            model.Rows =
-            [
-                ..detailRows.Take(maxDetail),
-                ReportResultRowViewModel.FromCells(
-                [
-                    "…",
-                    "Показаны не все строки; полный отчёт — при сохранении в файл.",
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",
-                    ""
-                ],
-                rowClass: "report-load-table__row--preview-truncated-hint")
-            ];
+            model.Rows = [..detailRows.Take(ReportPreviewLimits.MaxTableRows)];
             return;
         }
 
         CatalogReportShared.ApplyPreviewRowCap(model, purpose);
     }
 
-    internal static double? ComputeWaitMinutes(DateOnly dateArrival, TimeOnly timeArrival, TimeOnly timeCall)
-    {
-        var w = (EqDateTimeExtensions.CombineOnArrivalDate(dateArrival, timeCall)
-                 - EqDateTimeExtensions.CombineOnArrivalDate(dateArrival, timeArrival)).TotalMinutes;
-        return w >= 0 && w < 10080 ? w : null;
-    }
+    internal static double? ComputeWaitMinutes<T>(
+        DateOnly dateArrival,
+        TimeOnly timeArrival,
+        IReadOnlyList<T> orderedStages,
+        int stageIndex,
+        TimeOnly timeCall)
+        where T : CatalogReportWaitingHelper.IWaitStageRow =>
+        CatalogReportWaitingHelper.TryComputeWaitBeforeCallMinutes(
+            dateArrival,
+            timeArrival,
+            orderedStages,
+            stageIndex,
+            timeCall);
 
     internal static double? ComputeSvcMinutes(DateOnly dateArrival, TimeOnly start, TimeOnly end)
     {

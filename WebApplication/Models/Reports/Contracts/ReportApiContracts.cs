@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace WebApplication.Models.Reports.Contracts;
 
@@ -17,6 +18,7 @@ public class ReportGenerateRequest
     public string? WeekStart { get; set; }
     public long? CabinetId { get; set; }
     public long? DoctorId { get; set; }
+    [JsonConverter(typeof(OrdinalIgnoreCaseStringDictionaryJsonConverter))]
     public Dictionary<string, string?> CustomParams { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
@@ -25,6 +27,8 @@ public sealed class ReportGenerateResponse
     public bool Success { get; set; }
     public string Message { get; set; } = "";
     public bool Implemented { get; set; }
+    /// <summary><c>true</c>, если отчёт сформирован по демо-данным (mock / недоступная БД).</summary>
+    public bool IsDemoData { get; set; }
     public ReportResultViewModel? Result { get; set; }
 }
 

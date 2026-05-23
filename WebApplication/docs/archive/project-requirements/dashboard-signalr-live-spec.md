@@ -14,8 +14,8 @@ UI страницы — [queue-monitoring-page-ui-requirements.md](queue-monitor
 | SSR `/dashboard`, `IQueueDashboardService`, live/mock через `ResilientQueueDashboardService` | Реализовано |
 | JWT из cookie (`AuthServiceCollectionExtensions`) | Реализовано |
 | `ElectronicQueueDbContext`, read-only к `ElectronicQueueProf` | Реализовано |
-| SignalR, `DashboardHub`, `DashboardRefreshHostedService`, `dashboard-live.js` | **Не реализовано** |
-| `MonitoringOptions.DashboardRefreshSeconds` | **Не реализовано** |
+| SignalR, `DashboardHub`, `DashboardRefreshHostedService`, `dashboard-live.js` | Реализовано |
+| `MonitoringOptions.DashboardRefreshSeconds` | Реализовано |
 
 При расхождении spec и кода после внедрения — **приоритет у кода**; spec обновляется отдельно.
 
@@ -29,7 +29,7 @@ UI страницы — [queue-monitoring-page-ui-requirements.md](queue-monitor
 |---------|----------|
 | Страница | `/dashboard` — [Controllers/Dashboard/DashboardController.cs](../../../Controllers/Dashboard/DashboardController.cs) |
 | Данные | Один snapshot — [Models/ViewModels/Dashboard/DashboardViewModel.cs](../../../Models/ViewModels/Dashboard/DashboardViewModel.cs); **без новых бизнес-полей** относительно текущего mock/live |
-| Источник | [Services/Dashboard/IQueueDashboardService.cs](../../../Services/Dashboard/IQueueDashboardService.cs) → [QueueDashboardService.cs](../../../Services/Dashboard/QueueDashboardService.cs) или [MockQueueDashboardService.cs](../../../Services/Dashboard/MockQueueDashboardService.cs) через [ResilientQueueDashboardService.cs](../../../Services/Dashboard/ResilientQueueDashboardService.cs) |
+| Источник | [Services/Dashboard/IQueueDashboardService.cs](../../../Services/Dashboard/IQueueDashboardService.cs) → [QueueDashboardService.cs](../../../Services/Dashboard/QueueDashboardService.cs) или [MockQueueDashboardService.cs](../../../Services/Demo/MockQueueDashboardService.cs) через [ResilientQueueDashboardService.cs](../../../Services/Resilience/ResilientQueueDashboardService.cs) (Development) |
 | Доставка | ASP.NET Core **SignalR**: серверный периодический сбор snapshot → broadcast подключённым клиентам |
 | Права | Существующие `dashboard.*` — [Services/Users/RolePermissionService.cs](../../../Services/Users/RolePermissionService.cs), [DashboardUiVisibility.cs](../../../Models/ViewModels/Dashboard/DashboardUiVisibility.cs) |
 | Пользователи | Несколько одновременных диспетчеров/менеджеров на **одном инстансе** приложения — один опрос БД на тик, общая рассылка |
@@ -113,7 +113,7 @@ flowchart TD
 | Компонент | Файл | Поведение |
 |-----------|------|-----------|
 | `IElectronicQueueAvailability` | [IElectronicQueueAvailability.cs](../../../Services/Dashboard/IElectronicQueueAvailability.cs) | Кэшированная проверка `Database.CanConnectAsync` (таймаут 3 с) |
-| `ResilientQueueDashboardService` | [ResilientQueueDashboardService.cs](../../../Services/Dashboard/ResilientQueueDashboardService.cs) | Live при доступной БД, иначе mock |
+| `ResilientQueueDashboardService` | [ResilientQueueDashboardService.cs](../../../Services/Resilience/ResilientQueueDashboardService.cs) | Live при доступной БД, иначе mock (Development) |
 | `ElectronicQueueAvailabilityService` | [ElectronicQueueAvailabilityService.cs](../../../Services/Dashboard/ElectronicQueueAvailabilityService.cs) | `MarkUnavailable()` при сбое live-запроса (паттерн как в отчётах) |
 
 **Push-поле `IsDemoData`:** `true`, если snapshot получен из mock (БД недоступна или `CanQueryLiveDataAsync` == false). Клиент показывает бейдж «Демо-данные».
@@ -267,7 +267,6 @@ NuGet: SignalR входит в shared framework `Microsoft.AspNetCore.App` дл�
 | `dashboard.waiting` | `WaitingCard` | значение карточки |
 | `dashboard.in-service` | `InServiceCard` | … |
 | `dashboard.accepted-today` | `AcceptedTodayCard` | … |
-| `dashboard.noshow-today` | `NoShowTodayCard` | … |
 | `dashboard.avg-wait` | `AvgWaitCard` | … |
 | `dashboard.avg-service` | `AvgServiceCard` | … |
 | `dashboard.queue-table` | `QueueTable` | `activeQueue` → tbody |
@@ -383,6 +382,21 @@ public int DashboardRefreshSeconds { get; set; } = 10;
 
 - Путь `/hubs/dashboard` должен пропускать upgrade WebSocket (IIS ARR, nginx `proxy_http_version 1.1`, `Upgrade`, `Connection`).
 - HTTPS — тот же origin, что и MVC.
+- Пример nginx (location за reverse proxy):
+
+```nginx
+location /hubs/ {
+    proxy_pass http://127.0.0.1:5000;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+}
+```
+
+### 8.3.1. Production без ElectronicQueue
+
+Фоновый `DashboardRefreshHostedService` **не выполняет** broadcast, если `!CanQueryLiveDataAsync` (как SSR с предупреждением). Mock-push только в Development.
 
 ### 8.4. Масштабирование (post-MVP)
 
@@ -427,8 +441,8 @@ public int DashboardRefreshSeconds { get; set; } = 10;
 | [reusable-ui-components-requirements.md](reusable-ui-components-requirements.md) | SearchBox и др. |
 | [DashboardController.cs](../../../Controllers/Dashboard/DashboardController.cs) | SSR |
 | [QueueDashboardService.cs](../../../Services/Dashboard/QueueDashboardService.cs) | Live-расчёт |
-| [MockQueueDashboardService.cs](../../../Services/Dashboard/MockQueueDashboardService.cs) | Mock |
-| [ResilientQueueDashboardService.cs](../../../Services/Dashboard/ResilientQueueDashboardService.cs) | Live/mock |
+| [MockQueueDashboardService.cs](../../../Services/Demo/MockQueueDashboardService.cs) | Mock |
+| [ResilientQueueDashboardService.cs](../../../Services/Resilience/ResilientQueueDashboardService.cs) | Live/mock |
 | [Program.cs](../../../Program.cs) | Pipeline (SignalR — добавить) |
 | [AuthServiceCollectionExtensions.cs](../../../Configuration/DependencyInjection/AuthServiceCollectionExtensions.cs) | JWT cookie |
 

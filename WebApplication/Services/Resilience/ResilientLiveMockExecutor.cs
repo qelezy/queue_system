@@ -1,6 +1,6 @@
-using WebApplication.Services;
+using WebApplication.Services.Dashboard;
 
-namespace WebApplication.Services.Common.Resilience;
+namespace WebApplication.Services.Resilience;
 
 internal static class ResilientLiveMockExecutor
 {

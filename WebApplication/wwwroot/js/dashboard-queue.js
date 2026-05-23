@@ -4,8 +4,7 @@
     const tbody = table.tBodies[0];
     if (!tbody) return;
 
-    const dataRows = Array.from(tbody.querySelectorAll("tr[data-queue-row]"));
-    if (dataRows.length === 0) return;
+    let dataRows = Array.from(tbody.querySelectorAll("tr[data-queue-row]"));
 
     const noResultsClass = "queue-no-results-row";
     const colspan = table.tHead?.rows[0]?.cells.length ?? 6;
@@ -46,7 +45,7 @@
             row.style.display = show ? "" : "none";
             if (show) visibleCount++;
         }
-        setNoResultsVisible(visibleCount === 0);
+        setNoResultsVisible(dataRows.length > 0 && visibleCount === 0);
     }
 
     function search(query) {
@@ -75,5 +74,10 @@
         apply();
     }
 
-    window.QueueTable = { search, filterSpecialty, filterStatus, filterWait };
+    function rebind() {
+        dataRows = Array.from(tbody.querySelectorAll("tr[data-queue-row]"));
+        apply();
+    }
+
+    window.QueueTable = { search, filterSpecialty, filterStatus, filterWait, rebind };
 })();

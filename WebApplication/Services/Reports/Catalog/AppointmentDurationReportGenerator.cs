@@ -52,6 +52,13 @@ public sealed class AppointmentDurationReportGenerator : IReportGenerator
         var observations = new List<AppointmentDurationReportBuilder.DurationObservation>(raw.Count);
         foreach (var x in raw)
         {
+            if (analysisMode == AppointmentDurationReportBuilder.ModeDoctor
+                && !CatalogReportShared.HasAssignedDoctor(x.IdDoctor))
+                continue;
+            if (analysisMode == AppointmentDurationReportBuilder.ModeCabinet
+                && !CatalogReportShared.HasAssignedCabinet(x.IdCabinet))
+                continue;
+
             var svcMin = CatalogReportAnalysisHelper.ComputeSvcMinutes(x.DateArrival, x.Start, x.End);
             if (svcMin is null)
                 continue;
@@ -62,10 +69,10 @@ public sealed class AppointmentDurationReportGenerator : IReportGenerator
                     AppointmentDurationReportBuilder.NormalizeDimensionLabel(x.Definition),
                 AppointmentDurationReportBuilder.ModeCabinet =>
                     AppointmentDurationReportBuilder.FormatCabinetLabel(
-                        cabinets.TryGetValue(x.IdCabinet, out var num) ? num : ""),
+                        x.IdCabinet is > 0 && cabinets.TryGetValue(x.IdCabinet.Value, out var num) ? num : ""),
                 _ =>
                     AppointmentDurationReportBuilder.NormalizeDimensionLabel(
-                        doctors.TryGetValue(x.IdDoctor, out var name) ? name : null)
+                        x.IdDoctor is > 0 && doctors.TryGetValue(x.IdDoctor.Value, out var name) ? name : null)
             };
 
             observations.Add(new AppointmentDurationReportBuilder.DurationObservation(

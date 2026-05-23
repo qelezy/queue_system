@@ -68,8 +68,9 @@
     function sumNumericValues(arr) {
         var sum = 0;
         (arr || []).forEach(function (v) {
+            if (v == null) return;
             var n = Number(v);
-            if (!isNaN(n)) sum += n;
+            if (!isNaN(n) && n > 0) sum += n;
         });
         return sum;
     }
@@ -87,6 +88,21 @@
         return sumNumericValues(descriptor.values);
     }
 
+    function descriptorHasRenderableChartData(descriptor) {
+        if (!descriptor) return false;
+        function hasFiniteValue(arr) {
+            return (arr || []).some(function (v) {
+                return v != null && !isNaN(Number(v));
+            });
+        }
+        if (descriptor.datasets && descriptor.datasets.length) {
+            return descriptor.datasets.some(function (ds) {
+                return hasFiniteValue(ds.values) || hasFiniteValue(ds.normValues);
+            });
+        }
+        return sumNumericValues(descriptor.values) > 0;
+    }
+
     function extractChartDescriptors(result) {
         if (!result) return [];
         if (result.previewCharts && result.previewCharts.length > 0) {
@@ -99,22 +115,48 @@
                 labels: pie.labels,
                 values: pie.values,
                 valueUnit: 'мин',
-                ariaLabel: 'Соотношение длительности обслуживания и простоя',
+                ariaLabel: 'Соотношение длительности занятости и простоя',
                 canvasElementId: 'report-preview-chart-0'
             }];
         }
         return [];
     }
 
+    function calcChartLayoutMetrics(descriptor) {
+        var kind = (descriptor.kind || '').toLowerCase();
+        if (kind !== 'groupedbar') return null;
+        var dayCount = (descriptor.labels || []).length;
+        var seriesCount = (descriptor.datasets || []).length || 1;
+        var groupSlot = Math.min(64, 24 + seriesCount * 3);
+        var minWidthPx = Math.min(2200, Math.max(560, dayCount * groupSlot + 64));
+        var legendRows = Math.ceil(seriesCount / Math.max(1, Math.floor(640 / 140)));
+        var minHeightPx = Math.min(420, 280 + legendRows * 16);
+        return { minWidthPx: minWidthPx, minHeightPx: minHeightPx, dayCount: dayCount };
+    }
+
     function buildChartBlocksHtml(descriptors) {
         var html = '';
         (descriptors || []).forEach(function (d, i) {
             var id = d.canvasElementId || ('report-preview-chart-' + i);
-            if (sumDescriptorChartValues(d) <= 0) return;
+            if (!descriptorHasRenderableChartData(d)) return;
             var aria = d.ariaLabel ? escapeHtmlAttribute(d.ariaLabel) : '';
-            html += '<div class="report-preview-modal__chart-wrap" role="presentation">' +
-                '<canvas id="' + escapeHtmlAttribute(id) + '"' +
-                (aria ? ' aria-label="' + aria + '"' : '') + '></canvas></div>';
+            var metrics = calcChartLayoutMetrics(d);
+            var isGrouped = metrics !== null;
+            var wrapClass = 'report-preview-modal__chart-wrap' + (isGrouped ? ' report-preview-modal__chart-wrap--grouped-bar' : '');
+            var styleAttr = isGrouped
+                ? ' style="min-width:' + metrics.minWidthPx + 'px;height:' + metrics.minHeightPx + 'px;"'
+                : '';
+            var canvasTag = '<canvas id="' + escapeHtmlAttribute(id) + '"' +
+                (aria ? ' aria-label="' + aria + '"' : '') + '></canvas>';
+            if (isGrouped) {
+                html += '<div class="report-preview-modal__chart-scroll" role="presentation">' +
+                    '<div class="' + wrapClass + '"' + styleAttr + '>' + canvasTag + '</div></div>';
+                if (d.footnote) {
+                    html += '<p class="report-preview-modal__chart-footnote">' + escapeHtml(d.footnote) + '</p>';
+                }
+            } else {
+                html += '<div class="' + wrapClass + '" role="presentation">' + canvasTag + '</div>';
+            }
         });
         return html;
     }
@@ -250,19 +292,20 @@
         var paletteNorm = REPORT_CHART_PALETTE.norm;
         var unit = descriptor.valueUnit != null ? String(descriptor.valueUnit).trim() : '';
         var datasets = [];
-        var hasPositive = false;
+        var hasChartData = false;
         var hasOverlayNorm = series.some(function (ds) {
             var nv = ds.normValues;
             return nv && nv.length > 0;
         });
         function normalizeVals(raw) {
             var vals = (raw || []).map(function (v) {
+                if (v == null) return null;
                 var n = Number(v);
-                return isNaN(n) ? 0 : n;
+                return isNaN(n) ? null : n;
             });
-            while (vals.length < dayLabels.length) vals.push(0);
+            while (vals.length < dayLabels.length) vals.push(null);
             if (vals.length > dayLabels.length) vals = vals.slice(0, dayLabels.length);
-            vals.forEach(function (v) { if (v > 0) hasPositive = true; });
+            vals.forEach(function (v) { if (v != null) hasChartData = true; });
             return vals;
         }
         function normBg(colorIdx) {
@@ -308,8 +351,9 @@
                 });
             }
         });
-        if (!hasPositive) return;
+        if (!hasChartData) return;
         var slotCount = hasOverlayNorm ? series.length : datasets.length;
+        var dayCount = dayLabels.length;
         var chart = new Chart(canvas, {
             type: 'bar',
             data: { labels: dayLabels, datasets: datasets },
@@ -332,7 +376,12 @@
                     },
                     x: {
                         stacked: !!hasOverlayNorm,
-                        ticks: { maxRotation: 45, minRotation: 0 }
+                        ticks: {
+                            autoSkip: true,
+                            maxTicksLimit: dayCount > 14 ? 14 : dayCount,
+                            maxRotation: 45,
+                            minRotation: 0
+                        }
                     }
                 },
                 plugins: {
@@ -351,7 +400,9 @@
                     tooltip: {
                         callbacks: {
                             label: function (ctx) {
-                                var val = ctx.raw != null ? Number(ctx.raw) : 0;
+                                if (ctx.raw == null || ctx.parsed == null || ctx.parsed.y == null) return null;
+                                var val = Number(ctx.raw);
+                                if (isNaN(val)) return null;
                                 var seriesLabel = ctx.dataset && ctx.dataset.label ? ctx.dataset.label : '';
                                 var day = ctx.label || '';
                                 var mid = unit ? (val.toFixed(1) + ' ' + unit) : val.toFixed(1);
@@ -369,7 +420,7 @@
         var charts = [];
         if (typeof Chart === 'undefined') return charts;
         (descriptors || []).forEach(function (d, i) {
-            if (sumDescriptorChartValues(d) <= 0) return;
+            if (!descriptorHasRenderableChartData(d)) return;
             var id = d.canvasElementId || ('report-preview-chart-' + i);
             var canvas = document.getElementById(id);
             var kind = (d.kind || 'doughnut').toLowerCase();
@@ -379,22 +430,12 @@
         return charts;
     }
 
-    function buildPreviewTruncationMessage(result) {
-        var truncatedPreview = result.previewRowsTotal != null && result.previewRowLimit != null &&
-            result.previewRowsTotal > (result.rows && result.rows.length ? result.rows.length : 0);
-        if (!truncatedPreview) return '';
-        var shown = result.rows ? result.rows.length : 0;
-        return 'Показано ' + shown + ' из ' + result.previewRowsTotal +
-            ' строк (лимит предпросмотра ' + result.previewRowLimit +
-            '). Полный отчёт — при сохранении в файл.';
-    }
-
     function isArrivedCompletedDetailPreviewRow(row) {
         if (!row || row.rowClass) return false;
         var cells = row.cells || [];
-        if (cells.length < 6) return false;
+        if (cells.length < 5) return false;
         var c0 = (cells[0] || '').trim();
-        if (c0 === 'Итого за период' || c0 === 'Итого (по полным данным)' || c0 === '…') return false;
+        if (c0 === 'Итого за период') return false;
         var n = parseInt(String(cells[2] || '').trim(), 10);
         return !isNaN(n);
     }
@@ -402,10 +443,10 @@
     function isRouteAndPausesDetailPreviewRow(row) {
         if (!row || row.rowClass) return false;
         var cells = row.cells || [];
-        if (cells.length < 6) return false;
+        if (cells.length < 5) return false;
         var c0 = (cells[0] || '').trim();
-        if (c0 === 'Итого за период' || c0 === 'Итого (по полным данным)' || c0 === '…') return false;
-        var n = parseInt(String(cells[3] || '').trim(), 10);
+        if (c0 === 'Итого за период') return false;
+        var n = parseInt(String(cells[2] || '').trim(), 10);
         return !isNaN(n);
     }
 
@@ -414,7 +455,7 @@
         var cells = row.cells || [];
         if (cells.length < 8) return false;
         var c0 = (cells[0] || '').trim();
-        if (c0 === 'Итого за период' || c0 === 'Итого (по полным данным)' || c0 === '…' || c0 === 'Итого за день') return false;
+        if (c0 === 'Итого за период' || c0 === 'Итого за день') return false;
         var countIdx = cells.length >= 9 ? 3 : 2;
         var n = parseInt(String(cells[countIdx] || '').trim(), 10);
         return !isNaN(n);
@@ -481,6 +522,7 @@
         if (kind === 'loadDowntime') return isLoadDowntimeDetailPreviewRow(row);
         if (kind === 'routeAndPauses') return isRouteAndPausesDetailPreviewRow(row);
         if (kind === 'arrivedCompleted') return isArrivedCompletedDetailPreviewRow(row);
+        if (kind === 'waitingBeforeAppointment') return isArrivedCompletedDetailPreviewRow(row);
         if (kind === 'appointmentDuration') return isAppointmentDurationDetailPreviewRow(row);
         return false;
     }
@@ -578,12 +620,7 @@
 
         var descriptors = extractChartDescriptors(result);
         var chartHtml = buildChartBlocksHtml(descriptors);
-        var limitMsg = buildPreviewTruncationMessage(result);
         root.innerHTML = chartHtml + buildPreviewTableHtml(result);
-
-        if (limitMsg && typeof deps.showInfoToast === 'function') {
-            deps.showInfoToast(limitMsg);
-        }
 
         if (chartHtml && descriptors.length) {
             window.requestAnimationFrame(function () {
@@ -600,19 +637,49 @@
         }
     }
 
-    function buildReportRequestPayload(state) {
+    function formatDateForReportApi(value) {
+        if (!value || typeof value !== 'string') return null;
+        var trimmed = value.trim();
+        if (!trimmed) return null;
+        var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(trimmed);
+        if (m) return m[1] + '-' + m[2] + '-' + m[3] + ' ' + m[4] + ':' + m[5] + ':00';
+        return trimmed;
+    }
+
+    function buildWhitelistedCustomParams(reportId, custom, reportCustomConfig) {
+        var fields = (reportCustomConfig && reportCustomConfig[reportId]) || [];
+        if (!fields.length) return {};
+        var allowedKeys = {};
+        fields.forEach(function (f) {
+            if (f && f.key) allowedKeys[f.key] = f;
+        });
+        var out = {};
+        Object.keys(allowedKeys).forEach(function (key) {
+            var field = allowedKeys[key];
+            var val = custom && custom[key] != null ? String(custom[key]) : '';
+            if (!val && field.type === 'select' && field.options && field.options.length) {
+                val = String(field.options[0].value);
+            }
+            if (val !== '') out[key] = val;
+        });
+        return out;
+    }
+
+    function buildReportRequestPayload(state, context) {
+        context = context || {};
+        var reportCustomConfig = context.reportCustomConfig || {};
         var sel = state.selectedReportId || '';
         var custom = (state.filters && state.filters.customByReport && state.filters.customByReport[sel])
             ? state.filters.customByReport[sel]
             : {};
         return {
             reportId: sel,
-            dateFrom: state.filters && state.filters.periodFrom ? state.filters.periodFrom : null,
-            dateTo: state.filters && state.filters.periodTo ? state.filters.periodTo : null,
+            dateFrom: formatDateForReportApi(state.filters && state.filters.periodFrom),
+            dateTo: formatDateForReportApi(state.filters && state.filters.periodTo),
             weekStart: custom.weekStart || null,
             cabinetId: custom.cabinetId ? Number(custom.cabinetId) : null,
             doctorId: custom.doctorId ? Number(custom.doctorId) : null,
-            customParams: custom || {}
+            customParams: buildWhitelistedCustomParams(sel, custom, reportCustomConfig)
         };
     }
 
@@ -624,6 +691,7 @@
 
     global.ReportPreviewCore = {
         escapeHtml: escapeHtml,
+        escapeHtmlAttribute: escapeHtmlAttribute,
         buildReportRequestPayload: buildReportRequestPayload,
         renderResultPreview: renderResultPreview,
         registerChartKind: registerChartKind
@@ -703,6 +771,18 @@
         lastFocusedElement = null;
     }
 
+    function setDemoDataBadge(isDemo) {
+        var badge = document.getElementById('reports-demo-badge');
+        if (!badge) return;
+        if (isDemo) {
+            badge.hidden = false;
+            badge.classList.remove('reports-demo-badge--hidden');
+        } else {
+            badge.hidden = true;
+            badge.classList.add('reports-demo-badge--hidden');
+        }
+    }
+
     function readInitialState() {
         var node = document.getElementById('reports-page-data');
         if (!node) return;
@@ -714,6 +794,7 @@
             state.options.cabinetOptions = payload.toolbar && payload.toolbar.cabinetOptions ? payload.toolbar.cabinetOptions : [];
             state.options.doctorOptions = payload.toolbar && payload.toolbar.doctorOptions ? payload.toolbar.doctorOptions : [];
             state.options.categoryOptions = payload.toolbar && payload.toolbar.categoryOptions ? payload.toolbar.categoryOptions : [];
+            setDemoDataBadge(!!payload.usingElectronicQueueMockData);
             reportCustomConfig = payload.reportCustomConfig && typeof payload.reportCustomConfig === 'object'
                 ? payload.reportCustomConfig
                 : {};
@@ -773,30 +854,40 @@
             root.innerHTML = '';
             return;
         }
+        var core = window.ReportPreviewCore || {};
+        var esc = typeof core.escapeHtml === 'function' ? core.escapeHtml : function (x) { return String(x); };
+        var escAttr = typeof core.escapeHtmlAttribute === 'function' ? core.escapeHtmlAttribute : function (x) { return String(x); };
         var html = '';
         fields.forEach(function (f) {
             var value = values[f.key] != null ? String(values[f.key]) : '';
-            html += '<label class="form-field"><span class="form-field__label">' + f.label + '</span>';
             if (f.type === 'select') {
-                html += '<select class="form-input" data-custom-key="' + f.key + '">';
+                var opts = f.options || [];
+                if (!value && opts.length > 0) {
+                    value = String(opts[0].value);
+                    values[f.key] = value;
+                }
+            }
+            html += '<label class="form-field"><span class="form-field__label">' + esc(f.label) + '</span>';
+            if (f.type === 'select') {
+                html += '<select class="form-input" data-custom-key="' + escAttr(f.key) + '">';
                 (f.options || []).forEach(function (opt) {
-                    html += '<option value="' + opt.value + '"' + (value === String(opt.value) ? ' selected="selected"' : '') + '>' + opt.label + '</option>';
+                    html += '<option value="' + escAttr(opt.value) + '"' + (value === String(opt.value) ? ' selected="selected"' : '') + '>' + esc(opt.label) + '</option>';
                 });
                 html += '</select>';
             } else if (f.type === 'select-dynamic') {
                 var list = state.options[f.source] || [];
                 var placeholderLabel = f.placeholderLabel || 'Все';
-                html += '<select class="form-input" data-custom-key="' + f.key + '"><option value="">' + placeholderLabel + '</option>';
+                html += '<select class="form-input" data-custom-key="' + escAttr(f.key) + '"><option value="">' + esc(placeholderLabel) + '</option>';
                 list.forEach(function (opt) {
                     var oid = String(opt.id);
-                    html += '<option value="' + oid + '"' + (value === oid ? ' selected="selected"' : '') + '>' + opt.label + '</option>';
+                    html += '<option value="' + escAttr(oid) + '"' + (value === oid ? ' selected="selected"' : '') + '>' + esc(opt.label) + '</option>';
                 });
                 html += '</select>';
             } else {
                 var type = f.type === 'date' ? 'date' : (f.type || 'text');
-                var minAttr = f.min ? ' min="' + f.min + '"' : '';
-                var pAttr = f.placeholder ? ' placeholder="' + f.placeholder + '"' : '';
-                html += '<input class="form-input" type="' + type + '" data-custom-key="' + f.key + '" value="' + value + '"' + minAttr + pAttr + ' />';
+                var minAttr = f.min ? ' min="' + escAttr(f.min) + '"' : '';
+                var pAttr = f.placeholder ? ' placeholder="' + escAttr(f.placeholder) + '"' : '';
+                html += '<input class="form-input" type="' + escAttr(type) + '" data-custom-key="' + escAttr(f.key) + '" value="' + escAttr(value) + '"' + minAttr + pAttr + ' />';
             }
             html += '</label>';
         });
@@ -829,7 +920,7 @@
         if (dialog) dialog.setAttribute('aria-label', title || 'Отчёт');
     }
 
-    function setModalPeriodSubtitle(text) {
+    function setModalPreviewSubtitle(text) {
         var node = document.getElementById('report-workflow-subtitle');
         if (!node) return;
         if (text) {
@@ -839,6 +930,22 @@
             node.textContent = '';
             node.classList.add('is-empty');
         }
+    }
+
+    function resolveCustomFieldDisplayLabel(field, value) {
+        if (!field) return '';
+        var raw = value != null ? String(value).trim() : '';
+        if (!raw && field.type === 'select' && field.options && field.options.length) {
+            raw = String(field.options[0].value);
+        }
+        if (!raw) return '';
+        if (field.type === 'select' && field.options && field.options.length) {
+            var match = field.options.find(function (opt) {
+                return String(opt.value) === raw;
+            });
+            if (match && match.label) return String(match.label);
+        }
+        return raw;
     }
 
     function formatDateTimeLocalForSubtitle(value) {
@@ -857,6 +964,10 @@
         var b = periodTo ? periodTo.value : '';
         if (!a && !b) return '';
         return 'Период: ' + (a ? formatDateTimeLocalForSubtitle(a) : '…') + ' — ' + (b ? formatDateTimeLocalForSubtitle(b) : '…');
+    }
+
+    function formatPreviewSubtitle() {
+        return formatPeriodHint();
     }
 
     function updateToolbarScope() {
@@ -954,7 +1065,7 @@
                 if (!id) return;
                 state.selectedReportId = id;
                 setModalTitle(state.titlesById[id] || 'Отчёт');
-                setModalPeriodSubtitle('');
+                setModalPreviewSubtitle('');
                 syncFormPeriodFromState();
                 updateToolbarScope();
                 openWorkflowModal();
@@ -1021,7 +1132,7 @@
         setGenerating(true);
         var core = window.ReportPreviewCore;
         var payload = core && typeof core.buildReportRequestPayload === 'function'
-            ? core.buildReportRequestPayload(state)
+            ? core.buildReportRequestPayload(state, { reportCustomConfig: reportCustomConfig })
             : { reportId: state.selectedReportId, dateFrom: null, dateTo: null, weekStart: null, cabinetId: null, doctorId: null, customParams: {} };
         try {
             var response = await fetch('/Reports/Generate', {
@@ -1051,10 +1162,11 @@
                 showInfoToast(data.message || 'Формирование этого отчёта находится в разработке.');
                 return;
             }
+            setDemoDataBadge(!!data.isDemoData);
             state.lastResult = data.result || null;
             var previewTitle = state.lastResult && state.lastResult.title ? state.lastResult.title : (state.titlesById[state.selectedReportId] || 'Предпросмотр');
             setModalTitle(previewTitle);
-            setModalPeriodSubtitle(formatPeriodHint());
+            setModalPreviewSubtitle(formatPreviewSubtitle());
             renderPreviewTable(state.lastResult);
             setWorkflowView('preview');
         } catch (e) {
@@ -1074,7 +1186,7 @@
         collectFiltersFromUi();
         var core = window.ReportPreviewCore;
         var base = core && typeof core.buildReportRequestPayload === 'function'
-            ? core.buildReportRequestPayload(state)
+            ? core.buildReportRequestPayload(state, { reportCustomConfig: reportCustomConfig })
             : { reportId: state.selectedReportId, dateFrom: null, dateTo: null, weekStart: null, cabinetId: null, doctorId: null, customParams: {} };
         base.format = format;
         return base;
@@ -1215,7 +1327,7 @@
             backBtn.addEventListener('click', function () {
                 setWorkflowView('params');
                 setModalTitle(state.titlesById[state.selectedReportId] || 'Отчёт');
-                setModalPeriodSubtitle('');
+                setModalPreviewSubtitle('');
                 clearGenerateStatus();
                 updateGenerateButton();
             });
@@ -1268,7 +1380,7 @@
         }
         state.selectedReportId = id;
         setModalTitle(state.titlesById[id] || 'Отчёт');
-        setModalPeriodSubtitle('');
+        setModalPreviewSubtitle('');
         syncFormPeriodFromState();
         updateToolbarScope();
         openWorkflowModal();

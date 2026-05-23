@@ -2,7 +2,7 @@ using WebApplication.Models.ElectronicQueueProf;
 using WebApplication.Services.Reports.Catalog;
 using WebApplication.Services.Reports.LoadAndDowntime;
 
-namespace WebApplication.Services.Reports;
+namespace WebApplication.Services.Demo;
 
 /// <summary>Синтетические наблюдения для mock-отчётов (те же типы, что читает live из ElectronicQueueProf).</summary>
 internal static class MockReportOfflineSeed
@@ -77,18 +77,18 @@ internal static class MockReportOfflineSeed
     internal static Dictionary<int, string> MockCabinetNumbers() =>
         ElectronicQueueMockData.Cabinets.ToDictionary(
             c => c.Id,
-            c => c.Label.Replace("Каб. ", "", StringComparison.Ordinal).Trim());
+            c => c.Label.Trim());
 
     internal static (
-        List<ArrivedAndCompletedReportBuilder.ArrivedAppointmentObservation> Appointments,
-        List<ArrivedAndCompletedReportBuilder.ArrivedListItemObservation> ListItems,
+        List<CatalogAppointmentObservations.AppointmentObservation> Appointments,
+        List<CatalogAppointmentObservations.ListItemObservation> ListItems,
         Dictionary<int, (string Name, int Priority)> Categories)
         BuildArrivedAndCompletedData(DateOnly fromDo, DateOnly toDo)
     {
         var categories = ElectronicQueueMockData.Categories
             .ToDictionary(c => c.Id, c => (c.Name, c.Id));
-        var appointments = new List<ArrivedAndCompletedReportBuilder.ArrivedAppointmentObservation>();
-        var listItems = new List<ArrivedAndCompletedReportBuilder.ArrivedListItemObservation>();
+        var appointments = new List<CatalogAppointmentObservations.AppointmentObservation>();
+        var listItems = new List<CatalogAppointmentObservations.ListItemObservation>();
         var nextApptId = 1;
 
         for (var day = fromDo; day <= toDo; day = day.AddDays(1))
@@ -102,7 +102,7 @@ internal static class MockReportOfflineSeed
                 for (var i = 0; i < total; i++)
                 {
                     var apptId = nextApptId++;
-                    appointments.Add(new ArrivedAndCompletedReportBuilder.ArrivedAppointmentObservation(
+                    appointments.Add(new CatalogAppointmentObservations.AppointmentObservation(
                         apptId, day, cat.Id));
 
                     if (i < noShowCount)
@@ -111,7 +111,7 @@ internal static class MockReportOfflineSeed
                     var itemSeed = seed + i * 13;
                     if (itemSeed % 5 == 0)
                     {
-                        listItems.Add(new ArrivedAndCompletedReportBuilder.ArrivedListItemObservation(
+                        listItems.Add(new CatalogAppointmentObservations.ListItemObservation(
                             apptId,
                             new TimeOnly(9, 30),
                             new TimeOnly(9, 45),
@@ -119,7 +119,7 @@ internal static class MockReportOfflineSeed
                     }
                     else if (itemSeed % 7 == 0)
                     {
-                        listItems.Add(new ArrivedAndCompletedReportBuilder.ArrivedListItemObservation(
+                        listItems.Add(new CatalogAppointmentObservations.ListItemObservation(
                             apptId,
                             new TimeOnly(10, 0),
                             null,
@@ -127,7 +127,7 @@ internal static class MockReportOfflineSeed
                     }
                     else
                     {
-                        listItems.Add(new ArrivedAndCompletedReportBuilder.ArrivedListItemObservation(
+                        listItems.Add(new CatalogAppointmentObservations.ListItemObservation(
                             apptId,
                             new TimeOnly(10, 15),
                             new TimeOnly(10, 20),
@@ -209,8 +209,7 @@ internal static class MockReportOfflineSeed
         {
             return ElectronicQueueMockData.Cabinets.ToDictionary(
                 c => c.Id,
-                c => ServiceDelaysReportBuilder.FormatCabinetLabel(
-                    c.Label.Replace("Каб. ", "", StringComparison.Ordinal).Trim()));
+                c => ServiceDelaysReportBuilder.FormatCabinetLabel(c.Label.Trim()));
         }
 
         return ElectronicQueueMockData.Doctors.ToDictionary(d => d.Id, d => d.Name);

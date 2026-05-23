@@ -3,11 +3,10 @@
 public enum ReportGeneratorKind
 {
     LoadAndDowntime,
-    ArrivedAndCompleted,
     WaitingBeforeAppointment,
     AppointmentDuration,
     RouteAndPauses,
-    NoShowsAndIncomplete,
+    ServiceRouteOutcomes,
     ServiceCategoriesComparison,
     ServiceDelays
 }

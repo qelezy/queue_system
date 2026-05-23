@@ -4,11 +4,12 @@
     const tbody = table.tBodies[0];
     if (!tbody) return;
 
-    const dataRows = Array.from(tbody.querySelectorAll("tr[data-doctor-load-row]"));
-    if (dataRows.length === 0) return;
+    let dataRows = Array.from(tbody.querySelectorAll("tr[data-doctor-load-row]"));
 
     const noResultsClass = "doctor-load-no-results-row";
     const colspan = table.tHead?.rows[0]?.cells.length ?? 5;
+
+    let searchQuery = "";
 
     function setNoResultsVisible(visible) {
         let row = tbody.querySelector("." + noResultsClass);
@@ -24,8 +25,8 @@
         }
     }
 
-    function filter(query) {
-        const normalized = (query ?? "").trim().toLowerCase();
+    function apply() {
+        const normalized = searchQuery.trim().toLowerCase();
         let visibleCount = 0;
         for (const row of dataRows) {
             const text = row.textContent?.toLowerCase() ?? "";
@@ -33,8 +34,18 @@
             row.style.display = match ? "" : "none";
             if (match) visibleCount++;
         }
-        setNoResultsVisible(visibleCount === 0);
+        setNoResultsVisible(dataRows.length > 0 && visibleCount === 0);
     }
 
-    window.DoctorLoadTable = { filter };
+    function filter(query) {
+        searchQuery = (query ?? "").trim().toLowerCase();
+        apply();
+    }
+
+    function rebind() {
+        dataRows = Array.from(tbody.querySelectorAll("tr[data-doctor-load-row]"));
+        apply();
+    }
+
+    window.DoctorLoadTable = { filter, rebind };
 })();

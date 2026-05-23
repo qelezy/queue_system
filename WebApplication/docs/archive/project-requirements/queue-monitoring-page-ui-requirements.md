@@ -8,7 +8,7 @@
 
 - сколько пациентов сейчас ожидает приёма;
 - сколько находится на приёме;
-- сколько уже принято и сколько не явилось за сегодня;
+- сколько уже принято за сегодня;
 - средние и максимальные тайминги (ожидание, длительность приёма) за сегодня;
 - детальный список текущей очереди с пациентами, врачами, кабинетами и статусами;
 - загрузку каждого врача в реальном времени (длительность текущего приёма с нормой, размер личной очереди врача).
@@ -30,11 +30,11 @@
 Сверху вниз:
 
 1. Заголовок страницы: **«Мониторинг очереди»** (как сейчас, через `ViewData["Title"]` в [Controllers/DashboardController.cs](Controllers/DashboardController.cs)).
-2. **Верхняя панель метрик** — `stats-row`, 6 карточек.
+2. **Верхняя панель метрик** — `stats-row`, 5 карточек.
 3. **Таблица «Текущая очередь»** — `dashboard-panel` с таблицей.
 4. **Блок «Загрузка врачей»** — `dashboard-panel` с сеткой карточек по врачу.
 
-### 1. Верхняя панель метрик (6 карточек)
+### 1. Верхняя панель метрик (5 карточек)
 
 Контейнер `stats-row` (см. [Views/Dashboard/Index.cshtml](Views/Dashboard/Index.cshtml)). Слева направо:
 
@@ -42,19 +42,18 @@
 |---|-----------|----------|----------|------|
 | 1 | Ожидают сейчас | `WaitingCount` | — | пациенты, ожидающие приёма |
 | 2 | На приёме сейчас | `InServiceCount` | — | пациенты, находящиеся на приёме |
-| 3 | **Принято за сегодня** *(новая)* | `AcceptedTodayCount` | — | завершённые приёмы за сегодня |
-| 4 | **Не явились за сегодня** *(новая)* | `NoShowTodayCount` | — | талоны, отмеченные как неявка за сегодня |
-| 5 | Среднее время ожидания | `AvgWaitMinutes`, ед. «мин» | `Максимум` = `MaxWaitMinutes` мин | по завершённым ожиданиям за сегодня |
-| 6 | Средняя длительность приёма | `AvgServiceMinutes`, ед. «мин» | `Максимум` = `MaxServiceMinutes` мин | по завершённым приёмам за сегодня |
+| 3 | **Принято за сегодня** | `AcceptedTodayCount` | — | завершённые приёмы за сегодня |
+| 4 | Среднее время ожидания | `AvgWaitMinutes`, ед. «мин» | `Максимум` = `MaxWaitMinutes` мин | по завершённым ожиданиям за сегодня |
+| 5 | Средняя длительность приёма | `AvgServiceMinutes`, ед. «мин» | `Максимум` = `MaxServiceMinutes` мин | по завершённым приёмам за сегодня |
 
 **Правила оформления карточек:**
 
-- Карточки 1–4 — без `SubLabel`/`SubValue` (используется модификатор `stat-card--no-sub`, как в текущем `_StatCard`).
-- Карточки 5–6 — с `SubLabel = "Максимум"` и значением максимума в минутах.
+- Карточки 1–3 — без `SubLabel`/`SubValue` (используется модификатор `stat-card--no-sub`, как в текущем `_StatCard`).
+- Карточки 4–5 — с `SubLabel = "Максимум"` и значением максимума в минутах.
 - Разметка одной карточки не меняется — переиспользуется существующий partial.
-- Для двух новых карточек требуется добавить в [Models/DashboardViewModel.cs](Models/DashboardViewModel.cs) поля `AcceptedTodayCount` и `NoShowTodayCount` (целые) и заполнить их в [Services/QueueDashboardService.cs](Services/QueueDashboardService.cs). Логика расчёта — задача сервиса, не UI-документа.
+- Поле `AcceptedTodayCount` в [Models/DashboardViewModel.cs](Models/DashboardViewModel.cs) заполняется в [Services/QueueDashboardService.cs](Services/QueueDashboardService.cs).
 
-Сетка должна корректно умещать 6 карточек: при необходимости в `additions.css` поправить `stats-row` (например, `grid-template-columns: repeat(auto-fit, minmax(180px, 1fr))`), не ломая остальные страницы, использующие тот же класс.
+Сетка должна корректно умещать 5 карточек: при необходимости в `additions.css` поправить `stats-row` (например, `grid-template-columns: repeat(auto-fit, minmax(180px, 1fr))`), не ломая остальные страницы, использующие тот же класс.
 
 ### 2. Таблица «Текущая очередь»
 
@@ -172,7 +171,7 @@
 - Карточки метрик: [Views/Shared/_StatCard.cshtml](Views/Shared/_StatCard.cshtml) + [Models/StatCardViewModel.cs](Models/StatCardViewModel.cs)
 - ViewModel страницы: [Models/DashboardViewModel.cs](Models/DashboardViewModel.cs)
 - Контроллер: [Controllers/DashboardController.cs](Controllers/DashboardController.cs)
-- Сервис live-данных: [Services/QueueDashboardService.cs](Services/QueueDashboardService.cs); маппинг статусов: [Services/QueueDashboardStatusMapper.cs](Services/QueueDashboardStatusMapper.cs); демо при недоступной БД: [Services/MockQueueDashboardService.cs](Services/MockQueueDashboardService.cs) через [Services/ResilientQueueDashboardService.cs](Services/ResilientQueueDashboardService.cs)
+- Сервис live-данных: [Services/Dashboard/QueueDashboardService.cs](Services/Dashboard/QueueDashboardService.cs); маппинг статусов: [Services/Dashboard/QueueDashboardStatusMapper.cs](Services/Dashboard/QueueDashboardStatusMapper.cs); демо при недоступной БД (только Development): [Services/Demo/MockQueueDashboardService.cs](Services/Demo/MockQueueDashboardService.cs) через [Services/Resilience/ResilientQueueDashboardService.cs](Services/Resilience/ResilientQueueDashboardService.cs)
 - Скрипты страницы: [wwwroot/js/dashboard-queue.js](../wwwroot/js/dashboard-queue.js), [wwwroot/js/dashboard-doctor-load.js](../wwwroot/js/dashboard-doctor-load.js); live-контур (при реализации): `wwwroot/js/dashboard-live.js` — см. [dashboard-signalr-live-spec.md](dashboard-signalr-live-spec.md)
 - Стили: [wwwroot/css/site.css](wwwroot/css/site.css), [wwwroot/css/additions.css](wwwroot/css/additions.css)
 

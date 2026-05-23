@@ -7,7 +7,7 @@ namespace WebApplication.Models.ElectronicQueueProf;
 public sealed class EqAppointment
 {
     public int IdAppointment { get; set; }
-    public int IdCategory { get; set; }
+    public int? IdCategory { get; set; }
     public DateOnly DateArrival { get; set; }
     public TimeOnly TimeArrival { get; set; }
     public string? Number { get; set; }

@@ -1,11 +1,18 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using WebApplication.Data;
+using WebApplication.Models.Configuration;
 using WebApplication.Models.ElectronicQueueProf;
 
 namespace WebApplication.Services.Reports.Catalog;
 
 public sealed class WaitingBeforeAppointmentReportGenerator : IReportGenerator
 {
+    private readonly MonitoringOptions _monitoring;
+
+    public WaitingBeforeAppointmentReportGenerator(IOptions<MonitoringOptions> monitoring) =>
+        _monitoring = monitoring.Value;
+
     public ReportGeneratorKind Kind => ReportGeneratorKind.WaitingBeforeAppointment;
 
     public ReportGenerateResponse Generate(
@@ -15,34 +22,31 @@ public sealed class WaitingBeforeAppointmentReportGenerator : IReportGenerator
     {
         var (periodFrom, periodTo, fromDo, toDo) = CatalogReportShared.ParsePeriod(request);
 
-        var raw = (
+        var rows = (
             from li in queue.ListItems.AsNoTracking()
             join a in queue.Appointments.AsNoTracking() on li.IdAppointment equals a.IdAppointment
             where a.DateArrival >= fromDo && a.DateArrival <= toDo
                   && li.TimeCall != null
-            select new
-            {
+            select new CatalogReportWaitingHelper.WaitStageRow(
+                li.IdListItem,
+                a.IdAppointment,
                 a.DateArrival,
                 a.TimeArrival,
-                Call = li.TimeCall!.Value
-            }).ToList();
+                li.TimeCall,
+                li.TimeStartServicing,
+                li.TimeEndServicing)).ToList();
 
-        var observations = raw
-            .Where(x => WaitingBeforeAppointmentReportBuilder.IsCallInPeriod(
-                x.DateArrival, x.Call, periodFrom, periodTo))
-            .Select(x => new WaitingBeforeAppointmentReportBuilder.WaitingObservation(
-                x.DateArrival,
-                x.TimeArrival.Hour,
-                WaitBeforeCallMinutes(x.DateArrival, x.TimeArrival, x.Call)))
-            .Where(x => x.WaitMin >= 0 && x.WaitMin < 10080)
-            .ToList();
+        var observations = CatalogReportWaitingHelper.BuildWaitingObservations(rows, periodFrom, periodTo);
 
         var model = WaitingBeforeAppointmentReportBuilder.BuildReport(
-            observations, fromDo, toDo, periodFrom, periodTo, purpose);
+            observations,
+            fromDo,
+            toDo,
+            periodFrom,
+            periodTo,
+            purpose,
+            _monitoring.WorkdayStartHour,
+            _monitoring.WorkdayEndHour);
         return new ReportGenerateResponse { Success = true, Implemented = true, Result = model };
     }
-
-    private static double WaitBeforeCallMinutes(DateOnly dateArrival, TimeOnly timeArrival, TimeOnly timeCall) =>
-        (EqDateTimeExtensions.CombineOnArrivalDate(dateArrival, timeCall)
-         - EqDateTimeExtensions.CombineOnArrivalDate(dateArrival, timeArrival)).TotalMinutes;
 }

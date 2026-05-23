@@ -1,4 +1,6 @@
 using System.Globalization;
+using WebApplication.Models.Reports.Charts;
+using WebApplication.Services.Reports.Charts;
 
 namespace WebApplication.Services.Reports.Catalog;
 
@@ -10,10 +12,6 @@ internal static class AppointmentDurationReportBuilder
     internal const string ModeCabinet = "cabinet";
 
     internal const int ChartTopSeriesCount = 8;
-
-    internal const string PeriodTotalsDoctorsLabel = "Итого по врачам";
-    internal const string PeriodTotalsSpecialtiesLabel = "Итого по специальностям";
-    internal const string PeriodTotalsCabinetsLabel = "Итого по кабинетам";
 
     private static readonly string[] TailMetricHeaders =
     [
@@ -40,10 +38,8 @@ internal static class AppointmentDurationReportBuilder
         return ModeDoctor;
     }
 
-    internal static string FormatCabinetLabel(string cabinetNumber) =>
-        string.IsNullOrWhiteSpace(cabinetNumber)
-            ? "—"
-            : "Каб. " + cabinetNumber.Trim();
+    internal static string FormatCabinetLabel(string? cabinetNumber) =>
+        CatalogReportAnalysisHelper.FormatCabinetLabel(cabinetNumber);
 
     internal static string NormalizeDimensionLabel(string? label) =>
         string.IsNullOrWhiteSpace(label) ? "—" : label.Trim();
@@ -69,14 +65,6 @@ internal static class AppointmentDurationReportBuilder
             _ => ModeDoctor
         };
 
-    private static string GetPeriodTotalsHeading(string mode) =>
-        mode switch
-        {
-            ModeSpecialty => PeriodTotalsSpecialtiesLabel,
-            ModeCabinet => PeriodTotalsCabinetsLabel,
-            _ => PeriodTotalsDoctorsLabel
-        };
-
     private static ReportResultViewModel Build(
         IReadOnlyList<DurationObservation> observations,
         DateOnly fromDo,
@@ -96,7 +84,7 @@ internal static class AppointmentDurationReportBuilder
             : new List<string>(["Дата", dimensionHeader, ..TailMetricHeaders]);
 
         var rows = new List<ReportResultRowViewModel>();
-        var dayLabels = new List<string>();
+        var chartDays = new List<DateOnly>();
         var topSeries = SelectTopSeries(observations, ChartTopSeriesCount);
         var seriesDatasets = topSeries
             .Select(s => new ReportPreviewChartDataset { Label = s, Values = new List<double>(), NormValues = new List<double>() })
@@ -105,8 +93,11 @@ internal static class AppointmentDurationReportBuilder
 
         for (var day = fromDo; day <= toDo; day = day.AddDays(1))
         {
-            dayLabels.Add(CatalogReportShared.FormatChartDayLabel(day));
             var dayObs = observations.Where(o => o.Date == day).ToList();
+            if (dayObs.Count == 0)
+                continue;
+
+            chartDays.Add(day);
             var isFirstDetail = true;
 
             foreach (var g in dayObs
@@ -133,22 +124,32 @@ internal static class AppointmentDurationReportBuilder
                 if (!seriesIndex.TryGetValue(series, out var idx))
                     continue;
                 var sliceObs = dayObs.Where(o => o.DimensionLabel == series).ToList();
+                if (sliceObs.Count == 0)
+                {
+                    seriesDatasets[idx].Values.Add(ChartDatasetValues.Missing);
+                    seriesDatasets[idx].NormValues!.Add(ChartDatasetValues.Missing);
+                    continue;
+                }
+
                 var svcValues = sliceObs.Select(o => o.SvcMin).ToList();
-                seriesDatasets[idx].Values.Add(svcValues.Count == 0 ? 0 : Math.Round(svcValues.Average(), 1));
+                seriesDatasets[idx].Values.Add(CatalogReportShared.RoundMetric(svcValues.Average()));
                 var normValues = sliceObs.Select(o => (double)o.NormMinutes).ToList();
-                seriesDatasets[idx].NormValues!.Add(normValues.Count == 0 ? 0 : Math.Round(normValues.Average(), 1));
+                seriesDatasets[idx].NormValues!.Add(CatalogReportShared.RoundMetric(normValues.Average()));
             }
         }
 
         var chartDatasets = seriesDatasets;
+        var axis = GroupedBarChartTimeAxis.Prepare(chartDays, chartDatasets, GroupedBarBucketAggregation.Average);
+        var previewCharts = ReportPreviewChartDescriptors.ForAppointmentDurationDailyGroupedBar(
+            axis.Labels.ToList(),
+            axis.Datasets.ToList());
+        GroupedBarChartTimeAxis.SetGroupedBarFootnote(previewCharts, axis.Footnote);
 
         return new ReportResultViewModel
         {
             ColumnHeaders = headers,
             Rows = rows,
-            PreviewCharts = ReportPreviewChartDescriptors.ForAppointmentDurationDailyGroupedBar(
-                dayLabels,
-                chartDatasets)
+            PreviewCharts = previewCharts
         };
     }
 
@@ -206,7 +207,7 @@ internal static class AppointmentDurationReportBuilder
         ReportGenerationPurpose purpose)
     {
         var includeSpecialtyCol = mode == ModeDoctor;
-        var periodHeading = GetPeriodTotalsHeading(mode);
+        var periodHeading = CatalogReportPreviewHelper.PeriodTotalsLabel;
         var detailRows = model.Rows;
 
         if (purpose != ReportGenerationPurpose.JsonPreview)
@@ -216,7 +217,7 @@ internal static class AppointmentDurationReportBuilder
         }
 
         var sliceCount = observations.Select(o => o.DimensionLabel).Distinct(StringComparer.Ordinal).Count();
-        var previewTailReserved = 1 + 1 + Math.Max(sliceCount, 1);
+        var previewTailReserved = 1 + Math.Max(sliceCount, 1);
 
         if (detailRows.Count > ReportPreviewLimits.MaxTableRows)
         {
@@ -226,46 +227,12 @@ internal static class AppointmentDurationReportBuilder
             model.Rows =
             [
                 ..detailRows.Take(maxDetail),
-                BuildPreviewHintRow(includeSpecialtyCol),
                 ..BuildPeriodTotalsRows(observations, periodHeading, includeSpecialtyCol)
             ];
             return;
         }
 
         AppendPeriodTotals(detailRows, observations, periodHeading, includeSpecialtyCol);
-    }
-
-    private static ReportResultRowViewModel BuildPreviewHintRow(bool includeSpecialtyCol)
-    {
-        if (includeSpecialtyCol)
-        {
-            return ReportResultRowViewModel.FromCells(
-            [
-                "…",
-                "Показаны не все строки; полный отчёт — при сохранении в файл.",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                ""
-            ],
-                rowClass: "report-load-table__row--preview-truncated-hint");
-        }
-
-        return ReportResultRowViewModel.FromCells(
-        [
-            "…",
-            "Показаны не все строки; полный отчёт — при сохранении в файл.",
-            "",
-            "",
-            "",
-            "",
-            "",
-            ""
-        ],
-            rowClass: "report-load-table__row--preview-truncated-hint");
     }
 
     private static void AppendPeriodTotals(
@@ -347,11 +314,11 @@ internal static class AppointmentDurationReportBuilder
         var appointmentCount = items.Select(i => i.IdAppointment).Distinct().Count();
         return new DurationMetrics(
             appointmentCount.ToString(CultureInfo.InvariantCulture),
-            CatalogReportShared.F1(avg),
-            CatalogReportShared.F1(normAvg),
-            CatalogReportShared.F1(deviation),
-            CatalogReportShared.F1(svc.Min()),
-            CatalogReportShared.F1(svc.Max()));
+            CatalogReportShared.FormatMetric(avg),
+            CatalogReportShared.FormatMetric(normAvg),
+            CatalogReportShared.FormatMetric(deviation),
+            CatalogReportShared.FormatMetric(svc.Min()),
+            CatalogReportShared.FormatMetric(svc.Max()));
     }
 
     private readonly record struct DurationMetrics(

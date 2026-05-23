@@ -2,10 +2,27 @@
 @model DashboardViewModel
 
 <div class="dashboard-monitoring-page">
-    <div class="stats-row">
+    @if (ViewData["QueueDatabaseUnavailable"] is true)
+    {
+        <div class="alert alert-warning mb-3" role="alert">
+            База данных электронной очереди недоступна.
+        </div>
+    }
+    else
+    {
+    <div class="stats-row"
+         data-dashboard-live
+         data-ui-waiting="@Model.Ui.WaitingCard.ToString().ToLowerInvariant()"
+         data-ui-in-service="@Model.Ui.InServiceCard.ToString().ToLowerInvariant()"
+         data-ui-accepted-today="@Model.Ui.AcceptedTodayCard.ToString().ToLowerInvariant()"
+         data-ui-avg-wait="@Model.Ui.AvgWaitCard.ToString().ToLowerInvariant()"
+         data-ui-avg-service="@Model.Ui.AvgServiceCard.ToString().ToLowerInvariant()"
+         data-ui-queue-table="@Model.Ui.QueueTable.ToString().ToLowerInvariant()"
+         data-ui-doctor-load="@Model.Ui.DoctorLoad.ToString().ToLowerInvariant()">
         @if (Model.Ui.WaitingCard)
         {
             <partial name="_StatCard" model="@(new StatCardViewModel {
+                DataStatKey = "waiting",
                 Label = "Ожидают",
                 Value = Model.WaitingCount.ToString(),
                 Unit = "",
@@ -15,6 +32,7 @@
         @if (Model.Ui.InServiceCard)
         {
             <partial name="_StatCard" model="@(new StatCardViewModel {
+                DataStatKey = "in-service",
                 Label = "На приёме",
                 Value = Model.InServiceCount.ToString(),
                 Unit = "",
@@ -24,24 +42,17 @@
         @if (Model.Ui.AcceptedTodayCard)
         {
             <partial name="_StatCard" model="@(new StatCardViewModel {
+                DataStatKey = "accepted-today",
                 Label = "Обслужено",
                 Value = Model.AcceptedTodayCount.ToString(),
                 Unit = "",
                 Hint = "завершённые приёмы за сегодня"
             })" />
         }
-        @if (Model.Ui.NoShowTodayCard)
-        {
-            <partial name="_StatCard" model="@(new StatCardViewModel {
-                Label = "Не явились",
-                Value = Model.NoShowTodayCount.ToString(),
-                Unit = "",
-                Hint = "неявки за сегодня"
-            })" />
-        }
         @if (Model.Ui.AvgWaitCard)
         {
             <partial name="_StatCard" model="@(new StatCardViewModel {
+                DataStatKey = "avg-wait",
                 Label = "Среднее время ожидания",
                 Value = Model.AvgWaitMinutes.ToString(),
                 Unit = "мин",
@@ -54,6 +65,7 @@
         @if (Model.Ui.AvgServiceCard)
         {
             <partial name="_StatCard" model="@(new StatCardViewModel {
+                DataStatKey = "avg-service",
                 Label = "Средняя длительность приёма",
                 Value = Model.AvgServiceMinutes.ToString(),
                 Unit = "мин",
@@ -73,9 +85,15 @@
     {
         <partial name="_DashboardQueueTable" model="Model.ActiveQueue" />
     }
+    }
 </div>
 
 @section Scripts {
+    @if (ViewData["QueueDatabaseUnavailable"] is not true)
+    {
+        <script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
+        <script src="~/js/dashboard-live.js" asp-append-version="true"></script>
+    }
     <script src="~/js/dashboard-doctor-load.js" asp-append-version="true"></script>
     <script src="~/js/dashboard-queue.js" asp-append-version="true"></script>
 }

@@ -1,24 +1,24 @@
 using System.Globalization;
+using WebApplication.Services.Reports.Charts;
 
 namespace WebApplication.Services.Reports.Catalog;
 
-internal static class ArrivedAndCompletedReportBuilder
+internal static class ServiceRouteOutcomesReportBuilder
 {
     internal static readonly string[] ColumnHeaders =
     [
         "Дата",
-        "Категория",
-        "Зарегистрированных приёмов",
-        "Неявок на приёмы",
-        "Приёмов с завершённым маршрутом",
-        "Приёмов с незавершённым обслуживанием"
+        "Категория обслуживания",
+        "Приёмов",
+        "С завершённым маршрутом",
+        "С незавершённым обслуживанием"
     ];
 
-    private static readonly int[] TotalsLabelColSpans = [2, 0, 1, 1, 1, 1];
+    private static readonly int[] TotalsLabelColSpans = [2, 0, 1, 1, 1];
 
     internal static ReportResultViewModel BuildReport(
-        IReadOnlyList<ArrivedAppointmentObservation> appointments,
-        IReadOnlyList<ArrivedListItemObservation> listItems,
+        IReadOnlyList<CatalogAppointmentObservations.AppointmentObservation> appointments,
+        IReadOnlyList<CatalogAppointmentObservations.ListItemObservation> listItems,
         IReadOnlyDictionary<int, (string Name, int Priority)> categories,
         ReportGenerationPurpose purpose)
     {
@@ -38,12 +38,8 @@ internal static class ArrivedAndCompletedReportBuilder
                 : "—";
 
             var appointmentIds = g.Select(x => x.IdAppointment).ToHashSet();
-            var rel = listItems.Where(li => appointmentIds.Contains(li.IdAppointment)).ToList();
 
             var appointmentsCount = appointmentIds.Count;
-            var appointmentNoShows = CatalogReportShared.CountAppointmentsWithoutListItems(
-                appointmentIds,
-                rel.Select(li => li.IdAppointment));
 
             var appointmentsIncomplete = appointmentIds.Count(id =>
             {
@@ -63,7 +59,6 @@ internal static class ArrivedAndCompletedReportBuilder
                 g.Key.DateArrival,
                 catName,
                 appointmentsCount,
-                appointmentNoShows,
                 fullyCompleted,
                 appointmentsIncomplete));
         }
@@ -82,16 +77,29 @@ internal static class ArrivedAndCompletedReportBuilder
                 dateCell,
                 d.CategoryName,
                 d.AppointmentsCount.ToString(CultureInfo.InvariantCulture),
-                d.AppointmentNoShows.ToString(CultureInfo.InvariantCulture),
                 d.FullyCompletedAppointments.ToString(CultureInfo.InvariantCulture),
                 d.AppointmentsIncomplete.ToString(CultureInfo.InvariantCulture)
             ]));
         }
 
-        var previewCharts = ReportPreviewChartDescriptors.ForArrivedCompletedAppointmentMix(
-            detailData.Sum(d => d.AppointmentNoShows),
-            detailData.Sum(d => d.FullyCompletedAppointments),
-            detailData.Sum(d => d.AppointmentsIncomplete));
+        var periodTotals = ComputePeriodChartTotals(detailData);
+        var axisDatasets = new List<ReportPreviewChartDataset>
+        {
+            new() { Label = "С завершённым маршрутом", Values = periodTotals.CompletedPerDay },
+            new() { Label = "С незавершённым обслуживанием", Values = periodTotals.IncompletePerDay }
+        };
+        var axis = GroupedBarChartTimeAxis.Prepare(
+            periodTotals.ChartDays,
+            axisDatasets,
+            GroupedBarBucketAggregation.Sum);
+
+        var previewCharts = ReportPreviewChartDescriptors.ForServiceRouteOutcomesCharts(
+            periodTotals.TotalCompleted,
+            periodTotals.TotalIncomplete,
+            axis.Labels.ToList(),
+            axis.Datasets[0].Values.ToList(),
+            axis.Datasets[1].Values.ToList());
+        GroupedBarChartTimeAxis.SetGroupedBarFootnote(previewCharts, axis.Footnote);
 
         var model = new ReportResultViewModel
         {
@@ -104,46 +112,57 @@ internal static class ArrivedAndCompletedReportBuilder
         return model;
     }
 
+    private static PeriodChartTotals ComputePeriodChartTotals(List<RowAgg> detailData)
+    {
+        var totalCompleted = detailData.Sum(d => d.FullyCompletedAppointments);
+        var totalIncomplete = detailData.Sum(d => d.AppointmentsIncomplete);
+
+        if (detailData.Count == 0)
+            return new PeriodChartTotals(0, 0, [], [], []);
+
+        var fromDo = detailData.Min(d => d.DateArrival);
+        var toDo = detailData.Max(d => d.DateArrival);
+
+        var chartDays = new List<DateOnly>();
+        var completedByDay = new Dictionary<DateOnly, double>();
+        var incompleteByDay = new Dictionary<DateOnly, double>();
+        for (var d = fromDo; d <= toDo; d = d.AddDays(1))
+        {
+            chartDays.Add(d);
+            completedByDay[d] = 0;
+            incompleteByDay[d] = 0;
+        }
+
+        foreach (var row in detailData)
+        {
+            completedByDay[row.DateArrival] += row.FullyCompletedAppointments;
+            incompleteByDay[row.DateArrival] += row.AppointmentsIncomplete;
+        }
+
+        var completedSeries = chartDays.Select(d => completedByDay[d]).ToList();
+        var incompleteSeries = chartDays.Select(d => incompleteByDay[d]).ToList();
+
+        return new PeriodChartTotals(
+            totalCompleted,
+            totalIncomplete,
+            chartDays,
+            completedSeries,
+            incompleteSeries);
+    }
+
     private static void ApplyPreviewAndTotals(
         ReportResultViewModel model,
         List<RowAgg> detailData,
         List<ReportResultRowViewModel> detailRows,
         ReportGenerationPurpose purpose)
     {
-        if (purpose != ReportGenerationPurpose.JsonPreview && detailData.Count > 0)
-        {
-            AppendTotalsBlock(model.Rows, detailData, "Итого за период");
-            return;
-        }
-
-        if (purpose == ReportGenerationPurpose.JsonPreview
-            && detailRows.Count > ReportPreviewLimits.MaxTableRows)
-        {
-            const int previewTailReserved = 3;
-            var maxDetail = Math.Max(0, ReportPreviewLimits.MaxTableRows - previewTailReserved);
-            model.PreviewRowsTotal = detailRows.Count;
-            model.PreviewRowLimit = ReportPreviewLimits.MaxTableRows;
-            model.Rows =
-            [
-                ..detailRows.Take(maxDetail),
-                ReportResultRowViewModel.FromCells(
-                [
-                    "…",
-                    "Показаны не все строки; полный отчёт — при сохранении в файл.",
-                    "",
-                    "",
-                    "",
-                    ""
-                ],
-                rowClass: "report-load-table__row--preview-truncated-hint"),
-                ..BuildTotalsBlockRows(detailData, "Итого (по полным данным)")
-            ];
-            return;
-        }
-
-        CatalogReportShared.ApplyPreviewRowCap(model, purpose);
-        if (purpose == ReportGenerationPurpose.JsonPreview && detailData.Count > 0)
-            AppendTotalsBlock(model.Rows, detailData, "Итого за период");
+        CatalogReportPreviewHelper.ApplyDetailPreviewAndTotals(
+            model,
+            detailRows,
+            detailData,
+            purpose,
+            (rows, data) => AppendTotalsBlock(rows, data, CatalogReportPreviewHelper.PeriodTotalsLabel),
+            BuildTotalsBlockRows);
     }
 
     private static void AppendTotalsBlock(List<ReportResultRowViewModel> rows, List<RowAgg> detailData, string label)
@@ -155,7 +174,7 @@ internal static class ArrivedAndCompletedReportBuilder
     private static IEnumerable<ReportResultRowViewModel> BuildTotalsBlockRows(List<RowAgg> detailData, string label)
     {
         yield return ReportResultRowViewModel.FromCells(
-            [label, "", "", "", "", ""],
+            [label, "", "", "", ""],
             rowClass: "report-load-table__row--totals-start",
             cellColSpans: TotalsLabelColSpans);
         yield return ReportResultRowViewModel.FromCells(
@@ -163,29 +182,23 @@ internal static class ArrivedAndCompletedReportBuilder
             "",
             "—",
             detailData.Sum(d => d.AppointmentsCount).ToString(CultureInfo.InvariantCulture),
-            detailData.Sum(d => d.AppointmentNoShows).ToString(CultureInfo.InvariantCulture),
             detailData.Sum(d => d.FullyCompletedAppointments).ToString(CultureInfo.InvariantCulture),
             detailData.Sum(d => d.AppointmentsIncomplete).ToString(CultureInfo.InvariantCulture)
         ],
             rowClass: "report-load-table__row--period-total");
     }
 
-    internal readonly record struct ArrivedAppointmentObservation(
-        int IdAppointment,
-        DateOnly DateArrival,
-        int IdCategory);
-
-    internal readonly record struct ArrivedListItemObservation(
-        int IdAppointment,
-        TimeOnly? TimeCall,
-        TimeOnly? TimeStartServicing,
-        TimeOnly? TimeEndServicing);
-
     private readonly record struct RowAgg(
         DateOnly DateArrival,
         string CategoryName,
         int AppointmentsCount,
-        int AppointmentNoShows,
         int FullyCompletedAppointments,
         int AppointmentsIncomplete);
+
+    private readonly record struct PeriodChartTotals(
+        int TotalCompleted,
+        int TotalIncomplete,
+        List<DateOnly> ChartDays,
+        List<double> CompletedPerDay,
+        List<double> IncompletePerDay);
 }

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using WebApplication.Services.Dashboard;
 
 namespace WebApplication.Controllers.Reports;
 
@@ -10,6 +11,7 @@ public class ReportsController : Controller
     private readonly IReportsCatalog _catalog;
     private readonly IReportGenerationService _generation;
     private readonly IElectronicQueueAvailability _queueAvailability;
+    private readonly IWebHostEnvironment _environment;
     private readonly UserManager<User> _userManager;
     private readonly IRolePermissionService _rolePermissionService;
 
@@ -17,12 +19,14 @@ public class ReportsController : Controller
         IReportsCatalog catalog,
         IReportGenerationService generation,
         IElectronicQueueAvailability queueAvailability,
+        IWebHostEnvironment environment,
         UserManager<User> userManager,
         IRolePermissionService rolePermissionService)
     {
         _catalog = catalog;
         _generation = generation;
         _queueAvailability = queueAvailability;
+        _environment = environment;
         _userManager = userManager;
         _rolePermissionService = rolePermissionService;
     }
@@ -56,7 +60,7 @@ public class ReportsController : Controller
             ToolbarCabinetOptions = _generation.GetCabinetOptions().ToList(),
             ToolbarDoctorOptions = _generation.GetDoctorOptions().ToList(),
             ToolbarCategoryOptions = _generation.GetCategoryOptions().ToList(),
-            UsingElectronicQueueMockData = !live
+            UsingElectronicQueueMockData = _environment.IsDevelopment() && !live
         };
 
         return View(hub);

@@ -13,20 +13,25 @@ namespace WebApplication.Services.Reports;
 
 public static partial class ReportTabularExporter
 {
-    public static byte[] WritePdfBytes(ReportResultViewModel result, ReportGenerateRequest? requestForPeriod = null)
+    public static byte[] WritePdfBytes(ReportResultViewModel result, IReadOnlyList<string>? headerLines = null)
     {
         EnsurePdfFontRegistered();
 
         var colCount = result.ColumnHeaders.Count;
         var headers = result.ColumnHeaders.ToList();
         var title = string.IsNullOrWhiteSpace(result.Title) ? "Отчёт" : result.Title;
-        var periodLine = requestForPeriod is not null ? FormatPeriodForPdf(requestForPeriod) : null;
+        var exportHeaderLines = headerLines ?? [];
 
         var chartDescriptors = ReportExportChartRenderer.GetDescriptors(result);
         var chartSvgs = ReportExportChartRenderer.RenderChartSvgs(result);
         var chartCount = chartSvgs.Count;
+        var maxGroupedBarSeries = chartDescriptors
+            .Where(d => ChartExportUsesFullWidth(d.Kind))
+            .Select(d => d.Datasets?.Count ?? 0)
+            .DefaultIfEmpty(0)
+            .Max();
         var pieHeight = PdfPieChartHeightFor(chartCount);
-        var groupedBarHeight = PdfGroupedBarChartHeightFor(chartCount);
+        var groupedBarHeight = PdfGroupedBarChartHeightFor(chartCount, maxGroupedBarSeries);
         var portrait = PdfUsesPortraitOrientation(result);
         var pdfContentWidth = PdfContentWidth(portrait);
 
@@ -42,8 +47,12 @@ public static partial class ReportTabularExporter
                 {
                     col.Spacing(8);
                     col.Item().Width(pdfContentWidth).Text(title).FontSize(12).SemiBold();
-                    if (!string.IsNullOrWhiteSpace(periodLine))
-                        col.Item().Width(pdfContentWidth).Text(periodLine).FontSize(9);
+                    foreach (var headerLine in exportHeaderLines)
+                    {
+                        if (string.IsNullOrWhiteSpace(headerLine))
+                            continue;
+                        col.Item().Width(pdfContentWidth).Text(headerLine).FontSize(9);
+                    }
                     for (var ci = 0; ci < chartSvgs.Count; ci++)
                     {
                         var svg = chartSvgs[ci];

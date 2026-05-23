@@ -19,39 +19,60 @@ public sealed class ServiceCategoriesComparisonReportGenerator : IReportGenerato
             join a in queue.Appointments.AsNoTracking() on li.IdAppointment equals a.IdAppointment
             join c in queue.Categories.AsNoTracking() on a.IdCategory equals c.IdCategory
             where a.DateArrival >= fromDo && a.DateArrival <= toDo
-            select new
-            {
+            select new StageRow(
+                li.IdListItem,
                 a.IdAppointment,
-                a.IdCategory,
-                c.Name,
+                a.IdCategory ?? 0,
+                c.Name ?? "—",
                 a.DateArrival,
                 a.TimeArrival,
                 li.TimeCall,
                 li.TimeStartServicing,
-                li.TimeEndServicing
-            }).ToList();
+                li.TimeEndServicing)).ToList();
 
-        var observations = raw.Select(x =>
+        var observations = new List<ServiceCategoriesComparisonReportBuilder.CategoryStageObservation>();
+        foreach (var appointmentGroup in raw.GroupBy(x => x.IdAppointment))
         {
-            double? wait = null;
-            if (x.TimeCall.HasValue)
-                wait = ServiceCategoriesComparisonReportBuilder.ComputeWaitMinutes(
-                    x.DateArrival, x.TimeArrival, x.TimeCall.Value);
+            var ordered = CatalogReportWaitingHelper.OrderStagesForAppointment(appointmentGroup);
+            for (var i = 0; i < ordered.Count; i++)
+            {
+                var x = ordered[i];
+                double? wait = null;
+                if (x.TimeCall is { } timeCall)
+                {
+                    wait = ServiceCategoriesComparisonReportBuilder.ComputeWaitMinutes(
+                        x.DateArrival,
+                        x.TimeArrival,
+                        ordered,
+                        i,
+                        timeCall);
+                }
 
-            double? svc = null;
-            if (x.TimeStartServicing.HasValue && x.TimeEndServicing.HasValue)
-                svc = ServiceCategoriesComparisonReportBuilder.ComputeSvcMinutes(
-                    x.DateArrival, x.TimeStartServicing.Value, x.TimeEndServicing.Value);
+                double? svc = null;
+                if (x.TimeStartServicing is { } start && x.TimeEndServicing is { } end)
+                    svc = ServiceCategoriesComparisonReportBuilder.ComputeSvcMinutes(x.DateArrival, start, end);
 
-            return new ServiceCategoriesComparisonReportBuilder.CategoryStageObservation(
-                x.IdAppointment,
-                x.IdCategory,
-                x.Name ?? "—",
-                wait,
-                svc);
-        }).ToList();
+                observations.Add(new ServiceCategoriesComparisonReportBuilder.CategoryStageObservation(
+                    x.IdAppointment,
+                    x.IdCategory,
+                    x.CategoryName,
+                    wait,
+                    svc));
+            }
+        }
 
         var model = ServiceCategoriesComparisonReportBuilder.BuildReport(observations, purpose);
         return new ReportGenerateResponse { Success = true, Implemented = true, Result = model };
     }
+
+    private readonly record struct StageRow(
+        int IdListItem,
+        int IdAppointment,
+        int IdCategory,
+        string CategoryName,
+        DateOnly DateArrival,
+        TimeOnly TimeArrival,
+        TimeOnly? TimeCall,
+        TimeOnly? TimeStartServicing,
+        TimeOnly? TimeEndServicing) : CatalogReportWaitingHelper.IWaitStageRow;
 }

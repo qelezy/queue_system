@@ -1,5 +1,6 @@
 ﻿using System.Globalization;
 using WebApplication.Models.ElectronicQueueProf;
+using WebApplication.Services.Reports.Charts;
 using WebApplication.Services.Reports.Intervals;
 
 namespace WebApplication.Services.Reports.Catalog;
@@ -11,14 +12,13 @@ internal static class RouteAndPausesReportBuilder
     internal static readonly string[] ColumnHeaders =
     [
         "Дата",
-        "Пациент",
         "Интервал полного обслуживания",
         "Этапов",
-        "Суммарное время прохождения, мин",
-        "Сумма пауз между этапами, мин"
+        "Суммарное время обслуживания, мин",
+        "Сумма пауз до начала приёма, мин"
     ];
 
-    private static readonly int[] TotalsLabelColSpans = [3, 0, 0, 1, 1, 1];
+    private static readonly int[] TotalsLabelColSpans = [2, 0, 1, 1, 1];
 
     internal static ReportResultViewModel BuildReport(
         IReadOnlyList<RouteStageObservation> stages,
@@ -40,12 +40,10 @@ internal static class RouteAndPausesReportBuilder
 
             var routeDuration = SumRouteDurationMinutes(first.DateArrival, ordered, periodFrom, periodTo);
             var pauseSum = SumPauseMinutes(first.DateArrival, ordered, periodFrom, periodTo);
-            var patient = string.IsNullOrWhiteSpace(first.Info) ? "—" : first.Info.Trim();
             var interval = FormatFullServiceInterval(first.DateArrival, ordered, periodFrom, periodTo);
 
             detailData.Add(new RowAgg(
                 first.DateArrival,
-                patient,
                 interval,
                 ordered.Count,
                 routeDuration,
@@ -55,7 +53,7 @@ internal static class RouteAndPausesReportBuilder
         detailData = detailData
             .OrderBy(x => x.DateArrival)
             .ThenByDescending(x => x.PauseSum)
-            .ThenBy(x => x.Patient, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(x => x.ServiceInterval, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         DateOnly? prevDate = null;
@@ -70,11 +68,10 @@ internal static class RouteAndPausesReportBuilder
             detailRows.Add(ReportResultRowViewModel.FromCells(
             [
                 dateCell,
-                d.Patient,
                 d.ServiceInterval,
                 d.StageCount.ToString(CultureInfo.InvariantCulture),
-                CatalogReportShared.F1(d.RouteDuration),
-                CatalogReportShared.F1(d.PauseSum)
+                CatalogReportShared.FormatMetric(d.RouteDuration),
+                CatalogReportShared.FormatMetric(d.PauseSum)
             ]));
         }
 
@@ -95,40 +92,13 @@ internal static class RouteAndPausesReportBuilder
         List<ReportResultRowViewModel> detailRows,
         ReportGenerationPurpose purpose)
     {
-        if (purpose != ReportGenerationPurpose.JsonPreview && detailData.Count > 0)
-        {
-            AppendTotalsBlock(model.Rows, detailData, "Итого за период");
-            return;
-        }
-
-        if (purpose == ReportGenerationPurpose.JsonPreview
-            && detailRows.Count > ReportPreviewLimits.MaxTableRows)
-        {
-            const int previewTailReserved = 3;
-            var maxDetail = Math.Max(0, ReportPreviewLimits.MaxTableRows - previewTailReserved);
-            model.PreviewRowsTotal = detailRows.Count;
-            model.PreviewRowLimit = ReportPreviewLimits.MaxTableRows;
-            model.Rows =
-            [
-                ..detailRows.Take(maxDetail),
-                ReportResultRowViewModel.FromCells(
-                [
-                    "…",
-                    "Показаны не все строки; полный отчёт — при сохранении в файл.",
-                    "",
-                    "",
-                    "",
-                    ""
-                ],
-                rowClass: "report-load-table__row--preview-truncated-hint"),
-                ..BuildTotalsBlockRows(detailData, "Итого (по полным данным)")
-            ];
-            return;
-        }
-
-        CatalogReportShared.ApplyPreviewRowCap(model, purpose);
-        if (purpose == ReportGenerationPurpose.JsonPreview && detailData.Count > 0)
-            AppendTotalsBlock(model.Rows, detailData, "Итого за период");
+        CatalogReportPreviewHelper.ApplyDetailPreviewAndTotals(
+            model,
+            detailRows,
+            detailData,
+            purpose,
+            (rows, data) => AppendTotalsBlock(rows, data, CatalogReportPreviewHelper.PeriodTotalsLabel),
+            BuildTotalsBlockRows);
     }
 
     private static void AppendTotalsBlock(List<ReportResultRowViewModel> rows, List<RowAgg> detailData, string label)
@@ -140,17 +110,16 @@ internal static class RouteAndPausesReportBuilder
     private static IEnumerable<ReportResultRowViewModel> BuildTotalsBlockRows(List<RowAgg> detailData, string label)
     {
         yield return ReportResultRowViewModel.FromCells(
-            [label, "", "", "", "", ""],
+            [label, "", "", "", ""],
             rowClass: "report-load-table__row--totals-start",
             cellColSpans: TotalsLabelColSpans);
         yield return ReportResultRowViewModel.FromCells(
         [
             "",
             "—",
-            "—",
             detailData.Sum(d => d.StageCount).ToString(CultureInfo.InvariantCulture),
-            CatalogReportShared.F1(detailData.Sum(d => d.RouteDuration)),
-            CatalogReportShared.F1(detailData.Sum(d => d.PauseSum))
+            CatalogReportShared.FormatMetric(detailData.Sum(d => d.RouteDuration)),
+            CatalogReportShared.FormatMetric(detailData.Sum(d => d.PauseSum))
         ],
             rowClass: "report-load-table__row--period-total");
     }
@@ -161,21 +130,26 @@ internal static class RouteAndPausesReportBuilder
             return null;
 
         var byDay = detailData.GroupBy(d => d.DateArrival).OrderBy(g => g.Key).ToList();
-        var dayLabels = byDay.Select(g => CatalogReportShared.FormatChartDayLabel(g.Key)).ToList();
-        return ReportPreviewChartDescriptors.ForRouteAndPausesDailyGroupedBar(
-            dayLabels,
-            [
-                new ReportPreviewChartDataset
-                {
-                    Label = "Прохождение, мин",
-                    Values = byDay.Select(g => g.Sum(x => x.RouteDuration)).ToList()
-                },
-                new ReportPreviewChartDataset
-                {
-                    Label = "Паузы, мин",
-                    Values = byDay.Select(g => g.Sum(x => x.PauseSum)).ToList()
-                }
-            ]);
+        var chartDays = byDay.Select(g => g.Key).ToList();
+        var datasets = new List<ReportPreviewChartDataset>
+        {
+            new()
+            {
+                Label = "Обслуживание, мин",
+                Values = byDay.Select(g => g.Sum(x => x.RouteDuration)).ToList()
+            },
+            new()
+            {
+                Label = "Паузы, мин",
+                Values = byDay.Select(g => g.Sum(x => x.PauseSum)).ToList()
+            }
+        };
+        var axis = GroupedBarChartTimeAxis.Prepare(chartDays, datasets, GroupedBarBucketAggregation.Sum);
+        var previewCharts = ReportPreviewChartDescriptors.ForRouteAndPausesDailyGroupedBar(
+            axis.Labels.ToList(),
+            axis.Datasets.ToList());
+        GroupedBarChartTimeAxis.SetGroupedBarFootnote(previewCharts, axis.Footnote);
+        return previewCharts;
     }
 
     internal static List<RouteStageObservation> OrderStages(IEnumerable<RouteStageObservation> stages) =>
@@ -194,9 +168,9 @@ internal static class RouteAndPausesReportBuilder
                 return true;
         }
 
-        for (var i = 0; i < ordered.Count - 1; i++)
+        foreach (var stage in ordered)
         {
-            var pause = TryGetPauseInterval(dateArrival, ordered, i);
+            var pause = TryGetCallToStartPauseInterval(dateArrival, stage);
             if (pause.HasValue && IntersectsPeriod(pause.Value, periodFrom, periodTo))
                 return true;
         }
@@ -213,12 +187,11 @@ internal static class RouteAndPausesReportBuilder
 
         var first = ordered[0];
         var last = ordered[^1];
-        var startTime = first.TimeCall ?? first.TimeStartServicing ?? (TimeOnly?)first.TimeArrival;
         var endTime = last.TimeEndServicing ?? last.TimeComplete;
-        if (!startTime.HasValue || !endTime.HasValue)
+        if (!endTime.HasValue)
             return null;
 
-        var start = EqDateTimeExtensions.CombineOnArrivalDate(dateArrival, startTime.Value);
+        var start = EqDateTimeExtensions.CombineOnArrivalDate(dateArrival, first.TimeArrival);
         var end = EqDateTimeExtensions.CombineOnArrivalDate(dateArrival, endTime.Value);
         if (start >= end)
             return null;
@@ -265,9 +238,9 @@ internal static class RouteAndPausesReportBuilder
         DateTime periodTo)
     {
         double pauseSum = 0;
-        for (var i = 0; i < ordered.Count - 1; i++)
+        foreach (var stage in ordered)
         {
-            var pause = TryGetPauseInterval(dateArrival, ordered, i);
+            var pause = TryGetCallToStartPauseInterval(dateArrival, stage);
             if (!pause.HasValue)
                 continue;
             pauseSum += ClippedMinutesContribution(pause.Value, periodFrom, periodTo);
@@ -287,17 +260,14 @@ internal static class RouteAndPausesReportBuilder
         return new DateTimeInterval(start, end);
     }
 
-    internal static DateTimeInterval? TryGetPauseInterval(
+    internal static DateTimeInterval? TryGetCallToStartPauseInterval(
         DateOnly dateArrival,
-        IReadOnlyList<RouteStageObservation> ordered,
-        int index)
+        RouteStageObservation stage)
     {
-        var endCur = ordered[index].TimeEndServicing;
-        var startNext = ordered[index + 1].TimeStartServicing;
-        if (!endCur.HasValue || !startNext.HasValue)
+        if (!stage.TimeCall.HasValue || !stage.TimeStartServicing.HasValue)
             return null;
-        var start = EqDateTimeExtensions.CombineOnArrivalDate(dateArrival, endCur.Value);
-        var end = EqDateTimeExtensions.CombineOnArrivalDate(dateArrival, startNext.Value);
+        var start = EqDateTimeExtensions.CombineOnArrivalDate(dateArrival, stage.TimeCall.Value);
+        var end = EqDateTimeExtensions.CombineOnArrivalDate(dateArrival, stage.TimeStartServicing.Value);
         if (start >= end)
             return null;
         return new DateTimeInterval(start, end);
@@ -325,7 +295,6 @@ internal static class RouteAndPausesReportBuilder
 
     private sealed record RowAgg(
         DateOnly DateArrival,
-        string Patient,
         string ServiceInterval,
         int StageCount,
         double RouteDuration,

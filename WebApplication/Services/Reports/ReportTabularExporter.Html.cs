@@ -13,10 +13,10 @@ namespace WebApplication.Services.Reports;
 
 public static partial class ReportTabularExporter
 {
-    public static byte[] WriteHtmlBytes(ReportResultViewModel result, ReportGenerateRequest? requestForPeriod = null)
+    public static byte[] WriteHtmlBytes(ReportResultViewModel result, IReadOnlyList<string>? headerLines = null)
     {
         var title = string.IsNullOrWhiteSpace(result.Title) ? "Отчёт" : result.Title;
-        var periodLine = requestForPeriod is not null ? FormatPeriodForPdf(requestForPeriod) : null;
+        var exportHeaderLines = headerLines ?? [];
         var chartDescriptors = ReportExportChartRenderer.GetDescriptors(result);
         var chartSvgs = ReportExportChartRenderer.RenderChartSvgs(result);
 
@@ -30,10 +30,12 @@ public static partial class ReportTabularExporter
             .Append(WebUtility.HtmlEncode(title))
             .Append("</h1>\n");
 
-        if (!string.IsNullOrWhiteSpace(periodLine))
+        foreach (var headerLine in exportHeaderLines)
         {
+            if (string.IsNullOrWhiteSpace(headerLine))
+                continue;
             sb.Append("<p class=\"report-export-html__period\">")
-                .Append(WebUtility.HtmlEncode(periodLine))
+                .Append(WebUtility.HtmlEncode(headerLine))
                 .Append("</p>\n");
         }
 
@@ -46,6 +48,13 @@ public static partial class ReportTabularExporter
             sb.Append("<div class=\"").Append(wrapClass).Append("\" role=\"presentation\">")
                 .Append(chartSvgs[ci])
                 .Append("</div>\n");
+            if (ci < chartDescriptors.Count
+                && !string.IsNullOrWhiteSpace(chartDescriptors[ci].Footnote))
+            {
+                sb.Append("<p class=\"report-preview-modal__chart-footnote\">")
+                    .Append(WebUtility.HtmlEncode(chartDescriptors[ci].Footnote))
+                    .Append("</p>\n");
+            }
         }
 
         sb.Append("<div class=\"report-preview-modal__table-wrap\"><div class=\"users-table-wrap report-preview-table\"><table class=\"users-table users-table--report-preview\"><thead><tr>\n");
@@ -130,10 +139,10 @@ public static partial class ReportTabularExporter
         if (!string.IsNullOrWhiteSpace(row.RowClass))
             return false;
         var cells = row.Cells;
-        if (cells is not { Count: >= 6 })
+        if (cells is not { Count: >= 5 })
             return false;
         var c0 = cells[0]?.Trim() ?? "";
-        if (c0 is "Итого за период" or "Итого (по полным данным)" or "…")
+        if (c0 is "Итого за период")
             return false;
         return int.TryParse(
             cells[2]?.Trim(),
@@ -147,13 +156,13 @@ public static partial class ReportTabularExporter
         if (!string.IsNullOrWhiteSpace(row.RowClass))
             return false;
         var cells = row.Cells;
-        if (cells is not { Count: >= 6 })
+        if (cells is not { Count: >= 5 })
             return false;
         var c0 = cells[0]?.Trim() ?? "";
-        if (c0 is "Итого за период" or "Итого (по полным данным)" or "…")
+        if (c0 is "Итого за период")
             return false;
         return int.TryParse(
-            cells[3]?.Trim(),
+            cells[2]?.Trim(),
             NumberStyles.Integer,
             CultureInfo.InvariantCulture,
             out _);
@@ -175,7 +184,7 @@ public static partial class ReportTabularExporter
         if (cells is not { Count: >= 8 })
             return false;
         var c0 = cells[0]?.Trim() ?? "";
-        if (c0 is "Итого за период" or "Итого (по полным данным)" or "…" or "Итого за день")
+        if (c0 is "Итого за период" or "Итого за день")
             return false;
         var countIdx = cells.Count >= 9 ? 3 : 2;
         return int.TryParse(

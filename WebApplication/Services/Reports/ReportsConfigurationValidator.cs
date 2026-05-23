@@ -20,7 +20,8 @@ public static class ReportsConfigurationValidator
         ReportDetailRowKinds.LoadDowntime,
         ReportDetailRowKinds.RouteAndPauses,
         ReportDetailRowKinds.ArrivedCompleted,
-        ReportDetailRowKinds.AppointmentDuration
+        ReportDetailRowKinds.AppointmentDuration,
+        ReportDetailRowKinds.WaitingBeforeAppointment
     };
 
     public static void Validate(IReportsCatalog catalog, IReadOnlyCollection<IReportGenerator> generators)

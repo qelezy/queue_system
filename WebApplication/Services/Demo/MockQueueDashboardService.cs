@@ -1,5 +1,6 @@
+using WebApplication.Services.Dashboard;
 
-namespace WebApplication.Services.Dashboard;
+namespace WebApplication.Services.Demo;
 
 public sealed class MockQueueDashboardService : IQueueDashboardService
 {
@@ -12,7 +13,6 @@ public sealed class MockQueueDashboardService : IQueueDashboardService
             WaitingCount = 12,
             InServiceCount = 5,
             AcceptedTodayCount = 38,
-            NoShowTodayCount = 4,
             AvgWaitMinutes = 18,
             MaxWaitMinutes = 42,
             AvgServiceMinutes = 22,
@@ -26,7 +26,7 @@ public sealed class MockQueueDashboardService : IQueueDashboardService
                     TicketPriority = 2,
                     CategoryPriority = 1,
                     WaitingMinutes = 24,
-                    CurrentCabinet = "Каб. 101",
+                    CurrentCabinet = "101",
                     CurrentDoctor = docs[0].Name,
                     Specialty = "Терапевт",
                     ArrivalTime = "09:15",
@@ -40,7 +40,7 @@ public sealed class MockQueueDashboardService : IQueueDashboardService
                     TicketPriority = 1,
                     CategoryPriority = 2,
                     WaitingMinutes = 8,
-                    CurrentCabinet = "Каб. 102",
+                    CurrentCabinet = "102",
                     CurrentDoctor = docs[1].Name,
                     Specialty = "Невролог",
                     ArrivalTime = "09:42",
@@ -54,7 +54,7 @@ public sealed class MockQueueDashboardService : IQueueDashboardService
                     TicketPriority = 1,
                     CategoryPriority = 1,
                     WaitingMinutes = 0,
-                    CurrentCabinet = "Каб. 103",
+                    CurrentCabinet = "103",
                     CurrentDoctor = docs[2].Name,
                     Specialty = "Хирург",
                     ArrivalTime = "10:05",
@@ -69,7 +69,7 @@ public sealed class MockQueueDashboardService : IQueueDashboardService
                     IdDoctor = 3,
                     FullName = docs[2].Name,
                     Specialty = "Хирург",
-                    Cabinet = "Каб. 103",
+                    Cabinet = "103",
                     IsInService = true,
                     CurrentServiceMinutes = 28,
                     NormServiceMinutes = 15,
@@ -80,7 +80,7 @@ public sealed class MockQueueDashboardService : IQueueDashboardService
                     IdDoctor = 1,
                     FullName = docs[0].Name,
                     Specialty = "Терапевт",
-                    Cabinet = "Каб. 101",
+                    Cabinet = "101",
                     IsInService = true,
                     CurrentServiceMinutes = 15,
                     NormServiceMinutes = 20,

@@ -10,5 +10,8 @@
         public string? SubLabel { get; set; }
         public string? SubValue { get; set; }
         public string? SubUnit { get; set; }
+
+        /// <summary>Ключ для live-обновления (data-stat).</summary>
+        public string? DataStatKey { get; set; }
     }
 }

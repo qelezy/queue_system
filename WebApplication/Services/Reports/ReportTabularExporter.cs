@@ -9,6 +9,8 @@ using QuestPDF.Drawing;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
+using WebApplication.Models.Reports.Configuration;
+using WebApplication.Models.Reports.Constants;
 
 namespace WebApplication.Services.Reports;
 
@@ -44,12 +46,10 @@ public static partial class ReportTabularExporter
     private static readonly HashSet<string> CsvExcludedDetailFirstCells = new(StringComparer.Ordinal)
     {
         "Итого за период",
-        "Итого (по полным данным)",
         "Итого за день",
         "Итого по врачам",
         "Итого по специальностям",
-        "Итого по кабинетам",
-        "…"
+        "Итого по кабинетам"
     };
 
     private static bool ChartExportUsesFullWidth(string? kind) =>
@@ -58,8 +58,15 @@ public static partial class ReportTabularExporter
     private static float PdfPieChartHeightFor(int chartCount) =>
         chartCount >= 2 ? PdfPieChartHeightWhenPair : PdfPieChartHeight;
 
-    private static float PdfGroupedBarChartHeightFor(int chartCount) =>
-        chartCount >= 2 ? PdfGroupedBarChartHeightWhenPair : PdfGroupedBarChartHeight;
+    private static float PdfGroupedBarChartHeightFor(int chartCount, int maxGroupedBarSeriesCount = 0)
+    {
+        var baseHeight = chartCount >= 2 ? PdfGroupedBarChartHeightWhenPair : PdfGroupedBarChartHeight;
+        if (maxGroupedBarSeriesCount <= 12)
+            return Math.Min(baseHeight, 400f);
+
+        var scaled = baseHeight + (maxGroupedBarSeriesCount - 12) * 6f;
+        return Math.Min(scaled, 400f);
+    }
 
     private static void AppendPdfPieChart(
         ColumnDescriptor col,
@@ -117,6 +124,7 @@ public static partial class ReportTabularExporter
             ReportDetailRowKinds.LoadDowntime => IsLoadDowntimeDetailDataRow,
             ReportDetailRowKinds.RouteAndPauses => IsRouteAndPausesDetailDataRow,
             ReportDetailRowKinds.ArrivedCompleted => IsDateGroupedDetailDataRow,
+            ReportDetailRowKinds.WaitingBeforeAppointment => IsDateGroupedDetailDataRow,
             ReportDetailRowKinds.AppointmentDuration => IsAppointmentDurationDetailDataRow,
             _ => IsDateGroupedDetailDataRow
         };
@@ -126,22 +134,24 @@ public static partial class ReportTabularExporter
     public static (byte[] Bytes, string ContentType, string FileName) Export(
         ReportResultViewModel result,
         string format,
-        ReportGenerateRequest? requestForPeriod = null)
+        ReportGenerateRequest? requestForHeader = null,
+        ReportGeneratorKind? generatorKind = null)
     {
         var ext = NormalizeFormat(format);
         var baseName = GetBaseFileName(result);
+        var headerLines = ResolveExportHeaderLines(requestForHeader, generatorKind);
         return ext switch
         {
             "xlsx" => (
-                WriteXlsxBytes(result),
+                WriteXlsxBytes(result, headerLines),
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 baseName + ".xlsx"),
             "pdf" => (
-                WritePdfBytes(result, requestForPeriod),
+                WritePdfBytes(result, headerLines),
                 "application/pdf",
                 baseName + ".pdf"),
             "html" => (
-                WriteHtmlBytes(result, requestForPeriod),
+                WriteHtmlBytes(result, headerLines),
                 "text/html; charset=utf-8",
                 baseName + ".html"),
             _ => (
@@ -151,33 +161,16 @@ public static partial class ReportTabularExporter
         };
     }
 
-    private static string? FormatPeriodForPdf(ReportGenerateRequest r)
+    internal static IReadOnlyList<string> ResolveExportHeaderLines(
+        ReportGenerateRequest? requestForHeader,
+        ReportGeneratorKind? generatorKind)
     {
-        var d0 = r.DateFrom?.Trim();
-        var d1 = r.DateTo?.Trim();
-        if (string.IsNullOrEmpty(d0) && string.IsNullOrEmpty(d1))
-        {
-            if (!string.IsNullOrWhiteSpace(r.WeekStart)
-                && DateTime.TryParse(r.WeekStart, CultureInfo.InvariantCulture, DateTimeStyles.None, out var mon))
-            {
-                var end = mon.Date.AddDays(6);
-                return "Период (неделя): " + mon.ToString("dd.MM.yyyy", CultureInfo.GetCultureInfo("ru-RU"))
-                    + " — " + end.ToString("dd.MM.yyyy", CultureInfo.GetCultureInfo("ru-RU"));
-            }
+        if (requestForHeader is null)
+            return [];
 
-            return null;
-        }
-
-        static string Part(string? s)
-        {
-            if (string.IsNullOrWhiteSpace(s))
-                return "…";
-            if (DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt))
-                return dt.ToString("dd.MM.yyyy HH:mm", CultureInfo.GetCultureInfo("ru-RU"));
-            return s;
-        }
-
-        return "Период: " + Part(d0) + " — " + Part(d1);
+        return generatorKind is not null
+            ? ReportsUiConfiguration.FormatExportHeaderLines(generatorKind.Value, requestForHeader)
+            : [];
     }
 
     private static string NormalizeFormat(string? format)

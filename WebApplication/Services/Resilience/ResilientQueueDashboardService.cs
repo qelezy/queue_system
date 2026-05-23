@@ -1,5 +1,7 @@
-﻿
-namespace WebApplication.Services.Dashboard;
+using WebApplication.Services.Dashboard;
+using WebApplication.Services.Demo;
+
+namespace WebApplication.Services.Resilience;
 
 public sealed class ResilientQueueDashboardService : IQueueDashboardService
 {

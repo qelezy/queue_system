@@ -1,6 +1,8 @@
-﻿using WebApplication.Services.Common.Resilience;
+using WebApplication.Services.Dashboard;
+using WebApplication.Services.Demo;
+using WebApplication.Services.Reports;
 
-namespace WebApplication.Services.Reports;
+namespace WebApplication.Services.Resilience;
 
 public sealed class ResilientReportGenerationService : IReportGenerationService
 {
@@ -29,16 +31,25 @@ public sealed class ResilientReportGenerationService : IReportGenerationService
 
     public ReportGenerateResponse Generate(
         ReportGenerateRequest request,
-        ReportGenerationPurpose purpose = ReportGenerationPurpose.ExportOrFull) =>
-        ResilientLiveMockExecutor.TryLiveOrMock(_availability,
-            () =>
-            {
-                var liveResponse = _live.Generate(request, purpose);
-                if (!liveResponse.Implemented && _mock.IsImplementedOffline(request.ReportId))
-                    return _mock.Generate(request, purpose);
-                return liveResponse;
-            },
-            () => _mock.Generate(request, purpose));
+        ReportGenerationPurpose purpose = ReportGenerationPurpose.ExportOrFull)
+    {
+        if (!_availability.TryGetCachedAvailability(out var ok) || !ok)
+            return TagDemo(_mock.Generate(request, purpose), isDemo: true);
+
+        try
+        {
+            var liveResponse = _live.Generate(request, purpose);
+            if (!liveResponse.Implemented && _mock.IsImplementedOffline(request.ReportId))
+                return TagDemo(_mock.Generate(request, purpose), isDemo: true);
+
+            return TagDemo(liveResponse, isDemo: false);
+        }
+        catch (Exception)
+        {
+            _availability.MarkUnavailable();
+            return TagDemo(_mock.Generate(request, purpose), isDemo: true);
+        }
+    }
 
     public (byte[] Bytes, string ContentType, string FileName) BuildExport(ReportExportRequest request) =>
         ResilientLiveMockExecutor.TryLiveOrMock(_availability,
@@ -49,4 +60,10 @@ public sealed class ResilientReportGenerationService : IReportGenerationService
         ResilientLiveMockExecutor.TryLiveOrMock(_availability,
             () => _live.BuildDemoCsv(reportId, analysisMode),
             () => _mock.BuildDemoCsv(reportId, analysisMode));
+
+    private static ReportGenerateResponse TagDemo(ReportGenerateResponse response, bool isDemo)
+    {
+        response.IsDemoData = isDemo;
+        return response;
+    }
 }

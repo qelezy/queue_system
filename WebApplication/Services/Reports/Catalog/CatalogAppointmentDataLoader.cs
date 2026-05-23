@@ -6,22 +6,22 @@ namespace WebApplication.Services.Reports.Catalog;
 internal static class CatalogAppointmentDataLoader
 {
     internal static (
-        List<ArrivedAndCompletedReportBuilder.ArrivedAppointmentObservation> Appointments,
-        List<ArrivedAndCompletedReportBuilder.ArrivedListItemObservation> ListItems)
+        List<CatalogAppointmentObservations.AppointmentObservation> Appointments,
+        List<CatalogAppointmentObservations.ListItemObservation> ListItems)
         LoadArrivedObservations(ElectronicQueueDbContext queue, DateOnly fromDo, DateOnly toDo)
     {
         var appointments = queue.Appointments.AsNoTracking()
             .Where(a => a.DateArrival >= fromDo && a.DateArrival <= toDo)
-            .Select(a => new ArrivedAndCompletedReportBuilder.ArrivedAppointmentObservation(
+            .Select(a => new CatalogAppointmentObservations.AppointmentObservation(
                 a.IdAppointment,
                 a.DateArrival,
-                a.IdCategory))
+                a.IdCategory ?? 0))
             .ToList();
 
         var appIds = appointments.Select(a => a.IdAppointment).ToHashSet();
         var listItems = queue.ListItems.AsNoTracking()
             .Where(li => appIds.Contains(li.IdAppointment))
-            .Select(li => new ArrivedAndCompletedReportBuilder.ArrivedListItemObservation(
+            .Select(li => new CatalogAppointmentObservations.ListItemObservation(
                 li.IdAppointment,
                 li.TimeCall,
                 li.TimeStartServicing,

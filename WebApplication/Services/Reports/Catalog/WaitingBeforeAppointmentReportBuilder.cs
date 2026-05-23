@@ -1,5 +1,7 @@
 using System.Globalization;
 using WebApplication.Models.ElectronicQueueProf;
+using WebApplication.Models.Reports.Charts;
+using WebApplication.Services.Reports.Charts;
 
 namespace WebApplication.Services.Reports.Catalog;
 
@@ -18,7 +20,6 @@ internal static class WaitingBeforeAppointmentReportBuilder
 
     internal const string DayTotalsHeadingLabel = "Итого за день";
     internal const string PeriodTotalsLabel = "Итого за период";
-    internal const string PeriodTotalsPreviewFullDataLabel = "Итого (по полным данным)";
 
     private static readonly int[] DayTotalsLabelColSpans = [2, 0, 1, 1, 1, 1];
     private static readonly int[] PeriodTotalsLabelColSpans = [2, 0, 1, 1, 1, 1];
@@ -29,9 +30,11 @@ internal static class WaitingBeforeAppointmentReportBuilder
         DateOnly toDo,
         DateTime periodFrom,
         DateTime periodTo,
-        ReportGenerationPurpose purpose)
+        ReportGenerationPurpose purpose,
+        int workdayStartHour = 8,
+        int workdayEndHour = 19)
     {
-        var model = Build(observations, fromDo, toDo, periodFrom, periodTo);
+        var model = Build(observations, fromDo, toDo, periodFrom, periodTo, workdayStartHour, workdayEndHour);
         ApplyPeriodTotalsAndPreview(model, observations, purpose);
         return model;
     }
@@ -41,61 +44,49 @@ internal static class WaitingBeforeAppointmentReportBuilder
         DateOnly fromDo,
         DateOnly toDo,
         DateTime periodFrom,
-        DateTime periodTo)
+        DateTime periodTo,
+        int workdayStartHour = 8,
+        int workdayEndHour = 19)
     {
         var rows = new List<ReportResultRowViewModel>();
-        var dayLabels = new List<string>();
-        var hoursInPeriod = new SortedSet<int>();
+        var chartDays = new List<DateOnly>();
+        var dayHourRanges = new Dictionary<DateOnly, (int MinHour, int MaxHour)>();
+        var hoursInChart = new SortedSet<int>();
 
         for (var day = fromDo; day <= toDo; day = day.AddDays(1))
         {
-            foreach (var slot in GetHourSlotsForDay(day, periodFrom, periodTo))
-                hoursInPeriod.Add(slot.Hour);
-        }
-
-        var hourSeries = hoursInPeriod
-            .Select(h => new ReportPreviewChartDataset { Label = FormatHourChartLabel(h), Values = [] })
-            .ToList();
-        var hourIndex = hoursInPeriod.Select((h, i) => (h, i)).ToDictionary(x => x.h, x => x.i);
-
-        for (var day = fromDo; day <= toDo; day = day.AddDays(1))
-        {
-            dayLabels.Add(CatalogReportShared.FormatChartDayLabel(day));
             var dayObs = observations.Where(o => o.Date == day).ToList();
+            var hourRange = GetActiveHourRange(dayObs, workdayStartHour, workdayEndHour);
+            if (hourRange is null)
+                continue;
+
+            chartDays.Add(day);
+            dayHourRanges[day] = hourRange.Value;
+            for (var h = hourRange.Value.MinHour; h <= hourRange.Value.MaxHour; h++)
+                hoursInChart.Add(h);
+
+            var dayLabel = CatalogReportShared.FormatChartDayLabel(day);
             var slots = GetHourSlotsForDay(day, periodFrom, periodTo);
+            var slotByHour = slots.ToDictionary(s => s.Hour);
             var isFirstHourRow = true;
 
-            var slotHours = slots.Select(s => s.Hour).ToHashSet();
-
-            foreach (var slot in slots)
+            for (var h = hourRange.Value.MinHour; h <= hourRange.Value.MaxHour; h++)
             {
-                var hourObs = dayObs.Where(o => o.Hour == slot.Hour).Select(o => o.WaitMin).ToList();
+                var intervalLabel = slotByHour.TryGetValue(h, out var slot)
+                    ? slot.IntervalLabel
+                    : FormatHourInterval(h);
+                var hourObs = dayObs.Where(o => o.Hour == h).Select(o => o.WaitMin).ToList();
                 var metrics = FormatMetrics(hourObs);
                 rows.Add(ReportResultRowViewModel.FromCells(
                 [
-                    isFirstHourRow ? dayLabels[^1] : "",
-                    slot.IntervalLabel,
+                    isFirstHourRow ? dayLabel : "",
+                    intervalLabel,
                     metrics.Count,
                     metrics.Average,
                     metrics.Min,
                     metrics.Max
                 ]));
                 isFirstHourRow = false;
-            }
-
-            foreach (var h in hoursInPeriod)
-            {
-                if (!hourIndex.TryGetValue(h, out var seriesIdx))
-                    continue;
-
-                if (!slotHours.Contains(h))
-                {
-                    hourSeries[seriesIdx].Values.Add(0);
-                    continue;
-                }
-
-                var hourObs = dayObs.Where(o => o.Hour == h).Select(o => o.WaitMin).ToList();
-                hourSeries[seriesIdx].Values.Add(hourObs.Count == 0 ? 0 : Math.Round(hourObs.Average(), 1));
             }
 
             var dayMetrics = FormatMetrics(dayObs.Select(o => o.WaitMin).ToList());
@@ -108,12 +99,59 @@ internal static class WaitingBeforeAppointmentReportBuilder
                 rowClass: "report-load-table__row--day-totals-end"));
         }
 
+        var hourSeries = hoursInChart
+            .Select(h => new ReportPreviewChartDataset { Label = FormatHourChartLabel(h), Values = [] })
+            .ToList();
+        var hourIndex = hoursInChart.Select((h, i) => (h, i)).ToDictionary(x => x.h, x => x.i);
+
+        foreach (var day in chartDays)
+        {
+            var range = dayHourRanges[day];
+            var dayObs = observations.Where(o => o.Date == day).ToList();
+            foreach (var h in hoursInChart)
+            {
+                if (!hourIndex.TryGetValue(h, out var seriesIdx))
+                    continue;
+
+                if (h < range.MinHour || h > range.MaxHour)
+                {
+                    hourSeries[seriesIdx].Values.Add(ChartDatasetValues.Missing);
+                    continue;
+                }
+
+                var hourObs = dayObs.Where(o => o.Hour == h).Select(o => o.WaitMin).ToList();
+                hourSeries[seriesIdx].Values.Add(
+                    hourObs.Count == 0 ? 0 : CatalogReportShared.RoundMetric(hourObs.Average()));
+            }
+        }
+
+        var axis = GroupedBarChartTimeAxis.Prepare(chartDays, hourSeries, GroupedBarBucketAggregation.Average);
+        var previewCharts = ReportPreviewChartDescriptors.ForWaitingBeforeAppointmentDailyGroupedBar(
+            axis.Labels.ToList(),
+            axis.Datasets.ToList());
+        GroupedBarChartTimeAxis.SetGroupedBarFootnote(previewCharts, axis.Footnote);
+
         return new ReportResultViewModel
         {
             ColumnHeaders = [..ColumnHeaders],
             Rows = rows,
-            PreviewCharts = ReportPreviewChartDescriptors.ForWaitingBeforeAppointmentDailyGroupedBar(dayLabels, hourSeries)
+            PreviewCharts = previewCharts
         };
+    }
+
+    internal static (int MinHour, int MaxHour)? GetActiveHourRange(
+        IReadOnlyList<WaitingObservation> dayObs,
+        int workdayStartHour,
+        int workdayEndHourExclusive)
+    {
+        if (dayObs.Count == 0)
+            return null;
+
+        var lastWorkHour = workdayEndHourExclusive - 1;
+        var dataHours = dayObs.Select(o => o.Hour).ToList();
+        var minHour = Math.Max(dataHours.Min(), workdayStartHour);
+        var maxHour = Math.Min(dataHours.Max(), lastWorkHour);
+        return minHour > maxHour ? null : (minHour, maxHour);
     }
 
     internal readonly record struct HourSlot(int Hour, string IntervalLabel);
@@ -173,24 +211,14 @@ internal static class WaitingBeforeAppointmentReportBuilder
 
         if (detailRows.Count > ReportPreviewLimits.MaxTableRows)
         {
-            const int previewTailReserved = 3;
+            const int previewTailReserved = 2;
             var maxDetail = Math.Max(0, ReportPreviewLimits.MaxTableRows - previewTailReserved);
             model.PreviewRowsTotal = detailRows.Count;
             model.PreviewRowLimit = ReportPreviewLimits.MaxTableRows;
             model.Rows =
             [
                 ..detailRows.Take(maxDetail),
-                ReportResultRowViewModel.FromCells(
-                [
-                    "…",
-                    "Показаны не все строки; полный отчёт — при сохранении в файл.",
-                    "",
-                    "",
-                    "",
-                    ""
-                ],
-                rowClass: "report-load-table__row--preview-truncated-hint"),
-                ..BuildPeriodTotalsRows(observations, PeriodTotalsPreviewFullDataLabel)
+                ..BuildPeriodTotalsRows(observations, PeriodTotalsLabel)
             ];
             return;
         }
@@ -252,9 +280,9 @@ internal static class WaitingBeforeAppointmentReportBuilder
 
         return (
             values.Count.ToString(CultureInfo.InvariantCulture),
-            CatalogReportShared.F1(values.Average()),
-            CatalogReportShared.F1(values.Min()),
-            CatalogReportShared.F1(values.Max()));
+            CatalogReportShared.FormatMetric(values.Average()),
+            CatalogReportShared.FormatMetric(values.Min()),
+            CatalogReportShared.FormatMetric(values.Max()));
     }
 
     internal static bool IsCallInPeriod(DateOnly dateArrival, TimeOnly timeCall, DateTime periodFrom, DateTime periodTo)

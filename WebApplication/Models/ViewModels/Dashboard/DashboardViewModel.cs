@@ -8,9 +8,6 @@ public class DashboardViewModel
     /// <summary>Завершённые приёмы за сегодня (по дате прибытия в очереди).</summary>
     public int AcceptedTodayCount { get; set; }
 
-    /// <summary>Записи за сегодня с отмеченной неявкой.</summary>
-    public int NoShowTodayCount { get; set; }
-
     public int AvgWaitMinutes { get; set; }
     public int MaxWaitMinutes { get; set; }
     public int AvgServiceMinutes { get; set; }
@@ -50,7 +47,7 @@ public sealed class DoctorLoadCardViewModel
     public int IdDoctor { get; set; }
     public string FullName { get; set; } = "";
     public string Specialty { get; set; } = "";
-    /// <summary>Кабинет текущего приёма («Каб. N»); пусто если врач свободен.</summary>
+    /// <summary>Кабинет текущего приёма (номер); пусто если врач свободен.</summary>
     public string Cabinet { get; set; } = "";
     public bool IsInService { get; set; }
     public int? CurrentServiceMinutes { get; set; }

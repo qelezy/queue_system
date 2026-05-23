@@ -20,9 +20,7 @@ internal static class ServiceDelaysReportBuilder
     }
 
     internal static string FormatCabinetLabel(string? cabinetNumber) =>
-        string.IsNullOrWhiteSpace(cabinetNumber)
-            ? "—"
-            : "Каб. " + cabinetNumber.Trim();
+        CatalogReportAnalysisHelper.FormatCabinetLabel(cabinetNumber);
 
     internal static ReportResultViewModel BuildReport(
         IReadOnlyList<ServiceDelaysQueries.EntityMetrics> metrics,
@@ -59,10 +57,10 @@ internal static class ServiceDelaysReportBuilder
                     "Кабинет",
                     "Специализация врача",
                     "Инцидентов задержки",
-                    "Сумма задержек, минут",
-                    "Средняя задержка, минут",
-                    "Минимальная задержка, минут",
-                    "Максимальная задержка, минут",
+                    "Сумма задержек, мин",
+                    "Средняя задержка, мин",
+                    "Минимальная задержка, мин",
+                    "Максимальная задержка, мин",
                     "Превышений норматива"
                 ]
                 :
@@ -70,10 +68,10 @@ internal static class ServiceDelaysReportBuilder
                     "Врач",
                     "Специализация",
                     "Инцидентов задержки",
-                    "Сумма задержек, минут",
-                    "Средняя задержка, минут",
-                    "Минимальная задержка, минут",
-                    "Максимальная задержка, минут",
+                    "Сумма задержек, мин",
+                    "Средняя задержка, мин",
+                    "Минимальная задержка, мин",
+                    "Максимальная задержка, мин",
                     "Превышений норматива"
                 ],
             Rows = table
@@ -84,8 +82,8 @@ internal static class ServiceDelaysReportBuilder
     }
 
     private static string FormatDelayMinutes(double minutes) =>
-        Math.Round(minutes, 1).ToString(CultureInfo.InvariantCulture);
+        CatalogReportShared.FormatMetric(minutes);
 
     private static string FormatAvgDelay(double? minutes) =>
-        minutes is null ? "—" : CatalogReportShared.F1(minutes.Value);
+        minutes is null ? "—" : CatalogReportShared.FormatMetric(minutes.Value);
 }

@@ -1,5 +1,7 @@
 using System.Globalization;
 using WebApplication.Models.ElectronicQueueProf;
+using WebApplication.Services.Dashboard;
+using WebApplication.Services.Reports.Catalog;
 using WebApplication.Services.Reports.Intervals;
 
 namespace WebApplication.Services.Reports.LoadAndDowntime;
@@ -47,9 +49,8 @@ internal static class LoadAndDowntimeReportBuilder
                 if (row.IdDoctor != g.Key.IdDoctor || row.IdCabinet != g.Key.IdCabinet || row.DateArrival != g.Key.DateWork)
                     continue;
 
-                busyRaw.Add(new DateTimeInterval(
-                    EqDateTimeExtensions.CombineOnArrivalDate(row.DateArrival, row.TimeStart),
-                    EqDateTimeExtensions.CombineOnArrivalDate(row.DateArrival, row.TimeEnd)));
+                if (TryGetBusyInterval(row, periodFrom, periodTo, out var busyInterval))
+                    busyRaw.Add(busyInterval);
             }
 
             var mergedBusy = IntervalOperations.MergeOverlapping(busyRaw);
@@ -122,6 +123,8 @@ internal static class LoadAndDowntimeReportBuilder
         {
             if (!keySet.Contains((row.IdDoctor, row.IdCabinet, row.DateArrival)))
                 continue;
+            if (QueueDashboardStatusMapper.IsNoShowStatusName(row.StatusName))
+                continue;
             if (row.TimeCall is null)
                 continue;
             if (!logKeys.Contains((row.IdDoctor, row.IdCabinet, row.DateArrival)))
@@ -135,6 +138,32 @@ internal static class LoadAndDowntimeReportBuilder
         }
 
         return ids.Count;
+    }
+
+    private static bool TryGetBusyInterval(
+        ListRowLite row,
+        DateTime periodFrom,
+        DateTime periodTo,
+        out DateTimeInterval interval)
+    {
+        interval = default;
+        if (QueueDashboardStatusMapper.IsNoShowStatusName(row.StatusName))
+            return false;
+        if (row.TimeCall is null)
+            return false;
+
+        var raw = new DateTimeInterval(
+            EqDateTimeExtensions.CombineOnArrivalDate(row.DateArrival, row.TimeCall.Value),
+            EqDateTimeExtensions.CombineOnArrivalDate(row.DateArrival, row.TimeEnd));
+        if (raw.IsEmptyOrInverted)
+            return false;
+
+        var clipped = IntervalOperations.ClipToRange(raw, periodFrom, periodTo);
+        if (!clipped.HasValue)
+            return false;
+
+        interval = clipped.Value;
+        return true;
     }
 
     private static string FormatDaySpan(DateTime start, DateTime end) =>
@@ -224,7 +253,7 @@ internal static class LoadAndDowntimeReportBuilder
 
             rows.Add(PadRow(
                 colCount,
-                byCabinet ? "Итого по кабинетам" : "Итого по врачам",
+                CatalogReportPreviewHelper.PeriodTotalsLabel,
                 "",
                 rowClass: "report-load-table__row--totals-start",
                 cellColSpans: LoadDowntimeTotalsLabelColSpans));
@@ -282,11 +311,6 @@ internal static class LoadAndDowntimeReportBuilder
 
             if (truncated)
             {
-                rows.Add(PadRow(
-                    colCount,
-                    "…",
-                    "Показаны не все строки; полный отчёт — при сохранении в файл.",
-                    rowClass: "report-load-table__row--preview-truncated-hint"));
                 rows.Add(BuildGrandPeriodTotalRowForPreview(
                     byCabinet,
                     shifts,
@@ -299,7 +323,7 @@ internal static class LoadAndDowntimeReportBuilder
             {
                 rows.Add(PadRow(
                     colCount,
-                    byCabinet ? "Итого по кабинетам" : "Итого по врачам",
+                    CatalogReportPreviewHelper.PeriodTotalsLabel,
                     "",
                     rowClass: "report-load-table__row--totals-start",
                     cellColSpans: LoadDowntimeTotalsLabelColSpans));
@@ -347,7 +371,7 @@ internal static class LoadAndDowntimeReportBuilder
         var metricTail = new[]
         {
             "Длительность рабочего времени, мин",
-            "Общая длительность обслуживания, мин",
+            "Общая длительность занятости, мин",
             "Общая длительность простоя, мин",
             "Средняя длительность простоя, мин",
             "Число интервалов простоя",
@@ -393,16 +417,16 @@ internal static class LoadAndDowntimeReportBuilder
         var cab = string.IsNullOrEmpty(cabinetCell) ? "—" : cabinetCell;
         var loadPct = windowMin <= 0
             ? "—"
-            : Math.Round(busyMin * 100.0 / windowMin, 1).ToString(CultureInfo.InvariantCulture);
+            : CatalogReportShared.FormatMetric(busyMin * 100.0 / windowMin);
         var idleAvg = idleSegments <= 0
             ? "—"
-            : Math.Round(idleMin / idleSegments, 1).ToString(CultureInfo.InvariantCulture);
+            : CatalogReportShared.FormatMetric(idleMin / idleSegments);
 
         var tail = new[]
         {
-            Math.Round(windowMin, 1).ToString(CultureInfo.InvariantCulture),
-            Math.Round(busyMin, 1).ToString(CultureInfo.InvariantCulture),
-            Math.Round(idleMin, 1).ToString(CultureInfo.InvariantCulture),
+            CatalogReportShared.FormatMetric(windowMin),
+            CatalogReportShared.FormatMetric(busyMin),
+            CatalogReportShared.FormatMetric(idleMin),
             idleAvg,
             idleSegments.ToString(CultureInfo.InvariantCulture),
             loadPct,
@@ -469,7 +493,7 @@ internal static class LoadAndDowntimeReportBuilder
             return null;
         return new ReportPreviewPieChart
         {
-            Labels = ["Обслуживание (мин)", "Простой (мин)"],
+            Labels = ["Занятость (мин)", "Простой (мин)"],
             Values = [busy, idle]
         };
     }
@@ -528,36 +552,12 @@ internal static class LoadAndDowntimeReportBuilder
                         FormatDaySpan(s.DaySpanStart, s.DaySpanEnd),
                         doctors.GetValueOrDefault(s.IdDoctor, "?"),
                         FormatSpecialtyListForKeys(listRows, key, periodFrom, periodTo),
-                        "Каб. " + cabinets.GetValueOrDefault(s.IdCabinet, "?"),
+                        CatalogReportAnalysisHelper.FormatCabinetLabel(cabinets.GetValueOrDefault(s.IdCabinet)),
                         s.WindowMinutes,
                         s.BusyMinutes,
                         s.IdleMinutes,
                         s.IdleSegments,
                         s.CompletedAppointments);
-                }
-
-                yield return PadRow(
-                    12,
-                    "Итого за день",
-                    "",
-                    rowClass: "report-load-table__row--day-totals-heading",
-                    cellColSpans: LoadDowntimeTotalsLabelColSpans);
-
-                var dayDoctorGroups = dayShifts
-                    .GroupBy(s => (s.IdDoctor, s.DateWork))
-                    .OrderBy(gr => doctors.GetValueOrDefault(gr.Key.IdDoctor, ""), StringComparer.Ordinal)
-                    .ToList();
-
-                for (var di = 0; di < dayDoctorGroups.Count; di++)
-                {
-                    yield return DayDoctorTotalDataRow(
-                        dayDoctorGroups[di],
-                        listRows,
-                        doctors,
-                        periodFrom,
-                        periodTo,
-                        logKeys,
-                        markDayTotalsEnd: di == dayDoctorGroups.Count - 1);
                 }
             }
         }
@@ -590,7 +590,7 @@ internal static class LoadAndDowntimeReportBuilder
                                 FormatDaySpan(s.DaySpanStart, s.DaySpanEnd),
                                 doctors.GetValueOrDefault(s.IdDoctor, "?"),
                                 FormatSpecialtyListForKeys(listRows, key, periodFrom, periodTo),
-                                "Каб. " + cabinets.GetValueOrDefault(g.Key.IdCabinet, "?"),
+                                CatalogReportAnalysisHelper.FormatCabinetLabel(cabinets.GetValueOrDefault(g.Key.IdCabinet)),
                                 s.WindowMinutes,
                                 s.BusyMinutes,
                                 s.IdleMinutes,
@@ -599,110 +599,8 @@ internal static class LoadAndDowntimeReportBuilder
                         };
                     }
                 }
-
-                yield return PadRow(
-                    12,
-                    "Итого за день",
-                    "",
-                    rowClass: "report-load-table__row--day-totals-heading",
-                    cellColSpans: LoadDowntimeTotalsLabelColSpans);
-
-                for (var ci = 0; ci < cabinetGroupsThisDay.Count; ci++)
-                {
-                    yield return DayCabinetTotalDataRow(
-                        cabinetGroupsThisDay[ci],
-                        listRows,
-                        cabinets,
-                        periodFrom,
-                        periodTo,
-                        logKeys,
-                        markDayTotalsEnd: ci == cabinetGroupsThisDay.Count - 1);
-                }
             }
         }
-    }
-
-    private static ReportResultRowViewModel DayDoctorTotalDataRow(
-        IGrouping<(int IdDoctor, DateOnly DateWork), ShiftMetrics> g,
-        IReadOnlyList<ListRowLite> listRows,
-        IReadOnlyDictionary<int, string> doctors,
-        DateTime periodFrom,
-        DateTime periodTo,
-        HashSet<(int IdDoctor, int IdCabinet, DateOnly Date)> logKeys,
-        bool markDayTotalsEnd)
-    {
-        var w = g.Sum(x => x.WindowMinutes);
-        var b = g.Sum(x => x.BusyMinutes);
-        var i = g.Sum(x => x.IdleMinutes);
-        var seg = g.Sum(x => x.IdleSegments);
-        var shiftKeys = g.Select(s => (s.IdDoctor, s.IdCabinet, s.DateWork)).Distinct().ToList();
-        var specCell = FormatSpecialtyListForKeys(listRows, shiftKeys, periodFrom, periodTo);
-        var apptCount = CountDistinctCompletedAppointments(
-            listRows,
-            shiftKeys,
-            logKeys,
-            periodFrom,
-            periodTo);
-
-        return new ReportResultRowViewModel
-        {
-            Cells = BuildLoadDowntimeDetailCells(
-                false,
-                "",
-                "—",
-                doctors.GetValueOrDefault(g.Key.IdDoctor, "?"),
-                specCell,
-                "—",
-                w,
-                b,
-                i,
-                seg,
-                apptCount),
-            RowClass = markDayTotalsEnd
-                ? "report-load-table__row--day-doctor-total report-load-table__row--day-totals-end"
-                : "report-load-table__row--day-doctor-total",
-        };
-    }
-
-    private static ReportResultRowViewModel DayCabinetTotalDataRow(
-        IGrouping<(int IdCabinet, DateOnly DateWork), ShiftMetrics> g,
-        IReadOnlyList<ListRowLite> listRows,
-        IReadOnlyDictionary<int, string> cabinets,
-        DateTime periodFrom,
-        DateTime periodTo,
-        HashSet<(int IdDoctor, int IdCabinet, DateOnly Date)> logKeys,
-        bool markDayTotalsEnd)
-    {
-        var w = g.Sum(x => x.WindowMinutes);
-        var b = g.Sum(x => x.BusyMinutes);
-        var i = g.Sum(x => x.IdleMinutes);
-        var seg = g.Sum(x => x.IdleSegments);
-        var shiftKeys = g.Select(s => (s.IdDoctor, s.IdCabinet, s.DateWork)).Distinct().ToList();
-        var apptCount = CountDistinctCompletedAppointments(
-            listRows,
-            shiftKeys,
-            logKeys,
-            periodFrom,
-            periodTo);
-
-        return new ReportResultRowViewModel
-        {
-            Cells = BuildLoadDowntimeDetailCells(
-                true,
-                "",
-                "—",
-                "—",
-                "—",
-                "Каб. " + cabinets.GetValueOrDefault(g.Key.IdCabinet, "?"),
-                w,
-                b,
-                i,
-                seg,
-                apptCount),
-            RowClass = markDayTotalsEnd
-                ? "report-load-table__row--day-cabinet-total report-load-table__row--day-totals-end"
-                : "report-load-table__row--day-cabinet-total",
-        };
     }
 
     private static ReportResultRowViewModel DetailGroupToRow(
@@ -760,7 +658,7 @@ internal static class LoadAndDowntimeReportBuilder
         if (byCabinet)
         {
             docCell = "—";
-            cabCell = "Каб. " + cabinets.GetValueOrDefault(grp.Key, "?");
+            cabCell = CatalogReportAnalysisHelper.FormatCabinetLabel(cabinets.GetValueOrDefault(grp.Key));
         }
         else
         {

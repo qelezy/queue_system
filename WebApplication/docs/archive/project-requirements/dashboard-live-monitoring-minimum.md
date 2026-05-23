@@ -16,7 +16,7 @@
 | `IQueueDashboardService` (live/mock) | SqlDependency, CDC, push из внешней очереди |
 | Права `dashboard.*` | Клиентский polling как целевая архитектура |
 
-**Baseline:** SignalR и фоновый refresh в коде **ещё не реализованы** — см. § «Baseline» в [dashboard-signalr-live-spec.md](dashboard-signalr-live-spec.md).
+**Baseline:** SignalR и фоновый refresh реализованы — см. § «Baseline» в [dashboard-signalr-live-spec.md](dashboard-signalr-live-spec.md).
 
 ---
 
@@ -45,7 +45,7 @@ flowchart LR
 
 ## Контракт snapshot (кратко)
 
-Метрики: `WaitingCount`, `InServiceCount`, `AcceptedTodayCount`, `NoShowTodayCount`, средние/макс. ожидание и приём.  
+Метрики: `WaitingCount`, `InServiceCount`, `AcceptedTodayCount`, средние/макс. ожидание и приём.  
 Списки: `ActiveQueue`, `DoctorLoadCards`.  
 Детальные поля JSON — [dashboard-signalr-live-spec.md §5](dashboard-signalr-live-spec.md#5-контракт-данных).
 
@@ -57,11 +57,11 @@ flowchart LR
 
 Полный чеклист — [dashboard-signalr-live-spec.md §9](dashboard-signalr-live-spec.md#9-критерии-приёмки).
 
-- [ ] `/dashboard` без F5  
-- [ ] Live snapshot согласован с `GetDashboardAsync()`  
-- [ ] Mock при недоступной БД, Hub не падает  
-- [ ] Блоки без `dashboard.*` не обновляются  
-- [ ] Фильтры таблицы очереди после push  
+- [x] `/dashboard` без F5  
+- [x] Live snapshot согласован с `GetDashboardAsync()`  
+- [x] Mock при недоступной БД (Development), Hub не падает  
+- [x] Блоки без `dashboard.*` не обновляются  
+- [x] Фильтры таблицы очереди после push  
 
 ---
 
@@ -70,5 +70,5 @@ flowchart LR
 | Файл | Назначение |
 |------|------------|
 | [DashboardController.cs](../../../Controllers/Dashboard/DashboardController.cs) | SSR |
-| [ResilientQueueDashboardService.cs](../../../Services/Dashboard/ResilientQueueDashboardService.cs) | Live/mock |
+| [ResilientQueueDashboardService.cs](../../../Services/Resilience/ResilientQueueDashboardService.cs) | Live/mock (Development) |
 | [Program.cs](../../../Program.cs) | Auth; SignalR — по [spec](dashboard-signalr-live-spec.md) |

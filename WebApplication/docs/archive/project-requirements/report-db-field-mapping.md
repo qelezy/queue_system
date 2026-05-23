@@ -15,28 +15,26 @@
 | Врач / Кабинет | `Doctor.full_name`, `Cabinet.cabinet_number` (`CustomParams.analysisMode`) |
 | Специализация врача | уникальные `Specialty.definition` этапов `List_item` смены |
 | Длительность рабочего времени, мин | сумма окон `Log_work` |
-| Общая длительность обслуживания, мин | merge `List_item.time_start_servicing`–`time_end_servicing` в окне |
+| Общая длительность занятости, мин | merge `List_item.time_call`–`time_end_servicing` в окне |
 | Простои, загрузка %, число завершённых приёмов | производные; завершённый талон — `List_item` с `time_call`, конец обслуживания в периоде, `date_arrival` = `date_work` |
 
 Таблицы: `Log_work`, `List_item`, `Appointment`, `Doctor`, `Cabinet`, `Specialty`. `Status_item_list` — join без фильтра по имени «неяв».
 
 ---
 
-## `arrived-and-completed`
+## `service-route-outcomes`
 
 | Колонка | Источник |
 |---------|----------|
 | Дата | `Appointment.date_arrival` |
 | Категория | `Category.name` |
-| Зарегистрированных приёмов | count `Appointment` в (день, категория) |
-| Неявок | `Appointment` без строк `List_item` |
-| Завершённый маршрут / незавершённый | все этапы талона: `time_end_servicing` заполнен / есть пустой |
+| Приёмов | count `Appointment` в (день, категория) |
+| С завершённым маршрутом | ≥1 `List_item`, у всех этапов `time_end_servicing` заполнен |
+| С незавершённым обслуживанием | ≥1 `List_item`, есть этап без `time_end_servicing` |
 
-Таблицы: `Appointment`, `List_item`, `Category`.
+Таблицы: `Appointment`, `List_item`, `Category`. Подробности — [report-service-route-outcomes-spec.md](report-service-route-outcomes-spec.md).
 
 ---
-
-## `waiting-before-appointment`
 
 | Колонка | Источник |
 |---------|----------|
@@ -73,33 +71,16 @@
 | Колонка | Источник |
 |---------|----------|
 | Дата | `Appointment.date_arrival` |
-| Пациент | `Appointment.info` |
-| Интервал полного обслуживания | от `time_call` (fallback `time_start_servicing`, `time_arrival`) первого этапа до `time_end_servicing` (fallback `time_complete`) последнего; отображение — clip к периоду, `HH:mm–HH:mm` |
+| Интервал полного обслуживания | от `Appointment.time_arrival` до `time_end_servicing` (fallback `time_complete`) последнего этапа; отображение — clip к периоду, `HH:mm–HH:mm` |
 | Этапов | count `List_item` приёма (≥2; пересечение маршрута с периодом) |
-| Суммарное время прохождения | clip суммы `[time_start_servicing, time_end_servicing]` по этапам |
-| Сумма пауз | clip суммы пауз между `time_end_servicing` и следующим `time_start_servicing` |
+| Суммарное время обслуживания | clip суммы `[time_start_servicing, time_end_servicing]` по этапам |
+| Сумма пауз до начала приёма | clip суммы `[time_call, time_start_servicing]` по каждому этапу |
 
 Превью: groupedBar (суммы по дням); итоги — строка «Итого за период» в таблице.
 
 ---
 
-## `no-shows-and-incomplete-service`
-
-| Колонка | Источник |
-|---------|----------|
-| Дата | `Appointment.date_arrival` |
-| Категория обслуживания | `Category.name` |
-| Зарегистрированных приёмов | count distinct `id_appointment` |
-| Неявок на приёмы | приёмы без `List_item` |
-| Приёмов с незавершённым обслуживанием | есть этап без `time_end_servicing` |
-| Доля приёмов с неявкой или незавершённым обслуживанием, % | вычисляемое |
-
-Таблицы: `Appointment`, `Category`, `List_item`.
-
-Подробности — [report-no-shows-and-incomplete-service-spec.md](report-no-shows-and-incomplete-service-spec.md).
----
-
-## `service-categories-comparison`
+## `waiting-before-appointment`
 
 | Колонка | Источник |
 |---------|----------|
@@ -122,12 +103,12 @@
 | Врач | `Doctor.full_name` |
 | Специализация | уникальные `Specialty.definition` этапов врача, `"; "` |
 | Инцидентов задержки | этапы с `stage_delay_min > 0` |
-| Сумма задержек, минут | задержка после вызова + сверх `Specialty.time_servicing` |
-| Средняя задержка, минут | сумма / инциденты |
-| Минимальная задержка, минут | min `stage_delay_min` по инцидентам |
-| Максимальная задержка, минут | max `stage_delay_min` по инцидентам |
+| Сумма задержек, мин | задержка после вызова + сверх `Specialty.time_servicing` |
+| Средняя задержка, мин | сумма / инциденты |
+| Минимальная задержка, мин | min `stage_delay_min` по инцидентам |
+| Максимальная задержка, мин | max `stage_delay_min` по инцидентам |
 | Превышений норматива | этапы с `(time_end − time_start) > time_servicing` |
 
 **Срез `cabinet`:** колонки «Кабинет» (`Cabinet.cabinet_number`), «Специализация врача» (те же `Specialty.definition` по этапам кабинета); остальные метрики — как выше.
 
-Топ 15 по «Сумма задержек, минут» (порядок строк без колонки №).
+Топ 15 по «Сумма задержек, мин» (порядок строк без колонки №).

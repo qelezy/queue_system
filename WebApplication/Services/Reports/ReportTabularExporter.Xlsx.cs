@@ -13,12 +13,32 @@ namespace WebApplication.Services.Reports;
 
 public static partial class ReportTabularExporter
 {
-    public static byte[] WriteXlsxBytes(ReportResultViewModel result)
+    public static byte[] WriteXlsxBytes(ReportResultViewModel result, IReadOnlyList<string>? headerLines = null)
     {
         using var wb = new XLWorkbook();
         var ws = wb.AddWorksheet("Отчёт");
         var colCount = result.ColumnHeaders.Count;
-        const int tableStartRow = 1;
+        var tableStartRow = 1;
+        var exportHeaderLines = headerLines ?? [];
+
+        if (exportHeaderLines.Count > 0 || !string.IsNullOrWhiteSpace(result.Title))
+        {
+            var headerRow = 1;
+            var title = string.IsNullOrWhiteSpace(result.Title) ? "Отчёт" : result.Title;
+            ws.Cell(headerRow, 1).Value = title;
+            ws.Row(headerRow).Style.Font.Bold = true;
+            headerRow++;
+
+            foreach (var line in exportHeaderLines)
+            {
+                if (string.IsNullOrWhiteSpace(line))
+                    continue;
+                ws.Cell(headerRow, 1).Value = line;
+                headerRow++;
+            }
+
+            tableStartRow = headerRow;
+        }
 
         for (var i = 0; i < colCount; i++)
             ws.Cell(tableStartRow, i + 1).Value = result.ColumnHeaders[i];

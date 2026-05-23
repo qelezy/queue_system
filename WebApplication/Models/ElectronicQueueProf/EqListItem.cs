@@ -12,11 +12,11 @@ public sealed class EqListItem
     public TimeOnly? TimeStartServicing { get; set; }
     public TimeOnly? TimeEndServicing { get; set; }
     public int IdStatusItem { get; set; }
-    public int IdCabinet { get; set; }
+    public int? IdCabinet { get; set; }
     public TimeOnly? TimeCall { get; set; }
     /// <summary>Длительность, закодированная как time в SQL Server.</summary>
     public TimeOnly? ServiceTime { get; set; }
-    public int IdDoctor { get; set; }
+    public int? IdDoctor { get; set; }
 
     public EqAppointment Appointment { get; set; } = null!;
     public EqSpecialty Specialty { get; set; } = null!;

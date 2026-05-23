@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 using WebApplication.Services;
 using WebApplication.Services.Reports;
 using WebApplication.Services.Reports.Catalog;
@@ -9,20 +11,28 @@ namespace WebApplication.Configuration.DependencyInjection;
 
 public static class WebApplicationServiceCollectionExtensions
 {
+    private static void ConfigureJsonOptions(JsonOptions options)
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+        options.JsonSerializerOptions.DictionaryKeyPolicy = JsonNamingPolicy.CamelCase;
+    }
+
     public static IServiceCollection AddWebApplicationServices(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IHostEnvironment environment)
     {
-        services.AddControllers();
+        services.AddControllers().AddJsonOptions(ConfigureJsonOptions);
         services.AddOpenApi();
         services.AddWebApplicationIdentity(configuration);
         services.AddWebApplicationElectronicQueue(configuration);
         services.AddWebApplicationAuth(configuration);
         services.AddWebApplicationUsers();
-        services.AddWebApplicationDashboard(configuration);
-        services.AddWebApplicationReports(configuration);
+        services.AddWebApplicationDashboard(configuration, environment);
+        services.AddWebApplicationSignalR();
+        services.AddWebApplicationReports(configuration, environment);
 
-        services.AddControllersWithViews();
+        services.AddControllersWithViews().AddJsonOptions(ConfigureJsonOptions);
         services.Configure<AntiforgeryOptions>(o =>
         {
             o.HeaderName = "RequestVerificationToken";

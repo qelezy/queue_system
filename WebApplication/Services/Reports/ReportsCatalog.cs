@@ -134,16 +134,19 @@ public sealed class ReportsCatalog : IReportsCatalog
     private static ReportCatalogItemViewModel MapItem(ReportCatalogItemOptions x)
     {
         var id = x.Id.Trim();
-        var kind = ReportGeneratorKindParser.ParseRequired(x.GeneratorKind, $"Reports:Catalog:{id}");
+        var kind = !string.IsNullOrWhiteSpace(x.GeneratorKind)
+            ? ReportGeneratorKindParser.ParseRequired(x.GeneratorKind, $"Reports:Catalog:{id}")
+            : ReportCatalogDefaults.ParseRequiredKind(id);
 
+        var presentation = ReportCatalogDefaults.GetPresentationDefaults(kind);
         var tableLayout = string.IsNullOrWhiteSpace(x.TableLayout)
-            ? ReportTableLayouts.Standard
+            ? presentation.TableLayout
             : x.TableLayout.Trim();
         var pdfOrientation = string.IsNullOrWhiteSpace(x.PdfOrientation)
-            ? ReportPdfOrientations.Landscape
+            ? presentation.PdfOrientation
             : x.PdfOrientation.Trim();
         var detailRowKind = string.IsNullOrWhiteSpace(x.DetailRowKind)
-            ? ReportDetailRowKinds.Standard
+            ? presentation.DetailRowKind
             : x.DetailRowKind.Trim();
 
         return new ReportCatalogItemViewModel

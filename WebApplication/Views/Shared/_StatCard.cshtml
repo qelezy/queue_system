@@ -4,7 +4,7 @@
     var cardClass = hasSub ? "stat-card" : "stat-card stat-card--no-sub";
 }
 
-<div class="@cardClass">
+<div class="@cardClass" @if (!string.IsNullOrEmpty(Model.DataStatKey)) { <text>data-stat="@Model.DataStatKey"</text> }>
     <div class="stat-card-body">
         <div class="stat-card-main">
             <div class="stat-card-label">@Model.Label</div>

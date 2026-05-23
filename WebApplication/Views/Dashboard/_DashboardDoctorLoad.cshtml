@@ -48,7 +48,7 @@
                     var norm = d.NormServiceMinutes ?? 0;
                     var cur = d.CurrentServiceMinutes ?? 0;
                     var over = hasCurrent && hasNorm && cur > norm;
-                    <tr data-doctor-load-row>
+                    <tr data-doctor-load-row data-doctor-id="@d.IdDoctor">
                         <td>
                             <div class="queue-row__doctor-name">@d.FullName</div>
                             <div class="queue-row__doctor-specialty">@d.Specialty@(string.IsNullOrEmpty(d.Cabinet) ? "" : " · " + d.Cabinet)</div>

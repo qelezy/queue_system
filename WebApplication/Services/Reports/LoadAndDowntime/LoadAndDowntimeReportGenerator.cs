@@ -56,17 +56,25 @@ public sealed class LoadAndDowntimeReportGenerator : IReportGenerator
             join st in queue.StatusItemLists.AsNoTracking() on li.IdStatusItem equals st.IdStatusItem
             join sp in queue.Specialties.AsNoTracking() on li.IdSpecialty equals sp.IdSpecialty
             where a.DateArrival >= fromDo && a.DateArrival <= toDoOnly
-                  && li.TimeStartServicing != null
+                  && li.TimeCall != null
                   && li.TimeEndServicing != null
+                  && li.IdDoctor != null && li.IdDoctor > 0
+                  && li.IdCabinet != null && li.IdCabinet > 0
+                  && queue.LogWorks.Any(lw =>
+                      lw.IdDoctor == li.IdDoctor
+                      && lw.IdCabinet == li.IdCabinet
+                      && lw.DateWork == a.DateArrival
+                      && lw.TimeBegin != null
+                      && lw.TimeEnd != null)
             select new LoadAndDowntimeReportBuilder.ListRowLite(
                 li.IdAppointment,
-                li.IdDoctor,
-                li.IdCabinet,
+                li.IdDoctor!.Value,
+                li.IdCabinet!.Value,
                 a.DateArrival,
                 li.IdStatusItem,
                 st.Name,
                 li.TimeCall,
-                li.TimeStartServicing!.Value,
+                li.TimeStartServicing ?? li.TimeCall!.Value,
                 li.TimeEndServicing!.Value,
                 sp.Definition))
             .ToList();
