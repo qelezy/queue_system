@@ -148,7 +148,6 @@ internal static class RouteAndPausesReportBuilder
         var previewCharts = ReportPreviewChartDescriptors.ForRouteAndPausesDailyGroupedBar(
             axis.Labels.ToList(),
             axis.Datasets.ToList());
-        GroupedBarChartTimeAxis.SetGroupedBarFootnote(previewCharts, axis.Footnote);
         return previewCharts;
     }
 

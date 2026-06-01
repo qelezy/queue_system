@@ -30,7 +30,7 @@ internal static class ResilientLiveMockExecutor
         catch (Exception mockEx) when (liveFailure is not null)
         {
             throw new InvalidOperationException(
-                "Не удалось сформировать отчёт по демо-данным после сбоя подключения к БД.",
+                "Не удалось сформировать отчёт после сбоя подключения к БД очереди.",
                 mockEx);
         }
     }

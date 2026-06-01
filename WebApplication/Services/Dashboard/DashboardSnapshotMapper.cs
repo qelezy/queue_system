@@ -4,10 +4,9 @@ namespace WebApplication.Services.Dashboard;
 
 public static class DashboardSnapshotMapper
 {
-    public static DashboardSnapshotDto ToSnapshot(DashboardViewModel model, bool isDemoData) =>
+    public static DashboardSnapshotDto ToSnapshot(DashboardViewModel model) =>
         new()
         {
-            IsDemoData = isDemoData,
             WaitingCount = model.WaitingCount,
             InServiceCount = model.InServiceCount,
             AcceptedTodayCount = model.AcceptedTodayCount,
@@ -23,14 +22,15 @@ public static class DashboardSnapshotMapper
         new()
         {
             IdAppointment = r.IdAppointment,
-            Patient = r.Patient,
+            TicketNumber = r.TicketNumber,
             TicketPriority = r.TicketPriority,
             CategoryPriority = r.CategoryPriority,
             WaitingMinutes = r.WaitingMinutes,
             CurrentCabinet = r.CurrentCabinet,
             CurrentDoctor = r.CurrentDoctor,
             Specialty = r.Specialty,
-            ArrivalTime = r.ArrivalTime,
+            IdSpecialty = r.IdSpecialty,
+            IdStatusItem = r.IdStatusItem,
             StatusLabel = r.StatusLabel,
             StatusCode = r.StatusCode,
         };
@@ -41,6 +41,7 @@ public static class DashboardSnapshotMapper
             IdDoctor = d.IdDoctor,
             FullName = d.FullName,
             Specialty = d.Specialty,
+            IdSpecialty = d.IdSpecialty,
             Cabinet = d.Cabinet,
             IsInService = d.IsInService,
             CurrentServiceMinutes = d.CurrentServiceMinutes,

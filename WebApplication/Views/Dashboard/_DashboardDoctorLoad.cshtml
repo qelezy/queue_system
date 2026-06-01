@@ -1,15 +1,17 @@
-@using WebApplication.Models
-@model IReadOnlyList<DoctorLoadCardViewModel>
+@model DashboardDoctorLoadViewModel
 
 @{
-    var delaysCount = Model.Count(d =>
+    var delaysCount = Model.Cards.Count(d =>
         d.IsInService && d.NormServiceMinutes is int n && d.CurrentServiceMinutes is int c && c > n);
 }
 
 <div class="dashboard-panel">
     <h3 class="dashboard-panel__title doctor-load-panel__title">
         <span class="doctor-load-panel__title-text">Состояние врачей</span>
-        <span class="doctor-load-delays-badge" aria-label="Задержек: @delaysCount">Задержек: @delaysCount</span>
+        @if (delaysCount > 0)
+        {
+            <span class="doctor-load-delays-badge" aria-label="Задержек: @delaysCount">Задержек: @delaysCount</span>
+        }
     </h3>
 
     <div class="table-toolbar doctor-load-toolbar">
@@ -20,6 +22,22 @@
                 Placeholder = "Поиск",
                 OnInput = "DoctorLoadTable.filter(this.value)"
             })
+            <div class="toolbar-role-filter">
+                <select id="doctor-filter-specialty" class="toolbar-role-filter__select" onchange="DoctorLoadTable.filterSpecialty(this.value)">
+                    <option value="">Все специальности</option>
+                    @foreach (var s in Model.Filters.Specialties)
+                    {
+                        <option value="@s.Id">@s.Label</option>
+                    }
+                </select>
+            </div>
+            <div class="toolbar-role-filter">
+                <select id="doctor-filter-status" class="toolbar-role-filter__select" onchange="DoctorLoadTable.filterStatus(this.value)">
+                    <option value="">Все статусы</option>
+                    <option value="in-service">Принимает</option>
+                    <option value="free">Ожидает пациента</option>
+                </select>
+            </div>
         </div>
     </div>
 
@@ -35,20 +53,20 @@
                 </tr>
             </thead>
             <tbody>
-            @if (Model.Count == 0)
+            @if (Model.Cards.Count == 0)
             {
                 <tr><td colspan="5">Нет активных врачей</td></tr>
             }
             else
             {
-                foreach (var d in Model)
+                foreach (var d in Model.Cards)
                 {
                     var hasCurrent = d.IsInService && d.CurrentServiceMinutes.HasValue;
                     var hasNorm = d.NormServiceMinutes.HasValue;
                     var norm = d.NormServiceMinutes ?? 0;
                     var cur = d.CurrentServiceMinutes ?? 0;
                     var over = hasCurrent && hasNorm && cur > norm;
-                    <tr data-doctor-load-row data-doctor-id="@d.IdDoctor">
+                    <tr data-doctor-load-row data-doctor-id="@d.IdDoctor" data-doctor-status="@(d.IsInService ? "in-service" : "free")" data-specialty-id="@d.IdSpecialty">
                         <td>
                             <div class="queue-row__doctor-name">@d.FullName</div>
                             <div class="queue-row__doctor-specialty">@d.Specialty@(string.IsNullOrEmpty(d.Cabinet) ? "" : " · " + d.Cabinet)</div>
@@ -56,11 +74,11 @@
                         <td>
                             @if (d.IsInService)
                             {
-                                <span class="queue-status-badge queue-status-badge--in-service">На приёме</span>
+                                <span class="queue-status-badge queue-status-badge--in-service">Принимает</span>
                             }
                             else
                             {
-                                <span class="queue-status-badge queue-status-badge--free">Свободен</span>
+                                <span class="queue-status-badge queue-status-badge--free">Ожидает пациента</span>
                             }
                         </td>
                         <td class="@(over ? "doctor-load-table__cell--over" : "")">

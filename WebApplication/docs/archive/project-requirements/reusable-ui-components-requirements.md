@@ -70,7 +70,7 @@
 - Общий кусок поля (редкий универсальный partial): [Views/Shared/_FormField.cshtml](Views/Shared/_FormField.cshtml) + [Models/FormFieldModel.cs](Models/FormFieldModel.cs).
 - Типичная форма с `asp-for`: [Views/Users/_RegisterUserForm.cshtml](Views/Users/_RegisterUserForm.cshtml).
 
-**Важно:** в формах уже смешаны стили — **`form-field`** (админка пользователей) и **`form-input`** (например вход в [Views/Account/Login.cshtml](Views/Account/Login.cshtml)). Новый код в существующих экранах **подстраивай под тот же файл/экран**, к которому добавляешь разметку.
+**Важно:** для полей форм используй **`form-field`** (auth, профиль, пользователи, отчёты). В auth-формах дополнительные отступы задаёт `.auth-form .form-field` в `site.css`.
 
 ## View-модели UI
 

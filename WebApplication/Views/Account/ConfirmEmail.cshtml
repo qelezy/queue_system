@@ -1,22 +1,33 @@
-﻿@{
-    Layout = "_AuthForm";
+﻿@using System.Text.Json
+@{
+    Layout = "_AuthConfirm";
     ViewData["Title"] = "Подтверждение email";
     var userId = ViewData["UserId"]?.ToString() ?? "";
     var token = ViewData["Token"]?.ToString() ?? "";
     var confirmEmailUrl = ViewData["ConfirmEmailUrl"]?.ToString() ?? "";
+    var loginPageUrl = Url.Action("Login", "Account") ?? "/Account/Login";
 }
 
-<div class="auth-result" style="text-align:center;">
-    <h2 id="status">Подтверждение email...</h2>
+<p class="auth-form-subtitle" id="confirmPending">Подтверждаем email…</p>
+
+<div class="auth-confirm" id="confirmSuccess" hidden>
+    <i class="bi bi-check-circle-fill auth-confirm-icon" aria-hidden="true"></i>
+    <p class="auth-confirm-caption" id="confirmCaption"></p>
 </div>
+
+<div class="auth-form-alert" id="confirmError" hidden role="alert"></div>
+
+<p class="auth-links" id="confirmLinks" hidden>
+    <a href="@loginPageUrl">Перейти ко входу</a>
+</p>
 
 @section Scripts {
     <script>
         window.AppConfig = window.AppConfig || {};
-        window.AppConfig.confirmEmailUrl = '@confirmEmailUrl';
-        window.AppConfig.confirmEmailUserId = '@userId';
-        window.AppConfig.confirmEmailToken = '@token';
-        window.AppConfig.loginPageUrl = '@Url.Action("Login", "Account")';
+        window.AppConfig.confirmEmailUrl = @Html.Raw(JsonSerializer.Serialize(confirmEmailUrl));
+        window.AppConfig.confirmEmailUserId = @Html.Raw(JsonSerializer.Serialize(userId));
+        window.AppConfig.confirmEmailToken = @Html.Raw(JsonSerializer.Serialize(token));
+        window.AppConfig.loginPageUrl = @Html.Raw(JsonSerializer.Serialize(loginPageUrl));
     </script>
     <script src="~/js/account-confirm-email.js" asp-append-version="true"></script>
 }

@@ -19,7 +19,7 @@ namespace WebApplication.Controllers.Users
         [HttpGet]
         public async Task<IActionResult> Index()
         {
-            ViewData["Title"] = "Управление пользователями";
+            ViewData["Title"] = "Управление";
 
             var dbUsers = _userManager.Users.ToList();
             var users = new List<UserRowViewModel>(dbUsers.Count);

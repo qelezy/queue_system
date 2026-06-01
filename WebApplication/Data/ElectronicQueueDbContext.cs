@@ -3,10 +3,6 @@ using WebApplication.Models.ElectronicQueueProf;
 
 namespace WebApplication.Data;
 
-/// <summary>
-/// Только чтение из БД ElectronicQueueProf. Аналитика: прибытие = DateArrival + TimeArrival;
-/// завершение талона по умолчанию = DateArrival + TimeComplete (если задано).
-/// </summary>
 public sealed class ElectronicQueueDbContext : DbContext
 {
     private const string ReadOnlyMessage =

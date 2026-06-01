@@ -1,0 +1,46 @@
+@{
+    const string modalId = "queue-completed-stages-modal";
+}
+
+<div id="@modalId"
+     class="app-modal queue-completed-stages-modal"
+     aria-hidden="true">
+    <div class="app-modal__overlay" data-modal-close="@modalId"></div>
+    <div class="app-modal__dialog queue-completed-stages-modal__dialog"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="queue-completed-stages-title"
+         tabindex="-1">
+        <div class="app-modal__body">
+            <section class="register-panel queue-route-stages-panel">
+                <header class="register-panel-head">
+                    <h2 class="register-panel-title" id="queue-completed-stages-title">Этапы маршрута</h2>
+                    <button type="button"
+                            class="register-panel-close"
+                            aria-label="Закрыть"
+                            data-modal-close="@modalId">
+                        ×
+                    </button>
+                </header>
+
+                <div class="users-table-wrap queue-completed-stages-table-scroll">
+                    <table class="users-table queue-completed-stages-table" aria-label="Этапы маршрута">
+                        <thead>
+                            <tr>
+                                <th>Специальность</th>
+                                <th>Номер кабинета</th>
+                                <th>Статус</th>
+                                <th>Время вызова</th>
+                                <th>Время начала обслуживания</th>
+                                <th>Время окончания обслуживания</th>
+                            </tr>
+                        </thead>
+                        <tbody id="queue-completed-stages-tbody">
+                            <tr><td colspan="6">Загрузка…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>

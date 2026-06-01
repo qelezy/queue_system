@@ -63,7 +63,6 @@ internal static class CatalogReportShared
         return rounded.ToString("0.####", CultureInfo.InvariantCulture);
     }
 
-    /// <summary>Число этапов <c>List_item</c> по каждому <c>id_appointment</c> (C для одно-/многоэтапных талонов).</summary>
     internal static Dictionary<int, int> CountListItemsPerAppointment(IEnumerable<int> listItemAppointmentIds) =>
         listItemAppointmentIds
             .GroupBy(id => id)
@@ -75,13 +74,9 @@ internal static class CatalogReportShared
         return total == 0 ? "0" : FormatMetric(multi * 100.0 / total);
     }
 
-    /// <summary>Подпись дня на оси X диаграмм отчётов каталога.</summary>
     internal static string FormatChartDayLabel(DateOnly day) =>
         day.ToString("dd-MM-yyyy", CultureInfo.InvariantCulture);
 
-    /// <summary>
-    /// Незавершённый фактический маршрут: есть этапы и хотя бы у одного нет <c>time_end_servicing</c>.
-    /// </summary>
     internal static bool AppointmentHasIncompleteRoute(IReadOnlyList<TimeOnly?> timeEndServicingPerStage)
     {
         if (timeEndServicingPerStage.Count == 0)
@@ -89,17 +84,12 @@ internal static class CatalogReportShared
         return timeEndServicingPerStage.Any(t => !t.HasValue);
     }
 
-    /// <summary>Класс проблемного этапа по arrived-and-completed §4.5–4.6.</summary>
     internal enum StageIssueKind
     {
         NoCallNoEnd,
         NoEndWithActivity
     }
 
-    /// <summary>
-    /// §4.5: пусты <c>time_call</c> и <c>time_end_servicing</c>.
-    /// §4.6: пуст <c>time_end_servicing</c>, задан <c>time_call</c> или <c>time_start_servicing</c>.
-    /// </summary>
     internal static StageIssueKind? ClassifyStageIssue(
         TimeOnly? timeCall,
         TimeOnly? timeStartServicing,
@@ -117,7 +107,6 @@ internal static class CatalogReportShared
         return null;
     }
 
-    /// <summary>Порядок этапов маршрута: <c>time_start_servicing</c> ↑; пустой start — последние.</summary>
     internal static List<T> OrderStagesByStart<T>(IEnumerable<T> stages, Func<T, TimeOnly?> getTimeStart) =>
         stages.OrderBy(s => getTimeStart(s) ?? TimeOnly.MaxValue).ToList();
 

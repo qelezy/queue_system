@@ -26,24 +26,16 @@
         cabinetOptions = Model.ToolbarCabinetOptions.Select(x => new { id = x.Id, label = x.Label }),
         doctorOptions = Model.ToolbarDoctorOptions.Select(x => new { id = x.Id, label = x.Label }),
         categoryOptions = Model.ToolbarCategoryOptions.Select(x => new { id = x.Id, label = x.Label })
-    },
-    usingElectronicQueueMockData = Model.UsingElectronicQueueMockData
+    }
 }, JsonOptions.Value.JsonSerializerOptions))
 </script>
 
 @section Head {
+    <link rel="stylesheet" href="~/css/features/reports.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/reports-export-shared.css" asp-append-version="true" />
 }
 
 <div class="report-hub">
-    @if (Model.UsingElectronicQueueMockData)
-    {
-        <p class="reports-demo-badge" id="reports-demo-badge" role="status">Демо-данные</p>
-    }
-    else
-    {
-        <p class="reports-demo-badge reports-demo-badge--hidden" id="reports-demo-badge" role="status" hidden>Демо-данные</p>
-    }
     @if (Model.Catalog.Count == 0)
     {
         <p class="report-params__empty">В конфигурации нет доступных отчётов (секция <code>Reports:Catalog</code> в appsettings).</p>

@@ -1,7 +1,11 @@
 @model UsersPageViewModel
 
 @{
-    ViewData["Title"] = "Управление пользователями";
+    ViewData["Title"] = "Управление";
+}
+
+@section Head {
+    <link rel="stylesheet" href="~/css/features/users.css" asp-append-version="true" />
 }
 
 @Html.AntiForgeryToken()

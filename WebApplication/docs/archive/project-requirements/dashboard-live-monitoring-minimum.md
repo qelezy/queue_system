@@ -13,10 +13,10 @@
 | В scope | Вне scope |
 |---------|-----------|
 | `/dashboard`, snapshot `DashboardViewModel`, SignalR | Отчёты, новые метрики/колонки, запись в БД |
-| `IQueueDashboardService` (live/mock) | SqlDependency, CDC, push из внешней очереди |
+| `IQueueDashboardService` → только live (`QueueDashboardService`) | Mock/demo-данные, SqlDependency, CDC |
 | Права `dashboard.*` | Клиентский polling как целевая архитектура |
 
-**Baseline:** SignalR и фоновый refresh реализованы — см. § «Baseline» в [dashboard-signalr-live-spec.md](dashboard-signalr-live-spec.md).
+**Baseline:** SignalR, фоновый refresh, опрос БД только при подключённых клиентах Hub, Toast при ошибках связи.
 
 ---
 
@@ -25,21 +25,22 @@
 ```mermaid
 flowchart LR
   eqDb["ElectronicQueueProf"]
-  dashboardSvc["IQueueDashboardService"]
+  dashboardSvc["QueueDashboardService"]
   hosted["DashboardRefreshHostedService"]
   hub["DashboardHub"]
   browser["dashboard-live.js"]
 
   eqDb --> dashboardSvc
   dashboardSvc --> hosted
-  hosted --> hub
+  hosted -->|"если есть клиенты Hub"| hub
   hub --> browser
 ```
 
-1. Один фоновый опрос БД на инстанс — не polling с каждой вкладки.  
-2. Данные только через `GetDashboardAsync()` (live или mock).  
+1. Один фоновый опрос БД на инстанс — **только если** есть подключения к `/hubs/dashboard`.  
+2. Данные только через `GetDashboardAsync()` из live БД; талоны и метрики — **за сегодня (МСК**, `QueueDashboardClock` / `MonitoringOptions.QueueTimeZoneId`).  
 3. Hub `/hubs/dashboard`, событие `DashboardUpdated`, JWT из cookie.  
-4. В push **нет** `Ui` — видимость блоков задаётся при SSR.
+4. В push **нет** `Ui` — видимость блоков задаётся при SSR.  
+5. Ошибки SignalR — Toast (`global-toast-stack`), без индикатора связи.
 
 ---
 
@@ -59,9 +60,10 @@ flowchart LR
 
 - [x] `/dashboard` без F5  
 - [x] Live snapshot согласован с `GetDashboardAsync()`  
-- [x] Mock при недоступной БД (Development), Hub не падает  
+- [x] При недоступной EQ — предупреждение, без mock и без push  
 - [x] Блоки без `dashboard.*` не обновляются  
 - [x] Фильтры таблицы очереди после push  
+- [x] Неавторизованный доступ к MVC — redirect на `/Account/Login`
 
 ---
 
@@ -70,5 +72,10 @@ flowchart LR
 | Файл | Назначение |
 |------|------------|
 | [DashboardController.cs](../../../Controllers/Dashboard/DashboardController.cs) | SSR |
-| [ResilientQueueDashboardService.cs](../../../Services/Resilience/ResilientQueueDashboardService.cs) | Live/mock (Development) |
-| [Program.cs](../../../Program.cs) | Auth; SignalR — по [spec](dashboard-signalr-live-spec.md) |
+| [QueueDashboardService.cs](../../../Services/Dashboard/QueueDashboardService.cs) | Live-расчёт |
+| [DashboardRefreshHostedService.cs](../../../Services/Dashboard/DashboardRefreshHostedService.cs) | Push по таймеру |
+| [DashboardHubConnectionTracker.cs](../../../Services/Dashboard/DashboardHubConnectionTracker.cs) | Счётчик клиентов Hub |
+| [dashboard-live.js](../../../wwwroot/js/dashboard-live.js) | SignalR + DOM + Toast |
+| [Index.cshtml](../../../Views/Dashboard/Index.cshtml) | CDN `@microsoft/signalr` 8.0.7 (секция Scripts) |
+| [Program.cs](../../../Program.cs) | Auth; SignalR |
+

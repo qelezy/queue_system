@@ -3,7 +3,6 @@ using System.Text.Json.Serialization;
 
 namespace WebApplication.Models.Reports.Charts;
 
-/// <summary>Сериализует NaN в JSON null для пропусков на groupedBar-диаграмме.</summary>
 public sealed class ChartDatasetValueListJsonConverter : JsonConverter<List<double>>
 {
     public override List<double>? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)

@@ -4,7 +4,6 @@ using WebApplication.Services.Reports.Charts;
 
 namespace WebApplication.Services.Reports.Catalog;
 
-/// <summary>Сборка таблицы и диаграммы отчёта «Длительность приёма» (дата × срез).</summary>
 internal static class AppointmentDurationReportBuilder
 {
     internal const string ModeDoctor = "doctor";
@@ -143,7 +142,6 @@ internal static class AppointmentDurationReportBuilder
         var previewCharts = ReportPreviewChartDescriptors.ForAppointmentDurationDailyGroupedBar(
             axis.Labels.ToList(),
             axis.Datasets.ToList());
-        GroupedBarChartTimeAxis.SetGroupedBarFootnote(previewCharts, axis.Footnote);
 
         return new ReportResultViewModel
         {
@@ -209,6 +207,12 @@ internal static class AppointmentDurationReportBuilder
         var includeSpecialtyCol = mode == ModeDoctor;
         var periodHeading = CatalogReportPreviewHelper.PeriodTotalsLabel;
         var detailRows = model.Rows;
+
+        if (CatalogReportPreviewHelper.HasNoDetailRows(detailRows))
+        {
+            model.PreviewCharts = null;
+            return;
+        }
 
         if (purpose != ReportGenerationPurpose.JsonPreview)
         {

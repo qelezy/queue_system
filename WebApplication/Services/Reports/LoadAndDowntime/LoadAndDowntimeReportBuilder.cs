@@ -1,6 +1,5 @@
 using System.Globalization;
 using WebApplication.Models.ElectronicQueueProf;
-using WebApplication.Services.Dashboard;
 using WebApplication.Services.Reports.Catalog;
 using WebApplication.Services.Reports.Intervals;
 
@@ -123,7 +122,7 @@ internal static class LoadAndDowntimeReportBuilder
         {
             if (!keySet.Contains((row.IdDoctor, row.IdCabinet, row.DateArrival)))
                 continue;
-            if (QueueDashboardStatusMapper.IsNoShowStatusName(row.StatusName))
+            if (IsExcludedStatusName(row.StatusName))
                 continue;
             if (row.TimeCall is null)
                 continue;
@@ -147,7 +146,7 @@ internal static class LoadAndDowntimeReportBuilder
         out DateTimeInterval interval)
     {
         interval = default;
-        if (QueueDashboardStatusMapper.IsNoShowStatusName(row.StatusName))
+        if (IsExcludedStatusName(row.StatusName))
             return false;
         if (row.TimeCall is null)
             return false;
@@ -226,7 +225,6 @@ internal static class LoadAndDowntimeReportBuilder
 
         if (shifts.Count == 0)
         {
-            rows.Add(PadRow(colCount, "Нет данных", "Нет Log_work с time_begin/time_end в периоде."));
             return new ReportResultViewModel
             {
                 ColumnHeaders = headers.ToList(),
@@ -709,4 +707,16 @@ internal static class LoadAndDowntimeReportBuilder
         double IdleMinutes,
         int IdleSegments,
         int CompletedAppointments);
+
+    private static bool IsExcludedStatusName(string? statusName)
+    {
+        if (string.IsNullOrWhiteSpace(statusName))
+            return false;
+        var n = statusName.Trim().ToLowerInvariant();
+        return n.Contains("неяв", StringComparison.Ordinal)
+               || n.Contains("не яв", StringComparison.Ordinal)
+               || n.Contains("no-show", StringComparison.Ordinal)
+               || n.Contains("noshow", StringComparison.Ordinal)
+               || n.Contains("пропуск", StringComparison.Ordinal);
+    }
 }

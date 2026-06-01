@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using WebApplication.Data;
+using WebApplication.Models.Configuration;
 
 namespace WebApplication.Configuration.DependencyInjection;
 
@@ -10,8 +11,14 @@ public static class IdentityServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        var userDatabaseConnection = configuration.GetConnectionString("UserDatabase")
-            ?? throw new InvalidOperationException("Строка подключения UserDatabase не задана.");
+        services.Configure<ConnectionStringsOptions>(configuration.GetSection(ConnectionStringsOptions.SectionName));
+
+        var connections = configuration.GetSection(ConnectionStringsOptions.SectionName).Get<ConnectionStringsOptions>()
+            ?? throw new InvalidOperationException("Секция ConnectionStrings не задана.");
+
+        var userDatabaseConnection = string.IsNullOrWhiteSpace(connections.UserDatabase)
+            ? throw new InvalidOperationException("Строка подключения UserDatabase не задана.")
+            : connections.UserDatabase;
 
         services.AddDbContext<AppDbContext>(options =>
             options.UseSqlServer(userDatabaseConnection));

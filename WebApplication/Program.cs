@@ -16,6 +16,7 @@ builder.Services.AddWebApplicationServices(builder.Configuration, builder.Enviro
 var app = builder.Build();
 
 app.ValidateReportsConfiguration();
+app.ValidateMonitoringConfiguration();
 
 if (app.Environment.IsDevelopment())
 {
@@ -37,6 +38,7 @@ app.MapControllers();
 
 app.MapHub<DashboardHub>("/hubs/dashboard");
 
+await app.ValidateWebApplicationDatabasesAsync().ConfigureAwait(false);
 await app.SeedWebApplicationDataAsync().ConfigureAwait(false);
 
 app.Run();

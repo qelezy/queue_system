@@ -13,17 +13,11 @@ public enum GroupedBarBucketAggregation
 public sealed record GroupedBarTimeAxisResult(
     IReadOnlyList<string> Labels,
     IReadOnlyList<ReportPreviewChartDataset> Datasets,
-    bool IsWeekly,
-    string? Footnote);
+    bool IsWeekly);
 
-/// <summary>
-/// Подготовка оси X groupedBar: при периоде &gt; 21 дня — агрегация по календарным неделям (пн–вс).
-/// </summary>
 public static class GroupedBarChartTimeAxis
 {
     public const int WeeklyThresholdDays = 21;
-
-    public const string WeeklyFootnote = "На диаграмме — календарные недели; таблица — по дням.";
 
     public static GroupedBarTimeAxisResult Prepare(
         IReadOnlyList<DateOnly> days,
@@ -31,14 +25,14 @@ public static class GroupedBarChartTimeAxis
         GroupedBarBucketAggregation aggregation)
     {
         if (days.Count == 0)
-            return new([], CloneDatasets(datasets), false, null);
+            return new([], CloneDatasets(datasets), false);
 
         var normalized = NormalizeDatasets(datasets, days.Count);
 
         if (days.Count <= WeeklyThresholdDays)
         {
             var labels = days.Select(CatalogReportShared.FormatChartDayLabel).ToList();
-            return new(labels, normalized, false, null);
+            return new(labels, normalized, false);
         }
 
         var buckets = BuildWeekBuckets(days);
@@ -49,22 +43,7 @@ public static class GroupedBarChartTimeAxis
             .Select(ds => AggregateDataset(ds, buckets, aggregation))
             .ToList();
 
-        return new(weekLabels, aggregated, true, WeeklyFootnote);
-    }
-
-    public static void SetGroupedBarFootnote(List<ReportPreviewChartDescriptor>? charts, string? footnote)
-    {
-        if (charts is null || string.IsNullOrEmpty(footnote))
-            return;
-
-        foreach (var chart in charts)
-        {
-            if (!string.Equals(chart.Kind, "groupedBar", StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            chart.Footnote = footnote;
-            return;
-        }
+        return new(weekLabels, aggregated, true);
     }
 
     private readonly record struct WeekBucket(int FirstIndex, int LastIndex);

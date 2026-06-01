@@ -10,6 +10,4 @@ public sealed class ReportsHubViewModel
     public IReadOnlyList<ReportSelectOption> ToolbarCabinetOptions { get; set; } = [];
     public IReadOnlyList<ReportSelectOption> ToolbarDoctorOptions { get; set; } = [];
     public IReadOnlyList<ReportSelectOption> ToolbarCategoryOptions { get; set; } = [];
-
-    public bool UsingElectronicQueueMockData { get; set; }
 }

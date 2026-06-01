@@ -4,7 +4,7 @@
 
 | Папка | Было |
 |-------|------|
-| `interface-prototypes/` | `WebApplication/InterfacePrototypes/` — HTML/CSS макеты UI |
+| `interface-prototypes/` | `WebApplication/InterfacePrototypes/` — HTML/CSS макеты UI; `email-registration.html`, `email-password-reset.html` — предпросмотр писем (при правках `Views/Emails/` и `Views/Shared/Components/*Email/` обновлять вручную) |
 | `project-requirements/` | `WebApplication/project-requirements/` — требования к отчётам и мониторингу |
 | `scripts/PageSizeCheck.csx` | `WebApplication/_PageSizeCheck.csx` — черновик QuestPDF |
 

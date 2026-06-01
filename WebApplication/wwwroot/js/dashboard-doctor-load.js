@@ -10,6 +10,8 @@
     const colspan = table.tHead?.rows[0]?.cells.length ?? 5;
 
     let searchQuery = "";
+    let specialty = "";
+    let doctorStatus = "";
 
     function setNoResultsVisible(visible) {
         let row = tbody.querySelector("." + noResultsClass);
@@ -30,9 +32,14 @@
         let visibleCount = 0;
         for (const row of dataRows) {
             const text = row.textContent?.toLowerCase() ?? "";
-            const match = !normalized || text.includes(normalized);
-            row.style.display = match ? "" : "none";
-            if (match) visibleCount++;
+            const rowStatus = row.dataset.doctorStatus ?? "";
+            const rowSpecialtyId = row.dataset.specialtyId ?? "";
+            const matchSearch = !normalized || text.includes(normalized);
+            const matchSpecialty = !specialty || rowSpecialtyId === specialty;
+            const matchStatus = !doctorStatus || rowStatus === doctorStatus;
+            const show = matchSearch && matchSpecialty && matchStatus;
+            row.style.display = show ? "" : "none";
+            if (show) visibleCount++;
         }
         setNoResultsVisible(dataRows.length > 0 && visibleCount === 0);
     }
@@ -42,10 +49,20 @@
         apply();
     }
 
+    function filterSpecialty(value) {
+        specialty = value ?? "";
+        apply();
+    }
+
+    function filterStatus(value) {
+        doctorStatus = value ?? "";
+        apply();
+    }
+
     function rebind() {
         dataRows = Array.from(tbody.querySelectorAll("tr[data-doctor-load-row]"));
         apply();
     }
 
-    window.DoctorLoadTable = { filter, rebind };
+    window.DoctorLoadTable = { filter, filterSpecialty, filterStatus, rebind };
 })();

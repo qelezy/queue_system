@@ -5,6 +5,8 @@
     }
 
     const submitButton = form.querySelector('button[type="submit"]');
+    const passwordInput = form.querySelector("#loginPassword");
+    const passwordToggle = form.querySelector("#loginPasswordToggle");
     const toastManager = window.AppToasts?.getManager("global-toast-stack");
     const loginUrl = form.dataset.loginUrl || "/api/auth/login";
     const postLoginRedirectPath = form.dataset.postLoginRedirectPath || "/dashboard/index";
@@ -17,12 +19,40 @@
         }
 
         submitButton.disabled = inProgress;
-        submitButton.textContent = inProgress ? "Вход..." : "Войти";
+        submitButton.classList.toggle("is-loading", inProgress);
+        if (inProgress) {
+            submitButton.setAttribute("aria-busy", "true");
+        } else {
+            submitButton.removeAttribute("aria-busy");
+        }
     }
 
     function showError(message) {
         toastManager?.show(message, "error");
     }
+
+    function initPasswordVisibilityToggle() {
+        if (!(passwordInput instanceof HTMLInputElement) || !(passwordToggle instanceof HTMLButtonElement)) {
+            return;
+        }
+
+        const icon = passwordToggle.querySelector(".bi");
+        if (!(icon instanceof HTMLElement)) {
+            return;
+        }
+
+        passwordToggle.addEventListener("click", function () {
+            const isVisible = passwordInput.type === "text";
+            passwordInput.type = isVisible ? "password" : "text";
+            const nowVisible = passwordInput.type === "text";
+            icon.classList.toggle("bi-eye", nowVisible);
+            icon.classList.toggle("bi-eye-slash", !nowVisible);
+            passwordToggle.setAttribute("aria-pressed", nowVisible ? "true" : "false");
+            passwordToggle.setAttribute("aria-label", nowVisible ? "Скрыть пароль" : "Показать пароль");
+        });
+    }
+
+    initPasswordVisibilityToggle();
 
     function extractErrorMessage(payload, fallbackMessage) {
         if (!payload) {

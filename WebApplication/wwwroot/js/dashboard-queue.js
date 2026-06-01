@@ -11,7 +11,7 @@
 
     let searchQuery = "";
     let specialty = "";
-    let status = "";
+    let statusCode = "";
     let waitMinThreshold = null;
 
     function setNoResultsVisible(visible) {
@@ -32,13 +32,13 @@
         let visibleCount = 0;
         for (const row of dataRows) {
             const text = row.textContent?.toLowerCase() ?? "";
-            const rowSpecialty = row.dataset.specialty ?? "";
-            const rowStatus = row.dataset.status ?? "";
+            const rowSpecialtyId = row.dataset.specialtyId ?? "";
+            const rowStatusCode = row.dataset.statusCode ?? "";
             const rowWait = Number(row.dataset.wait ?? "0");
 
             const matchesSearch = !searchQuery || text.includes(searchQuery);
-            const matchesSpecialty = !specialty || rowSpecialty === specialty;
-            const matchesStatus = !status || rowStatus === status;
+            const matchesSpecialty = !specialty || rowSpecialtyId === specialty;
+            const matchesStatus = !statusCode || rowStatusCode === statusCode;
             const matchesWait = waitMinThreshold === null || rowWait > waitMinThreshold;
 
             const show = matchesSearch && matchesSpecialty && matchesStatus && matchesWait;
@@ -59,7 +59,7 @@
     }
 
     function filterStatus(value) {
-        status = value ?? "";
+        statusCode = value ?? "";
         apply();
     }
 
@@ -69,7 +69,8 @@
             waitMinThreshold = null;
         } else {
             const parsed = Number(trimmed);
-            waitMinThreshold = Number.isFinite(parsed) ? parsed : null;
+            waitMinThreshold =
+                Number.isFinite(parsed) && parsed > 0 ? parsed : null;
         }
         apply();
     }

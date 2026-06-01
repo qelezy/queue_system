@@ -1,6 +1,6 @@
 # Спецификация: SignalR live-мониторинг очереди (`/dashboard`)
 
-Документ — **единый источник для разработки** транспорта live-обновления страницы «Мониторинг очереди».  
+Документ — **единый источник для разработки** транспорта live-обновления страницы «Мониторинг».  
 Краткий обзор — [dashboard-live-monitoring-minimum.md](dashboard-live-monitoring-minimum.md).  
 UI страницы — [queue-monitoring-page-ui-requirements.md](queue-monitoring-page-ui-requirements.md).  
 Схема и таблицы БД — [electronic-queue-prof-schema.md](electronic-queue-prof-schema.md).
@@ -76,7 +76,7 @@ flowchart LR
 
 ### 2.3. Известное расхождение код ↔ UI-spec
 
-В [Views/Dashboard/Index.cshtml](../../../Views/Dashboard/Index.cshtml) блок «Загрузка врачей» расположен **выше** таблицы «Текущая очередь»; в [queue-monitoring-page-ui-requirements.md](queue-monitoring-page-ui-requirements.md) порядок обратный. Для SignalR **не блокер**; выравнивание порядка — отдельная UI-задача.
+В [Views/Dashboard/Index.cshtml](../../../Views/Dashboard/Index.cshtml) блок «Загрузка врачей» расположен **выше** таблицы «Лист ожидания»; в [queue-monitoring-page-ui-requirements.md](queue-monitoring-page-ui-requirements.md) порядок обратный. Для SignalR **не блокер**; выравнивание порядка — отдельная UI-задача.
 
 ---
 
@@ -124,12 +124,12 @@ flowchart TD
 
 | Блок UI | Суть |
 |---------|------|
-| Ожидают | `List_item` + `Appointment`: нет вызова, нет конца обслуживания, талон не завершён |
-| На приёме | Есть `time_call`, нет `time_end_servicing` |
-| Обслужено за сегодня | Завершённые этапы за сегодня |
+| Ожидают | Открытый талон; текущий этап «Ожидает» (`IsWaitingQueueStep`), без вызова |
+| На приёме | Открытый талон; текущий этап с `time_start_servicing`, без `time_end_servicing` (код `in-service`) |
+| Обслужено за сегодня | Талоны с полным маршрутом (`time_complete` или все этапы завершены) |
 | Не явились за сегодня | `date_arrival = сегодня`, статус этапа — [QueueDashboardStatusMapper.cs](../../../Services/Dashboard/QueueDashboardStatusMapper.cs) |
 | Средние/макс. ожидание и приём | По завершённым ожиданиям/приёмам за сегодня |
-| Текущая очередь | `Appointment` с `time_complete == null`; текущий этап — первый незавершённый по `id_list_item` ↑ |
+| Лист ожидания | Открытый талон; текущий этап `waiting` или `called` (`IsWaitingListStep`); `waitingMinutes` — от прибытия или от `time_call` |
 | Состояние врачей | `Doctor`, активный приём, норма `Specialty.time_servicing`, очередь врача |
 
 **«Сегодня»** — календарная дата **UTC** сервера.  
@@ -213,7 +213,7 @@ NuGet: SignalR входит в shared framework `Microsoft.AspNetCore.App` дл�
 
 | JSON-поле | Тип | Назначение |
 |-----------|-----|------------|
-| `waitingCount` | int | Ожидают |
+| `waitingCount` | int | Ожидают (только `waiting`, без вызванных) |
 | `inServiceCount` | int | На приёме |
 | `acceptedTodayCount` | int | Обслужено за сегодня |
 | `noShowTodayCount` | int | Не явились за сегодня |
@@ -227,16 +227,17 @@ NuGet: SignalR входит в shared framework `Microsoft.AspNetCore.App` дл�
 | Поле | Тип | UI |
 |------|-----|-----|
 | `idAppointment` | int | ключ строки |
-| `patient` | string | Пациент |
+| `ticketNumber` | string | Номер талона (`Appointment.number`) |
 | `ticketPriority` | int | сортировка |
 | `categoryPriority` | int | сортировка |
 | `waitingMinutes` | int | Ожидание |
 | `currentCabinet` | string | Кабинет |
 | `currentDoctor` | string | Врач |
-| `specialty` | string | Специальность, фильтр |
-| `arrivalTime` | string | `HH:mm` |
+| `specialty` | string | Специальность (подпись) |
+| `idSpecialty` | int | `data-specialty-id`, фильтр |
+| `idStatusItem` | int | `data-status-id`, фильтр |
 | `statusLabel` | string | Бейдж |
-| `statusCode` | string | `data-status`, фильтр |
+| `statusCode` | string | CSS-модификатор бейджа |
 
 ### 5.4. `doctorLoadCards[]`
 
@@ -245,8 +246,9 @@ NuGet: SignalR входит в shared framework `Microsoft.AspNetCore.App` дл�
 | `idDoctor` | int | ключ |
 | `fullName` | string | ФИО |
 | `specialty` | string | Специальность |
+| `idSpecialty` | int | `data-specialty-id`, фильтр |
 | `cabinet` | string | Кабинет |
-| `isInService` | bool | бейдж На приёме / Свободен |
+| `isInService` | bool | бейдж Принимает / Ожидает пациента |
 | `currentServiceMinutes` | int? | полоса приёма |
 | `normServiceMinutes` | int? | норма |
 | `queueLength` | int | в очереди |
@@ -411,6 +413,7 @@ location /hubs/ {
 - [ ] При недоступной `ElectronicQueue` — mock, `isDemoData: true`, страница и Hub **не падают**.
 - [ ] Блоки без соответствующего `dashboard.*` **не** обновляются (нет DOM — нет patch).
 - [ ] Фильтры поиска / специальности / статуса / ожидания в таблице очереди работают **после** push.
+- [ ] Фильтры поиска / специальности / статуса в «Состояние врачей» работают **после** push.
 - [ ] Две вкладки `/dashboard` получают одни и те же обновления примерно одновременно.
 - [ ] После reconnect данные снова поступают; индикатор связи отражает состояние.
 - [ ] Negotiate Hub без авторизации → отказ (401/403).

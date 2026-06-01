@@ -29,6 +29,15 @@ public static partial class ReportTabularExporter
             csv.NextRecord();
 
             var colCount = result.ColumnHeaders.Count;
+            if (HasNoReportRows(result))
+            {
+                if (colCount > 0)
+                    csv.WriteField(NoDataLabel);
+                for (var c = 1; c < colCount; c++)
+                    csv.WriteField("");
+                csv.NextRecord();
+            }
+
             string? lastDetailDate = null;
             foreach (var row in result.Rows.Where(IsCsvDetailRow))
             {

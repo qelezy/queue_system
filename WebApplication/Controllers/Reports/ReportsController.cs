@@ -11,7 +11,6 @@ public class ReportsController : Controller
     private readonly IReportsCatalog _catalog;
     private readonly IReportGenerationService _generation;
     private readonly IElectronicQueueAvailability _queueAvailability;
-    private readonly IWebHostEnvironment _environment;
     private readonly UserManager<User> _userManager;
     private readonly IRolePermissionService _rolePermissionService;
 
@@ -19,14 +18,12 @@ public class ReportsController : Controller
         IReportsCatalog catalog,
         IReportGenerationService generation,
         IElectronicQueueAvailability queueAvailability,
-        IWebHostEnvironment environment,
         UserManager<User> userManager,
         IRolePermissionService rolePermissionService)
     {
         _catalog = catalog;
         _generation = generation;
         _queueAvailability = queueAvailability;
-        _environment = environment;
         _userManager = userManager;
         _rolePermissionService = rolePermissionService;
     }
@@ -39,8 +36,6 @@ public class ReportsController : Controller
         CancellationToken cancellationToken)
     {
         ViewData["Title"] = "Отчёты";
-
-        var live = await _queueAvailability.CanQueryLiveDataAsync(cancellationToken).ConfigureAwait(false);
 
         var permissionNames = await GetPermissionNamesAsync(cancellationToken).ConfigureAwait(false);
         var fullCatalog = _catalog.GetCatalog();
@@ -59,8 +54,7 @@ public class ReportsController : Controller
             ToolbarDateTo = range.To.ToString("yyyy-MM-dd"),
             ToolbarCabinetOptions = _generation.GetCabinetOptions().ToList(),
             ToolbarDoctorOptions = _generation.GetDoctorOptions().ToList(),
-            ToolbarCategoryOptions = _generation.GetCategoryOptions().ToList(),
-            UsingElectronicQueueMockData = _environment.IsDevelopment() && !live
+            ToolbarCategoryOptions = _generation.GetCategoryOptions().ToList()
         };
 
         return View(hub);
@@ -114,7 +108,7 @@ public class ReportsController : Controller
 
     private static void ApplyReportPreviewRowLimit(ReportResultViewModel? model)
     {
-        // Страховка для отчётов без внутреннего лимита строк (load-and-downtime и arrived-and-completed усечены в генераторах).
+        
         if (model?.Rows is null || model.Rows.Count <= ReportPreviewLimits.MaxTableRows)
             return;
         model.PreviewRowsTotal = model.Rows.Count;

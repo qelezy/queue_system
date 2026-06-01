@@ -1,37 +1,26 @@
-using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using WebApplication.Data;
 using WebApplication.Models.ElectronicQueueProf;
+using WebApplication.Models.ViewModels.Dashboard;
 using WebApplication.Services.Reports.Catalog;
 
 namespace WebApplication.Services.Dashboard;
 
-/// <summary>
-/// Мониторинг «сегодня» и текущая очередь. Порядок этапов маршрута — по возрастанию <see cref="EqListItem.IdListItem"/>.
-/// </summary>
 public sealed class QueueDashboardService : IQueueDashboardService
 {
     private readonly ElectronicQueueDbContext _queue;
+    private readonly IQueueDashboardClock _clock;
 
-    public QueueDashboardService(ElectronicQueueDbContext queue) => _queue = queue;
+    public QueueDashboardService(ElectronicQueueDbContext queue, IQueueDashboardClock clock)
+    {
+        _queue = queue;
+        _clock = clock;
+    }
 
     public async Task<DashboardViewModel> GetDashboardAsync(CancellationToken cancellationToken = default)
     {
-        var todayDo = DateOnly.FromDateTime(DateTime.UtcNow.Date);
-        var now = DateTime.UtcNow;
-
-        var waitingCount = await (
-            from li in _queue.ListItems
-            join a in _queue.Appointments on li.IdAppointment equals a.IdAppointment
-            where li.TimeCall == null
-                  && li.TimeEndServicing == null
-                  && a.TimeComplete == null
-            select li
-        ).CountAsync(cancellationToken).ConfigureAwait(false);
-
-        var inServiceCount = await _queue.ListItems
-            .CountAsync(li => li.TimeCall != null && li.TimeEndServicing == null, cancellationToken)
-            .ConfigureAwait(false);
+        var todayDo = _clock.TodayDateOnly();
+        var now = _clock.Now();
 
         var completedToday = await (
             from li in _queue.ListItems.AsNoTracking()
@@ -50,7 +39,8 @@ public sealed class QueueDashboardService : IQueueDashboardService
                 li.TimeEndServicing)
         ).ToListAsync(cancellationToken).ConfigureAwait(false);
 
-        var acceptedTodayCount = completedToday.Count;
+        var acceptedTodayCount = await CountServicedPatientsTodayAsync(todayDo, cancellationToken)
+            .ConfigureAwait(false);
 
         var waitMinutes = CollectCompletedWaitMinutes(completedToday).ToList();
 
@@ -76,8 +66,12 @@ public sealed class QueueDashboardService : IQueueDashboardService
         var doctorsDb = await _queue.Doctors.AsNoTracking().OrderBy(d => d.FullName).ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        var open = await LoadOpenAppointmentsAsync(cancellationToken).ConfigureAwait(false);
+        var queueFilters = await LoadQueueFiltersAsync(cancellationToken).ConfigureAwait(false);
+
+        var open = await LoadOpenAppointmentsAsync(todayDo, cancellationToken).ConfigureAwait(false);
         var activeQueue = BuildActiveQueueFromOpen(open, now);
+        var waitingCount = CountWaitingFromOpen(open);
+        var inServiceCount = CountInServiceFromOpen(open);
         var doctorLoadCards = BuildDoctorLoadCards(open, now, doctorsDb);
 
         return new DashboardViewModel
@@ -90,13 +84,53 @@ public sealed class QueueDashboardService : IQueueDashboardService
             AvgServiceMinutes = avgService,
             MaxServiceMinutes = maxService,
             ActiveQueue = activeQueue,
+            QueueFilters = queueFilters,
             DoctorLoadCards = doctorLoadCards
         };
     }
 
-    private async Task<List<EqAppointment>> LoadOpenAppointmentsAsync(CancellationToken cancellationToken) =>
+    public async Task<AppointmentCompletedStagesResponse?> GetRouteStagesAsync(
+        int idAppointment,
+        CancellationToken cancellationToken = default)
+    {
+        var todayDo = _clock.TodayDateOnly();
+
+        var appointment = await _queue.Appointments.AsNoTracking()
+            .Where(a => a.IdAppointment == idAppointment && a.DateArrival == todayDo)
+            .Include(a => a.ListItems)
+            .ThenInclude(li => li.Specialty)
+            .Include(a => a.ListItems)
+            .ThenInclude(li => li.Cabinet)
+            .Include(a => a.ListItems)
+            .ThenInclude(li => li.StatusItem)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (appointment == null)
+            return null;
+
+        var stages = appointment.ListItems
+            .Where(QueueDashboardCompletedStagesMapper.IsRouteStage)
+            .OrderBy(li => li.IdListItem)
+            .Select(QueueDashboardCompletedStagesMapper.ToDto)
+            .ToList();
+
+        var ticketNumber = string.IsNullOrWhiteSpace(appointment.Number)
+            ? "—"
+            : appointment.Number.Trim();
+
+        return new AppointmentCompletedStagesResponse
+        {
+            TicketNumber = ticketNumber,
+            Stages = stages,
+        };
+    }
+
+    private async Task<List<EqAppointment>> LoadOpenAppointmentsAsync(
+        DateOnly todayDo,
+        CancellationToken cancellationToken) =>
         await _queue.Appointments.AsNoTracking()
-            .Where(a => a.TimeComplete == null)
+            .Where(a => a.TimeComplete == null && a.DateArrival == todayDo)
             .Include(a => a.ListItems)
             .ThenInclude(li => li.Cabinet)
             .Include(a => a.ListItems)
@@ -109,6 +143,41 @@ public sealed class QueueDashboardService : IQueueDashboardService
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
+    private async Task<int> CountServicedPatientsTodayAsync(
+        DateOnly todayDo,
+        CancellationToken cancellationToken)
+    {
+        var withTimeComplete = await _queue.Appointments.AsNoTracking()
+            .CountAsync(a => a.DateArrival == todayDo && a.TimeComplete != null, cancellationToken)
+            .ConfigureAwait(false);
+
+        var routeClosedWithoutTicketComplete = await _queue.Appointments.AsNoTracking()
+            .CountAsync(
+                a => a.DateArrival == todayDo
+                     && a.TimeComplete == null
+                     && a.ListItems.Any()
+                     && !a.ListItems.Any(li => li.TimeEndServicing == null),
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        return withTimeComplete + routeClosedWithoutTicketComplete;
+    }
+
+    private async Task<DashboardQueueFilterViewModel> LoadQueueFiltersAsync(CancellationToken cancellationToken)
+    {
+        var specialties = await _queue.Specialties.AsNoTracking()
+            .OrderBy(s => s.Definition)
+            .Select(s => new DashboardFilterOption(s.IdSpecialty, s.Definition.Trim()))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return new DashboardQueueFilterViewModel
+        {
+            Specialties = specialties,
+            Statuses = []
+        };
+    }
+
     private static IReadOnlyList<DashboardQueueRowViewModel> BuildActiveQueueFromOpen(
         IReadOnlyList<EqAppointment> open,
         DateTime nowUtc)
@@ -118,20 +187,13 @@ public sealed class QueueDashboardService : IQueueDashboardService
         {
             var ordered = a.ListItems.OrderBy(li => li.IdListItem).ToList();
             var current = ordered.FirstOrDefault(li => li.TimeEndServicing == null);
-            if (current == null)
+            if (current == null || !QueueDashboardStatusMapper.IsWaitingListStep(current))
                 continue;
 
-            var arrival = a.CombineArrival();
-            int waitMin;
-            if (current.TimeCall == null)
-                waitMin = (int)Math.Max(0, Math.Round((nowUtc - arrival).TotalMinutes));
-            else if (current.TimeStartServicing == null)
-            {
-                var callDt = EqDateTimeExtensions.CombineOnArrivalDate(a.DateArrival, current.TimeCall.Value);
-                waitMin = (int)Math.Max(0, Math.Round((nowUtc - callDt).TotalMinutes));
-            }
-            else
-                waitMin = 0;
+            var waitFrom = current.TimeCall is { } timeCall
+                ? EqDateTimeExtensions.CombineOnArrivalDate(a.DateArrival, timeCall)
+                : a.CombineArrival();
+            var waitMin = WaitMinutesFrom(waitFrom, nowUtc);
 
             var cab = current.Cabinet != null && !string.IsNullOrWhiteSpace(current.Cabinet.CabinetNumber)
                 ? current.Cabinet.CabinetNumber.Trim()
@@ -145,14 +207,15 @@ public sealed class QueueDashboardService : IQueueDashboardService
             rows.Add(new DashboardQueueRowViewModel
             {
                 IdAppointment = a.IdAppointment,
-                Patient = string.IsNullOrWhiteSpace(a.Info) ? $"Запись №{a.IdAppointment}" : a.Info.Trim(),
+                TicketNumber = string.IsNullOrWhiteSpace(a.Number) ? "—" : a.Number.Trim(),
                 TicketPriority = a.Priority,
                 CategoryPriority = a.Category?.Priority ?? 0,
                 WaitingMinutes = waitMin,
                 CurrentCabinet = cab,
                 CurrentDoctor = doc,
                 Specialty = spec,
-                ArrivalTime = a.TimeArrival.ToString("HH:mm", CultureInfo.InvariantCulture),
+                IdSpecialty = current.IdSpecialty,
+                IdStatusItem = current.IdStatusItem,
                 StatusLabel = statusLabel,
                 StatusCode = statusCode
             });
@@ -169,6 +232,34 @@ public sealed class QueueDashboardService : IQueueDashboardService
         return rows;
     }
 
+    private static int CountWaitingFromOpen(IReadOnlyList<EqAppointment> open)
+    {
+        var count = 0;
+        foreach (var a in open)
+        {
+            var current = a.ListItems.OrderBy(li => li.IdListItem)
+                .FirstOrDefault(li => li.TimeEndServicing == null);
+            if (current != null && QueueDashboardStatusMapper.IsWaitingQueueStep(current))
+                count++;
+        }
+
+        return count;
+    }
+
+    private static int CountInServiceFromOpen(IReadOnlyList<EqAppointment> open)
+    {
+        var count = 0;
+        foreach (var a in open)
+        {
+            var current = a.ListItems.OrderBy(li => li.IdListItem)
+                .FirstOrDefault(li => li.TimeEndServicing == null);
+            if (current != null && QueueDashboardStatusMapper.IsInServiceStep(current))
+                count++;
+        }
+
+        return count;
+    }
+
     private static IReadOnlyList<DoctorLoadCardViewModel> BuildDoctorLoadCards(
         IReadOnlyList<EqAppointment> open,
         DateTime nowUtc,
@@ -183,9 +274,9 @@ public sealed class QueueDashboardService : IQueueDashboardService
             {
                 foreach (var li in a.ListItems)
                 {
-                    if (li.IdDoctor != doc.IdDoctor)
+                    if (li.IdDoctor != doc.IdDoctor || QueueDashboardStatusMapper.IsExcludedStatusItem(li))
                         continue;
-                    if (li.TimeStartServicing.HasValue && !li.TimeEndServicing.HasValue)
+                    if (QueueDashboardStatusMapper.IsInServiceStep(li))
                     {
                         if (inServiceLi == null || li.IdListItem < inServiceLi.IdListItem)
                         {
@@ -196,20 +287,10 @@ public sealed class QueueDashboardService : IQueueDashboardService
                 }
             }
 
-            var queueLen = 0;
-            foreach (var a in open)
-            {
-                foreach (var li in a.ListItems)
-                {
-                    if (li.IdDoctor != doc.IdDoctor || li.TimeEndServicing.HasValue)
-                        continue;
-                    if (inServiceLi != null && li.IdListItem == inServiceLi.IdListItem)
-                        continue;
-                    var (_, code) = QueueDashboardStatusMapper.ResolveForCurrentStep(li);
-                    if (QueueDashboardStatusMapper.IsWaitingOrCalledCode(code))
-                        queueLen++;
-                }
-            }
+            var queueLen = QueueDashboardDoctorQueueCount.CountForDoctor(
+                doc.IdDoctor,
+                open,
+                inServiceLi);
 
             var isInService = inServiceLi != null;
             if (!isInService && queueLen == 0)
@@ -222,14 +303,18 @@ public sealed class QueueDashboardService : IQueueDashboardService
                 var startDt = EqDateTimeExtensions.CombineOnArrivalDate(
                     inServiceAppt.DateArrival,
                     inServiceLi.TimeStartServicing!.Value);
-                currentMin = (int)Math.Max(0, Math.Round((nowUtc - startDt).TotalMinutes));
+                currentMin = QueueDashboardElapsedMinutes.ElapsedWholeMinutes(startDt, nowUtc);
                 var n = inServiceLi.Specialty?.TimeServicing ?? 0;
                 normMin = n > 0 ? n : null;
             }
 
             var specialtyDisplay = "—";
+            var idSpecialty = 0;
             if (inServiceLi?.Specialty?.Definition is { } def1 && !string.IsNullOrWhiteSpace(def1))
+            {
                 specialtyDisplay = def1.Trim();
+                idSpecialty = inServiceLi.IdSpecialty;
+            }
             else
             {
                 foreach (var a in open)
@@ -246,6 +331,7 @@ public sealed class QueueDashboardService : IQueueDashboardService
                         if (!string.IsNullOrWhiteSpace(li.Specialty?.Definition))
                         {
                             specialtyDisplay = li.Specialty!.Definition.Trim();
+                            idSpecialty = li.IdSpecialty;
                             break;
                         }
                     }
@@ -264,6 +350,7 @@ public sealed class QueueDashboardService : IQueueDashboardService
                 IdDoctor = doc.IdDoctor,
                 FullName = doc.FullName,
                 Specialty = specialtyDisplay,
+                IdSpecialty = idSpecialty,
                 Cabinet = cabinet,
                 IsInService = isInService,
                 CurrentServiceMinutes = currentMin,
@@ -326,4 +413,7 @@ public sealed class QueueDashboardService : IQueueDashboardService
     private static double ServiceMinutes(DateOnly dateArrival, TimeOnly start, TimeOnly end) =>
         (EqDateTimeExtensions.CombineOnArrivalDate(dateArrival, end)
          - EqDateTimeExtensions.CombineOnArrivalDate(dateArrival, start)).TotalMinutes;
+
+    private static int WaitMinutesFrom(DateTime fromUtc, DateTime toUtc) =>
+        QueueDashboardElapsedMinutes.ElapsedWholeMinutes(fromUtc, toUtc);
 }

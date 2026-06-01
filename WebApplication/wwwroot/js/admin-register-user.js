@@ -28,7 +28,7 @@
 
             const result = await response.json().catch(() => ({}));
             if (response.ok && result.success) {
-                toastManager?.show("Пользователь создан. Проверьте email для пароля и подтверждения.", "success");
+                toastManager?.show("Пользователь успешно создан.", "success");
                 form.reset();
                 window.UsersUI?.closeCreate();
                 return;

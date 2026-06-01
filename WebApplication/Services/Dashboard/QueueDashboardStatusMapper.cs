@@ -2,31 +2,34 @@ using WebApplication.Models.ElectronicQueueProf;
 
 namespace WebApplication.Services.Dashboard;
 
-/// <summary>
-/// Человекочитаемые статусы этапа очереди для мониторинга (см. queue-monitoring-page-ui-requirements.md).
-/// </summary>
 public static class QueueDashboardStatusMapper
 {
-    /// <summary>Текущий этап талона: неявка из БД; иначе эвристика по временным меткам.</summary>
     public static (string Label, string Code) ResolveForCurrentStep(EqListItem li)
     {
         var db = MapFromDbName(li.StatusItem?.Name);
-        if (db.Code == "no-show")
-            return db;
-
         if (li.TimeEndServicing.HasValue)
             return ("Завершён", "done");
         if (li.TimeStartServicing.HasValue)
             return ("На приёме", "in-service");
         if (li.TimeCall.HasValue)
             return ("Вызван", "called");
+        if (db.Code != "waiting")
+            return db;
         return ("Ожидает", "waiting");
     }
 
     public static bool IsWaitingOrCalledCode(string code) =>
         code is "waiting" or "called";
 
-    public static bool IsNoShowStatusName(string? statusName)
+    public static bool IsInServiceStep(EqListItem li)
+    {
+        if (IsExcludedStatusItem(li))
+            return false;
+        var (_, code) = ResolveForCurrentStep(li);
+        return code == "in-service";
+    }
+
+    public static bool IsExcludedStatusName(string? statusName)
     {
         if (string.IsNullOrWhiteSpace(statusName))
             return false;
@@ -38,14 +41,31 @@ public static class QueueDashboardStatusMapper
                || n.Contains("пропуск", StringComparison.Ordinal);
     }
 
+    public static bool IsExcludedStatusItem(EqListItem li) =>
+        IsExcludedStatusName(li.StatusItem?.Name);
+
+    public static bool IsWaitingQueueStep(EqListItem li)
+    {
+        if (li.TimeCall.HasValue || IsExcludedStatusItem(li))
+            return false;
+        var (_, code) = ResolveForCurrentStep(li);
+        return code == "waiting";
+    }
+
+    public static bool IsWaitingListStep(EqListItem li)
+    {
+        if (IsExcludedStatusItem(li) || li.TimeStartServicing.HasValue)
+            return false;
+        var (_, code) = ResolveForCurrentStep(li);
+        return IsWaitingOrCalledCode(code);
+    }
+
     private static (string Label, string Code) MapFromDbName(string? statusName)
     {
         if (string.IsNullOrWhiteSpace(statusName))
             return ("Ожидает", "waiting");
 
         var n = statusName.Trim().ToLowerInvariant();
-        if (IsNoShowStatusName(n))
-            return ("Не явился", "no-show");
         if (ContainsAny(n, "заверш", "complete", "окончен", "выполн"))
             return ("Завершён", "done");
         if (ContainsAny(n, "прием", "приём", "обслуж", "servicing"))

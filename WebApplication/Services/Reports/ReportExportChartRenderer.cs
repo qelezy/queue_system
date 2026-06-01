@@ -49,7 +49,6 @@ public static class ReportExportChartRenderer
         return list;
     }
 
-    /// <summary>Векторные SVG для встраивания в HTML/PDF (качество при масштабировании).</summary>
     public static IReadOnlyList<string> RenderChartSvgs(ReportResultViewModel result)
     {
         var list = new List<string>();
@@ -177,9 +176,6 @@ public static class ReportExportChartRenderer
         return true;
     }
 
-    /// <summary>
-    /// Сектор кольца без радиусов к центру — в QuestPDF на стыке «лучей» из центра часто даётся вертикальная чёрная линия.
-    /// </summary>
     private static void AppendSvgAnnulusSector(
         StringBuilder sb,
         double cx,

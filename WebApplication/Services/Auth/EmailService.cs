@@ -1,33 +1,38 @@
+using System.Net;
 using System.Net.Mail;
+using Microsoft.Extensions.Options;
+using WebApplication.Models.Configuration;
 
-namespace WebApplication.Services.Auth {
-    public class EmailService : IEmailService
+namespace WebApplication.Services.Auth;
+
+public class EmailService : IEmailService
+{
+    private readonly EmailOptions _options;
+
+    public EmailService(IOptions<EmailOptions> options)
     {
-        private readonly IConfiguration _configuration;
+        _options = options.Value;
+    }
 
-        public EmailService(IConfiguration configuration)
+    public async Task SendEmailAsync(string email, string subject, string body)
+    {
+        using var message = new MailMessage();
+        message.To.Add(email);
+        message.From = new MailAddress(_options.From);
+        message.Subject = subject;
+        message.Body = body;
+        message.IsBodyHtml = true;
+
+        using var client = new SmtpClient(_options.SmtpHost, _options.SmtpPort)
         {
-            _configuration = configuration;
+            EnableSsl = _options.EnableSsl
+        };
+
+        if (!string.IsNullOrWhiteSpace(_options.SmtpUser))
+        {
+            client.Credentials = new NetworkCredential(_options.SmtpUser, _options.SmtpPass);
         }
 
-        public async Task SendEmailAsync(string email, string subject, string body)
-        {
-            var smtpHost = _configuration["Email:SmtpHost"];
-            var smtpPort = _configuration.GetValue<int>("Email:SmtpPort");
-            var smtpUser = _configuration["Email:SmtpUser"];
-            var smtpPass = _configuration["Email:SmtpPass"];
-            var fromEmail = _configuration["Email:From"];
-
-            var message = new MailMessage();
-            message.To.Add(email);
-            message.From = new MailAddress(fromEmail!);
-            message.Subject = subject;
-            message.Body = body;
-            message.IsBodyHtml = true;
-
-            var client = new SmtpClient(smtpHost, smtpPort);
-
-            await client.SendMailAsync(message);
-        }
+        await client.SendMailAsync(message).ConfigureAwait(false);
     }
 }

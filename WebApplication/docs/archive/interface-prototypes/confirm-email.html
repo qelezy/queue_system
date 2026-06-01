@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Подтверждение email — прототип</title>
+    <link rel="stylesheet" href="css/prototype.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
+</head>
+<body>
+    <div class="auth-wrapper auth-wrapper--confirm-top">
+        <div class="auth-confirm-panel">
+            <p class="auth-form-subtitle" id="confirmPending">Подтверждаем email…</p>
+
+            <div class="auth-confirm" id="confirmSuccess" hidden>
+                <i class="bi bi-check-circle-fill auth-confirm-icon" aria-hidden="true"></i>
+                <p class="auth-confirm-caption" id="confirmCaption"></p>
+            </div>
+
+            <div class="auth-form-alert" id="confirmError" hidden role="alert"></div>
+
+            <p class="auth-links" id="confirmLinks" hidden>
+                <a href="login.html">Перейти ко входу</a>
+            </p>
+        </div>
+    </div>
+    <script>
+        (function () {
+            var pending = document.getElementById("confirmPending");
+            var successBlock = document.getElementById("confirmSuccess");
+            var caption = document.getElementById("confirmCaption");
+            var errorBlock = document.getElementById("confirmError");
+            var links = document.getElementById("confirmLinks");
+
+            function showSuccess(message) {
+                pending.hidden = true;
+                errorBlock.hidden = true;
+                links.hidden = true;
+                successBlock.hidden = false;
+                caption.textContent = message;
+            }
+
+            function showError(message) {
+                pending.hidden = true;
+                successBlock.hidden = true;
+                errorBlock.hidden = false;
+                errorBlock.textContent = message;
+                links.hidden = false;
+            }
+
+            var params = new URLSearchParams(window.location.search);
+            var mode = params.get("mode");
+
+            if (mode === "error") {
+                showError("Ссылка недействительна или устарела.");
+                return;
+            }
+
+            if (mode === "pending") {
+                return;
+            }
+
+            window.setTimeout(function () {
+                showSuccess("Email успешно подтверждён");
+            }, 600);
+        })();
+    </script>
+</body>
+</html>

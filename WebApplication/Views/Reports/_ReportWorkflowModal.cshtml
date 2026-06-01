@@ -5,9 +5,12 @@
     {
         if (string.IsNullOrWhiteSpace(v))
             return "";
-        if (DateTime.TryParse(v, out var dt))
+        var trimmed = v.Trim();
+        if (System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"^\d{4}-\d{2}-\d{2}$"))
+            return trimmed + "T00:00";
+        if (DateTime.TryParse(trimmed, out var dt))
             return dt.ToString("yyyy-MM-ddTHH:mm");
-        return v!;
+        return trimmed;
     }
 
     const string modalId = "report-workflow-modal";
@@ -43,33 +46,39 @@
                             @Html.AntiForgeryToken()
                             <div class="report-workflow-modal__params-fields">
                                 <div class="manager-filters__row report-workflow-modal__period-row">
-                                    <label class="form-field">
-                                        <span class="form-field__label">С</span>
-                                        <input class="form-input" type="datetime-local" name="periodFrom" value="@AsDateTimeLocal(Model.ToolbarDateFrom)" required />
-                                    </label>
-                                    <label class="form-field">
-                                        <span class="form-field__label">По</span>
-                                        <input class="form-input" type="datetime-local" name="periodTo" value="@AsDateTimeLocal(Model.ToolbarDateTo)" required />
-                                    </label>
+                                    <div class="form-field">
+                                        <label class="form-field__label" for="report-period-from">С</label>
+                                        <input id="report-period-from" type="datetime-local" name="periodFrom" value="@AsDateTimeLocal(Model.ToolbarDateFrom)" required />
+                                    </div>
+                                    <div class="form-field">
+                                        <label class="form-field__label" for="report-period-to">По</label>
+                                        <input id="report-period-to" type="datetime-local" name="periodTo" value="@AsDateTimeLocal(Model.ToolbarDateTo)" required />
+                                    </div>
                                     <div id="report-custom-fields" class="report-workflow-modal__custom-fields"></div>
                                 </div>
                                 <p class="report-workflow-modal__status is-empty" id="report-generate-status" role="status"></p>
                             </div>
                             <div class="report-workflow-modal__actions-row">
-                                <button type="button" id="report-generate-btn" class="btn btn-primary">Сформировать</button>
+                                <button type="button" id="report-generate-btn" class="btn btn-primary" disabled>
+                                    <span class="app-btn-spinner" aria-hidden="true"></span>
+                                    <span class="report-action-btn__label">Сформировать</span>
+                                </button>
                             </div>
                         </form>
                     </div>
 
                     <div class="report-workflow-modal__pane report-workflow-modal__pane--preview">
                         <div class="report-preview-modal__table-wrap" id="report-preview-content">
-                            <p class="report-params__empty">Нет данных для предпросмотра.</p>
+                            <p class="report-params__empty">Нет данных</p>
                         </div>
                         <div class="report-preview-modal__actions report-workflow-modal__preview-actions">
                             <button type="button" class="report-preview-modal__back-link" id="report-back-to-params">
                                 <i class="bi bi-arrow-left" aria-hidden="true"></i><span class="report-preview-modal__back-link-label">К параметрам</span>
                             </button>
-                            <button type="button" class="btn btn-primary report-preview-modal__save-btn" id="report-save-as">Сохранить</button>
+                            <button type="button" class="btn btn-primary report-preview-modal__save-btn" id="report-save-as">
+                                <span class="app-btn-spinner" aria-hidden="true"></span>
+                                <span class="report-action-btn__label">Сохранить</span>
+                            </button>
                         </div>
                         <dialog id="report-export-fallback-dialog" class="report-export-fallback-dialog" aria-labelledby="report-export-fallback-title">
                             <div class="report-export-fallback-dialog__panel">

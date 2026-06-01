@@ -7,22 +7,39 @@
 
 <form id="loginForm" class="auth-form" method="post" data-login-url="@loginUrl" data-post-login-redirect-path="@postLoginRedirectPath">
     <p class="auth-form-subtitle">Введите учетные данные для доступа к системе</p>
-    <div class="form-input">
+    <div class="form-field">
         <label>Email</label>
         <input type="email" name="email" required />
     </div>
-    <div class="form-input">
-        <label>Пароль</label>
-        <input type="password" name="password" required />
+    <div class="form-field auth-password-field">
+        <label for="loginPassword">Пароль</label>
+        <div class="auth-password-input-wrap">
+            <input type="password"
+                   id="loginPassword"
+                   name="password"
+                   required
+                   autocomplete="current-password" />
+            <button type="button"
+                    class="auth-password-toggle"
+                    id="loginPasswordToggle"
+                    aria-label="Показать пароль"
+                    aria-pressed="false"
+                    aria-controls="loginPassword">
+                <i class="bi bi-eye-slash" aria-hidden="true"></i>
+            </button>
+        </div>
     </div>
     <div class="login-options-row">
-        <div class="form-input remember-me">
-            <input type="checkbox" id="rememberMe" name="rememberMe" />
+        <div class="remember-me">
+            <input type="checkbox" id="rememberMe" name="rememberMe" class="app-checkbox" />
             <label for="rememberMe">Запомнить меня</label>
         </div>
         <a class="forgot-inline" href="@Url.Action("ForgotPassword", "Account")">Забыли пароль?</a>
     </div>
-    <button type="submit">Войти</button>
+    <button type="submit" class="auth-submit-btn">
+        <span class="app-btn-spinner" aria-hidden="true"></span>
+        <span class="auth-submit-btn__label">Войти</span>
+    </button>
 </form>
 
 @section Scripts {

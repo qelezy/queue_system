@@ -2,7 +2,6 @@ using WebApplication.Models.Reports.Constants;
 
 namespace WebApplication.Models.Reports.Configuration;
 
-/// <summary>Дефолты технических полей каталога по <see cref="ReportIds"/> и <see cref="ReportGeneratorKind"/>.</summary>
 public static class ReportCatalogDefaults
 {
     private static readonly IReadOnlyDictionary<string, ReportGeneratorKind> KindByReportId =

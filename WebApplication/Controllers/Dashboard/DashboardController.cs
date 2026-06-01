@@ -11,20 +11,17 @@ public class DashboardController : Controller
 {
     private readonly IQueueDashboardService _queueDashboard;
     private readonly IElectronicQueueAvailability _queueAvailability;
-    private readonly IWebHostEnvironment _environment;
     private readonly IUserPermissionContext _permissionContext;
     private readonly IRolePermissionService _rolePermissionService;
 
     public DashboardController(
         IQueueDashboardService queueDashboard,
         IElectronicQueueAvailability queueAvailability,
-        IWebHostEnvironment environment,
         IUserPermissionContext permissionContext,
         IRolePermissionService rolePermissionService)
     {
         _queueDashboard = queueDashboard;
         _queueAvailability = queueAvailability;
-        _environment = environment;
         _permissionContext = permissionContext;
         _rolePermissionService = rolePermissionService;
     }
@@ -32,19 +29,16 @@ public class DashboardController : Controller
     [HttpGet]
     public async Task<IActionResult> Index(CancellationToken cancellationToken = default)
     {
-        ViewData["Title"] = "Мониторинг очереди";
+        ViewData["Title"] = "Мониторинг";
 
         var permissionNames = await _permissionContext.GetCurrentPermissionNamesAsync(cancellationToken)
             .ConfigureAwait(false);
         var ui = _rolePermissionService.BuildDashboardVisibility(permissionNames);
 
-        if (!_environment.IsDevelopment())
+        if (!await _queueAvailability.CanQueryLiveDataAsync(cancellationToken).ConfigureAwait(false))
         {
-            if (!await _queueAvailability.CanQueryLiveDataAsync(cancellationToken).ConfigureAwait(false))
-            {
-                ViewData["QueueDatabaseUnavailable"] = true;
-                return View(new DashboardViewModel { Ui = ui });
-            }
+            ViewData["QueueDatabaseUnavailable"] = true;
+            return View(new DashboardViewModel { Ui = ui });
         }
 
         try
@@ -53,10 +47,30 @@ public class DashboardController : Controller
             model.Ui = ui;
             return View(model);
         }
-        catch (Exception) when (!_environment.IsDevelopment())
+        catch (Exception)
         {
             ViewData["QueueDatabaseUnavailable"] = true;
             return View(new DashboardViewModel { Ui = ui });
+        }
+    }
+
+    [HttpGet("/dashboard/appointments/{id:int}/route-stages")]
+    public async Task<IActionResult> GetRouteStages(int id, CancellationToken cancellationToken = default)
+    {
+        if (!await _queueAvailability.CanQueryLiveDataAsync(cancellationToken).ConfigureAwait(false))
+            return StatusCode(503);
+
+        try
+        {
+            var result = await _queueDashboard.GetRouteStagesAsync(id, cancellationToken)
+                .ConfigureAwait(false);
+            if (result == null)
+                return NotFound();
+            return Json(result);
+        }
+        catch (Exception)
+        {
+            return StatusCode(503);
         }
     }
 }

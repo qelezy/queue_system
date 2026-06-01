@@ -34,20 +34,20 @@ public sealed class ResilientReportGenerationService : IReportGenerationService
         ReportGenerationPurpose purpose = ReportGenerationPurpose.ExportOrFull)
     {
         if (!_availability.TryGetCachedAvailability(out var ok) || !ok)
-            return TagDemo(_mock.Generate(request, purpose), isDemo: true);
+            return _mock.Generate(request, purpose);
 
         try
         {
             var liveResponse = _live.Generate(request, purpose);
             if (!liveResponse.Implemented && _mock.IsImplementedOffline(request.ReportId))
-                return TagDemo(_mock.Generate(request, purpose), isDemo: true);
+                return _mock.Generate(request, purpose);
 
-            return TagDemo(liveResponse, isDemo: false);
+            return liveResponse;
         }
         catch (Exception)
         {
             _availability.MarkUnavailable();
-            return TagDemo(_mock.Generate(request, purpose), isDemo: true);
+            return _mock.Generate(request, purpose);
         }
     }
 
@@ -60,10 +60,4 @@ public sealed class ResilientReportGenerationService : IReportGenerationService
         ResilientLiveMockExecutor.TryLiveOrMock(_availability,
             () => _live.BuildDemoCsv(reportId, analysisMode),
             () => _mock.BuildDemoCsv(reportId, analysisMode));
-
-    private static ReportGenerateResponse TagDemo(ReportGenerateResponse response, bool isDemo)
-    {
-        response.IsDemoData = isDemo;
-        return response;
-    }
 }

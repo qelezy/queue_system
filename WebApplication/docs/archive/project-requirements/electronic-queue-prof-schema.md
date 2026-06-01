@@ -33,15 +33,15 @@
 
 | Таблица | Дашборд ([QueueDashboardService.cs](../Services/QueueDashboardService.cs)) | Отчёты каталога |
 |---------|-----------------------------------------------------------------------------|-----------------|
-| `Appointment` | Карточки «сегодня», текущая очередь, фильтр по `date_arrival` | Все отчёты с периодом по `date_arrival`, в т.ч. service-delays |
+| `Appointment` | Карточки «сегодня», лист ожидания, фильтр по `date_arrival` | Все отчёты с периодом по `date_arrival`, в т.ч. service-delays |
 | `List_item` | Ожидают, на приёме, обслужено, таблица очереди | Этапы, времена, маршруты, service-categories-comparison, разрывы цепочки, service-delays |
 | `Doctor`, `Cabinet` | Карточки загрузки врачей, подписи в очереди | Разрезы load-and-downtime, duration; service-delays (`analysisMode`: врач или кабинет) |
 | `Category` | Категория в данных талона | arrived-and-completed, service-categories-comparison |
 | `Specialty` | Норматив в карточках врачей | appointment-duration, load-and-downtime; service-delays (`time_servicing`, `definition`) |
 | `Log_work` | — | load-and-downtime |
-| `Status_item_list` | Неявки «сегодня» по имени статуса (`QueueDashboardStatusMapper`) | arrived; в `no-shows-and-incomplete-service` классификация по **полям времени**, не по имени статуса |
+| `Status_item_list` | Подпись статуса этапа в UI очереди | arrived; классификация по **полям времени** |
 
-**Важно:** в БД у талона есть `id_status_app` → `Status_Appointment`, но мониторинг **не** читает `Status_Appointment`. Неявки на дашборде — по `Status_item_list` на **этапе**; в отчётах каталога неявка на приём — отсутствие любого `List_item` у талона.
+**Важно:** в БД у талона есть `id_status_app` → `Status_Appointment`, но мониторинг **не** читает `Status_Appointment`. Лист ожидания и метрики — только талоны с `date_arrival` за **сегодня по календарю МСК**; поля `time_*` в `List_item` — **стенные часы МСК** (склейка с `date_arrival` без перевода в UTC). Этапы с «неявным» статусом в `Status_item_list` в мониторинг не попадают.
 
 ### Не используются приложением мониторинга (23)
 

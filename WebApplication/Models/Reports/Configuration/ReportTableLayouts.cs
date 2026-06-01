@@ -12,7 +12,6 @@ public static class ReportPdfOrientations
     public const string Portrait = "portrait";
 }
 
-/// <summary>Ветвление логики строк детализации в preview/export (не публичный id отчёта).</summary>
 public static class ReportDetailRowKinds
 {
     public const string Standard = "standard";

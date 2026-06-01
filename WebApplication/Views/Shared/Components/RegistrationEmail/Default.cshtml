@@ -1,0 +1,11 @@
+@model WebApplication.Models.Emails.RegistrationEmailViewModel
+@{
+    Layout = "~/Views/Emails/_EmailLayout.cshtml";
+}
+<p>Для вас создана учётная запись. Ваш пароль:</p>
+<p class="email-password-row"><span class="email-password">@Model.Password</span></p>
+<p class="email-hint">Рекомендуется сменить пароль после входа.</p>
+<p>Подтвердите адрес электронной почты, нажав кнопку ниже.</p>
+<div class="email-btn-wrap">
+    <a class="email-btn" href="@Model.ConfirmationLink">Подтвердить почту</a>
+</div>

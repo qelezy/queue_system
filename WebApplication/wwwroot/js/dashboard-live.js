@@ -1,6 +1,15 @@
 (function () {
     const root = document.querySelector("[data-dashboard-live]");
-    if (!root || typeof signalR === "undefined") return;
+    if (!root) return;
+
+    function showErrorToast(message) {
+        window.AppToasts?.getManager("global-toast-stack")?.show(message, "error");
+    }
+
+    if (typeof signalR === "undefined") {
+        showErrorToast("Не загружена библиотека SignalR");
+        return;
+    }
 
     const ui = {
         waiting: root.dataset.uiWaiting === "true",
@@ -20,13 +29,18 @@
             .replace(/"/g, "&quot;");
     }
 
+    function toDisplayNumber(value) {
+        const n = Number(value);
+        return String(Number.isFinite(n) ? n : 0);
+    }
+
     function setStatValue(statKey, value, unit) {
         const card = root.querySelector('[data-stat="' + statKey + '"]');
         if (!card) return;
         const valueEl = card.querySelector(".stat-card-value");
         if (!valueEl) return;
         valueEl.textContent = "";
-        valueEl.appendChild(document.createTextNode(String(value)));
+        valueEl.appendChild(document.createTextNode(toDisplayNumber(value)));
         if (unit) {
             const span = document.createElement("span");
             span.className = "stat-card-value-unit";
@@ -41,7 +55,7 @@
         const subValueEl = card.querySelector(".stat-card-sub-value");
         if (!subValueEl) return;
         subValueEl.textContent = "";
-        subValueEl.appendChild(document.createTextNode(String(subValue)));
+        subValueEl.appendChild(document.createTextNode(toDisplayNumber(subValue)));
         if (subUnit) {
             const span = document.createElement("span");
             span.className = "stat-card-sub-unit";
@@ -51,33 +65,44 @@
     }
 
     function updateStats(dto) {
-        if (ui.waiting) setStatValue("waiting", dto.waitingCount, "");
-        if (ui.inService) setStatValue("in-service", dto.inServiceCount, "");
-        if (ui.acceptedToday) setStatValue("accepted-today", dto.acceptedTodayCount, "");
+        if (ui.waiting) setStatValue("waiting", dto.waitingCount ?? 0, "");
+        if (ui.inService) setStatValue("in-service", dto.inServiceCount ?? 0, "");
+        if (ui.acceptedToday) setStatValue("accepted-today", dto.acceptedTodayCount ?? 0, "");
         if (ui.avgWait) {
-            setStatValue("avg-wait", dto.avgWaitMinutes, "мин");
-            setStatSubValue("avg-wait", dto.maxWaitMinutes, "мин");
+            setStatValue("avg-wait", dto.avgWaitMinutes ?? 0, "мин");
+            setStatSubValue("avg-wait", dto.maxWaitMinutes ?? 0, "мин");
         }
         if (ui.avgService) {
-            setStatValue("avg-service", dto.avgServiceMinutes, "мин");
-            setStatSubValue("avg-service", dto.maxServiceMinutes, "мин");
+            setStatValue("avg-service", dto.avgServiceMinutes ?? 0, "мин");
+            setStatSubValue("avg-service", dto.maxServiceMinutes ?? 0, "мин");
         }
+    }
+
+    function buildQueueStatusBadge(label, code) {
+        const mod = code === "called" ? "called" : "waiting";
+        return (
+            '<span class="queue-status-badge queue-status-badge--' +
+            mod +
+            '">' +
+            escapeHtml(label ?? "") +
+            "</span>"
+        );
     }
 
     function buildQueueRowHtml(r) {
         return (
-            '<tr data-queue-row' +
-            ' data-specialty="' + escapeHtml(r.specialty) + '"' +
-            ' data-status="' + escapeHtml(r.statusCode) + '"' +
-            ' data-wait="' + escapeHtml(r.waitingMinutes) + '">' +
-            "<td>" + escapeHtml(r.patient) + "</td>" +
+            '<tr class="queue-row--clickable" data-queue-row' +
+            ' data-appointment-id="' + escapeHtml(r.idAppointment) + '"' +
+            ' data-specialty-id="' + escapeHtml(r.idSpecialty) + '"' +
+            ' data-status-code="' + escapeHtml(r.statusCode) + '"' +
+            ' data-wait="' + escapeHtml(toDisplayNumber(r.waitingMinutes)) + '"' +
+            ' tabindex="0" role="button">' +
+            "<td>" + escapeHtml(r.ticketNumber) + "</td>" +
             '<td><div class="queue-row__doctor-name">' + escapeHtml(r.currentDoctor) + "</div>" +
             '<div class="queue-row__doctor-specialty">' + escapeHtml(r.specialty) + "</div></td>" +
             "<td>" + escapeHtml(r.currentCabinet) + "</td>" +
-            "<td>" + escapeHtml(r.arrivalTime) + "</td>" +
-            "<td>" + escapeHtml(r.waitingMinutes) + " мин</td>" +
-            '<td><span class="queue-status-badge queue-status-badge--' + escapeHtml(r.statusCode) + '">' +
-            escapeHtml(r.statusLabel) + "</span></td>" +
+            "<td>" + buildQueueStatusBadge(r.statusLabel, r.statusCode) + "</td>" +
+            "<td>" + escapeHtml(toDisplayNumber(r.waitingMinutes)) + " мин</td>" +
             "</tr>"
         );
     }
@@ -90,7 +115,7 @@
         if (!tbody) return;
 
         if (!rows || rows.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6">Нет записей в очереди</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5">Лист ожидания пуст</td></tr>';
         } else {
             tbody.innerHTML = rows.map(buildQueueRowHtml).join("");
         }
@@ -99,10 +124,13 @@
     }
 
     function buildDoctorRowHtml(d) {
-        const hasCurrent = d.isInService && d.currentServiceMinutes != null;
-        const hasNorm = d.normServiceMinutes != null;
-        const norm = d.normServiceMinutes ?? 0;
-        const cur = d.currentServiceMinutes ?? 0;
+        const hasCurrent =
+            d.isInService &&
+            d.currentServiceMinutes != null &&
+            Number.isFinite(Number(d.currentServiceMinutes));
+        const cur = hasCurrent ? Number(d.currentServiceMinutes) : null;
+        const hasNorm = d.normServiceMinutes != null && Number.isFinite(Number(d.normServiceMinutes));
+        const norm = hasNorm ? Number(d.normServiceMinutes) : 0;
         const over = hasCurrent && hasNorm && cur > norm;
         const specialtyLine =
             escapeHtml(d.specialty) + (d.cabinet ? " · " + escapeHtml(d.cabinet) : "");
@@ -110,38 +138,65 @@
         let statusBadge;
         if (d.isInService) {
             statusBadge =
-                '<span class="queue-status-badge queue-status-badge--in-service">На приёме</span>';
+                '<span class="queue-status-badge queue-status-badge--in-service">Принимает</span>';
         } else {
-            statusBadge = '<span class="queue-status-badge queue-status-badge--free">Свободен</span>';
+            statusBadge = '<span class="queue-status-badge queue-status-badge--free">Ожидает пациента</span>';
         }
 
+        const doctorStatus = d.isInService ? "in-service" : "free";
         return (
-            '<tr data-doctor-load-row data-doctor-id="' + escapeHtml(d.idDoctor) + '">' +
+            '<tr data-doctor-load-row data-doctor-id="' + escapeHtml(d.idDoctor) + '"' +
+            ' data-doctor-status="' + doctorStatus + '"' +
+            ' data-specialty-id="' + escapeHtml(d.idSpecialty) + '">' +
             '<td><div class="queue-row__doctor-name">' + escapeHtml(d.fullName) + "</div>" +
             '<div class="queue-row__doctor-specialty">' + specialtyLine + "</div></td>" +
             "<td>" + statusBadge + "</td>" +
             '<td class="' + (over ? "doctor-load-table__cell--over" : "") + '">' +
-            (hasCurrent ? escapeHtml(cur) + " мин" : "—") +
+            (hasCurrent ? escapeHtml(toDisplayNumber(cur)) + " мин" : "—") +
             "</td>" +
-            "<td>" + (hasNorm ? escapeHtml(norm) + " мин" : "—") + "</td>" +
-            "<td>" + escapeHtml(d.queueLength) + "</td>" +
+            "<td>" + (hasNorm ? escapeHtml(toDisplayNumber(norm)) + " мин" : "—") + "</td>" +
+            "<td>" + escapeHtml(toDisplayNumber(d.queueLength)) + "</td>" +
             "</tr>"
         );
     }
 
     function updateDelaysBadge(cards) {
-        const badge = document.querySelector(".doctor-load-delays-badge");
-        if (!badge || !cards) return;
+        if (!cards) return;
+
         const delaysCount = cards.filter(function (d) {
+            const cur = d.currentServiceMinutes;
+            const norm = d.normServiceMinutes;
             return (
                 d.isInService &&
-                d.normServiceMinutes != null &&
-                d.currentServiceMinutes != null &&
-                d.currentServiceMinutes > d.normServiceMinutes
+                cur != null &&
+                norm != null &&
+                Number.isFinite(Number(cur)) &&
+                Number.isFinite(Number(norm)) &&
+                Number(cur) > Number(norm)
             );
         }).length;
-        badge.textContent = "Задержек: " + delaysCount;
-        badge.setAttribute("aria-label", "Задержек: " + delaysCount);
+
+        let badge = document.querySelector(".doctor-load-delays-badge");
+        const label = "Задержек: " + delaysCount;
+
+        if (delaysCount === 0) {
+            badge?.remove();
+            return;
+        }
+
+        if (!badge) {
+            const title = document.querySelector(".doctor-load-panel__title");
+            const titleText = title?.querySelector(".doctor-load-panel__title-text");
+            if (!(title instanceof HTMLElement) || !(titleText instanceof HTMLElement)) return;
+
+            badge = document.createElement("span");
+            badge.className = "doctor-load-delays-badge";
+            titleText.insertAdjacentElement("afterend", badge);
+        }
+
+        badge.textContent = label;
+        badge.setAttribute("aria-label", label);
+        badge.hidden = false;
     }
 
     function updateDoctorLoad(cards) {
@@ -169,11 +224,26 @@
     }
 
     const connection = new signalR.HubConnectionBuilder()
-        .withUrl("/hubs/dashboard")
+        .withUrl("/hubs/dashboard", { withCredentials: true })
         .withAutomaticReconnect()
         .build();
 
+    let hadSuccessfulConnection = false;
+
     connection.on("DashboardUpdated", onDashboardUpdated);
 
-    connection.start().catch(function () { /* live updates unavailable */ });
+    connection.onclose(function () {
+        if (hadSuccessfulConnection) {
+            showErrorToast("Соединение с live-обновлениями прервано");
+        }
+    });
+
+    connection
+        .start()
+        .then(function () {
+            hadSuccessfulConnection = true;
+        })
+        .catch(function () {
+            showErrorToast("Ошибка подключения к live-обновлениям");
+        });
 })();

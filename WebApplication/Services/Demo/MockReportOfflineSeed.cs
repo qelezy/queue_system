@@ -4,7 +4,6 @@ using WebApplication.Services.Reports.LoadAndDowntime;
 
 namespace WebApplication.Services.Demo;
 
-/// <summary>Синтетические наблюдения для mock-отчётов (те же типы, что читает live из ElectronicQueueProf).</summary>
 internal static class MockReportOfflineSeed
 {
     private static readonly string[] SpecialtyLabels =
@@ -97,16 +96,12 @@ internal static class MockReportOfflineSeed
             {
                 var seed = Math.Abs(day.DayNumber * 31 + cat.Id * 17);
                 var total = 6 + seed % 10;
-                var noShowCount = Math.Min(total, seed % 4);
 
                 for (var i = 0; i < total; i++)
                 {
                     var apptId = nextApptId++;
                     appointments.Add(new CatalogAppointmentObservations.AppointmentObservation(
                         apptId, day, cat.Id));
-
-                    if (i < noShowCount)
-                        continue;
 
                     var itemSeed = seed + i * 13;
                     if (itemSeed % 5 == 0)

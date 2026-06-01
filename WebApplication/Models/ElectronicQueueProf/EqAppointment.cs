@@ -1,9 +1,5 @@
 namespace WebApplication.Models.ElectronicQueueProf;
 
-/// <summary>
-/// Талон в системе очереди. Момент прибытия для аналитики: <see cref="DateArrival"/> + <see cref="TimeArrival"/>.
-/// Завершение талона (если задано): <see cref="DateArrival"/> + <see cref="TimeComplete"/> (тот же календарный день прибытия).
-/// </summary>
 public sealed class EqAppointment
 {
     public int IdAppointment { get; set; }

@@ -183,7 +183,6 @@ public sealed class MockReportGenerationService : IReportGenerationService
         return ReportTabularExporter.WriteCsvBytes(generated.Result);
     }
 
-    /// <summary>Демо-отчёт «Длительность приёма» без БД (структура как у live).</summary>
     public static ReportResultViewModel GenerateAppointmentDurationOffline(
         ReportGenerateRequest request,
         ReportGenerationPurpose purpose = ReportGenerationPurpose.ExportOrFull)
@@ -259,7 +258,6 @@ public sealed class MockReportGenerationService : IReportGenerationService
         return AppointmentDurationReportBuilder.BuildReport(observations, fromDo, toDo, analysisMode, purpose);
     }
 
-    /// <summary>Демо-отчёт «Ожидание до приёма» без БД (структура как у live).</summary>
     public static ReportResultViewModel GenerateWaitingBeforeAppointmentOffline(
         ReportGenerateRequest request,
         ReportGenerationPurpose purpose = ReportGenerationPurpose.ExportOrFull)
@@ -330,10 +328,9 @@ public sealed class MockReportGenerationService : IReportGenerationService
         }
 
         return WaitingBeforeAppointmentReportBuilder.BuildReport(
-            observations, fromDo, toDo, periodFrom, periodTo, purpose, 8, 19);
+            observations, fromDo, toDo, periodFrom, periodTo, purpose);
     }
 
-    /// <summary>Демо-отчёт «Исходы обслуживания» без БД (структура как у live).</summary>
     public static ReportResultViewModel GenerateServiceRouteOutcomesOffline(
         ReportGenerateRequest request,
         ReportGenerationPurpose purpose = ReportGenerationPurpose.ExportOrFull)

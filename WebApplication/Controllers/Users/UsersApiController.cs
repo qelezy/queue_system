@@ -2,9 +2,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using System.Text.Encodings.Web;
 using WebApplication.Services.Users;
-using WebApplication.Services.Auth;
+using WebApplication.Models.Emails;
+using WebApplication.Services.Emails;
 
 namespace WebApplication.Controllers.Users;
 
@@ -15,11 +15,16 @@ public class UsersApiController : ControllerBase
 {
     private readonly IUserService _userService;
     private readonly IEmailService _emailService;
+    private readonly IEmailTemplateRenderer _emailTemplates;
 
-    public UsersApiController(IUserService userService, IEmailService emailService)
+    public UsersApiController(
+        IUserService userService,
+        IEmailService emailService,
+        IEmailTemplateRenderer emailTemplates)
     {
         _userService = userService;
         _emailService = emailService;
+        _emailTemplates = emailTemplates;
     }
 
     [HttpPost("register")]
@@ -38,15 +43,13 @@ public class UsersApiController : ControllerBase
         if (string.IsNullOrEmpty(confirmationLink))
             return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, errors = new[] { "Не удалось сформировать ссылку подтверждения" } });
 
-        await _emailService.SendEmailAsync(
-            result.Data.Email,
-            "Подтверждение почты",
-            $@"
-                <p>Вам создана учетная запись.</p>
-                <p><b>Пароль:</b> {HtmlEncoder.Default.Encode(result.Data.Password)}</p>
-                <p>Подтвердите ваш email по ссылке:</p>
-                <a href='{HtmlEncoder.Default.Encode(confirmationLink)}'>Подтвердить почту</a>
-                <p>После входа рекомендуется сменить пароль.</p>");
+        var body = await _emailTemplates.RenderRegistrationAsync(new RegistrationEmailViewModel
+        {
+            Password = result.Data.Password,
+            ConfirmationLink = confirmationLink
+        });
+
+        await _emailService.SendEmailAsync(result.Data.Email, "Подтверждение почты", body);
 
         return Ok(new { success = true, data = result.Data });
     }

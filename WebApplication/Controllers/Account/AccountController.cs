@@ -15,6 +15,13 @@ namespace WebApplication.Controllers.Account {
         }
 
         [HttpGet]
+        public IActionResult AccessDenied()
+        {
+            ViewData["Title"] = "Доступ запрещён";
+            return View();
+        }
+
+        [HttpGet]
         [AllowAnonymous]
         public IActionResult Login()
         {
@@ -35,15 +42,17 @@ namespace WebApplication.Controllers.Account {
         }
 
         [HttpGet]
+        [AllowAnonymous]
         public IActionResult ConfirmEmail(string userId, string token)
         {
             ViewData["UserId"] = userId;
-            ViewData["Token"] = Uri.EscapeDataString(token);
+            ViewData["Token"] = token;
             ViewData["ConfirmEmailUrl"] = Url.Action("ConfirmEmail", "Auth", null, Request.Scheme);
             return View();
         }
 
         [HttpGet]
+        [AllowAnonymous]
         public IActionResult ForgotPassword(string email, string token)
         {
             ViewData["Email"] = email;
@@ -53,10 +62,11 @@ namespace WebApplication.Controllers.Account {
         }
 
         [HttpGet]
+        [AllowAnonymous]
         public IActionResult ResetPassword(string userId, string token)
         {
             ViewData["UserId"] = userId;
-            ViewData["Token"] = Uri.EscapeDataString(token);
+            ViewData["Token"] = token;
             ViewData["ResetUrl"] = Url.Action("ResetPassword", "Auth", null, Request.Scheme);
             return View();
         }

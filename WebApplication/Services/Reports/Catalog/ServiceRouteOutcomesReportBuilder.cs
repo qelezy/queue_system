@@ -99,7 +99,6 @@ internal static class ServiceRouteOutcomesReportBuilder
             axis.Labels.ToList(),
             axis.Datasets[0].Values.ToList(),
             axis.Datasets[1].Values.ToList());
-        GroupedBarChartTimeAxis.SetGroupedBarFootnote(previewCharts, axis.Footnote);
 
         var model = new ReportResultViewModel
         {

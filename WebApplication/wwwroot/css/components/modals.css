@@ -1,0 +1,62 @@
+﻿.app-modal {
+    position: fixed;
+    inset: 0;
+    display: none;
+    z-index: 1100;
+}
+
+.app-modal.is-open {
+    display: block;
+}
+
+.app-modal__overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(13, 61, 64, 0.45);
+}
+
+.app-modal__dialog {
+    position: relative;
+    margin: 8vh auto 0;
+    width: min(760px, calc(100% - 32px));
+    max-height: 84vh;
+    overflow: auto;
+    background: var(--form-bg-color);
+    border-radius: 12px;
+    box-shadow: var(--card-shadow);
+    border: 1px solid rgba(0, 179, 184, 0.1);
+}
+
+.app-modal .register-panel {
+    box-shadow: none;
+    border: none;
+}
+
+.register-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 18px 28px 16px;
+    border-bottom: 1px solid var(--header-border);
+    background: linear-gradient(180deg, #fafcfc 0%, #f5fafa 100%);
+}
+
+.register-panel-title {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--text-color);
+    letter-spacing: 0.01em;
+}
+
+.register-panel-close {
+    border: none;
+    background: transparent;
+    color: var(--text-secondary-color);
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+

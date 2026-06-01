@@ -83,7 +83,13 @@ public static partial class ReportTabularExporter
                             }
                         });
 
-                        if (UsesDateRowspanTable(result))
+                        if (HasNoReportRows(result))
+                        {
+                            table.Cell().ColumnSpan((uint)Math.Max(1, colCount))
+                                .Element(c => PdfTableBodyCell(c, suppressBottom: false))
+                                .Text(NoDataLabel);
+                        }
+                        else if (UsesDateRowspanTable(result))
                         {
                             AppendPdfRowspanFirstColumnTableBody(
                                 table,

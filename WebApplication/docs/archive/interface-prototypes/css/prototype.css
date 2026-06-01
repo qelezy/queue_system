@@ -67,10 +67,14 @@ body {
     line-height: 1.45;
 }
 
-.auth-form .form-input {
-    display: flex;
-    flex-direction: column;
+.auth-form .form-field {
     margin-bottom: 18px;
+}
+
+.auth-form .form-field label {
+    font-size: 14px;
+    font-weight: 400;
+    margin-bottom: 4px;
 }
 
 .auth-form label {
@@ -171,6 +175,59 @@ body {
 
 .auth-links a:hover {
     text-decoration: underline;
+}
+
+.auth-wrapper--confirm-top {
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 48px;
+}
+
+.auth-wrapper--confirm-top .auth-confirm-panel {
+    justify-content: flex-start;
+}
+
+.auth-confirm-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    max-width: 400px;
+    text-align: center;
+}
+
+.auth-confirm {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 8px 0 4px;
+}
+
+.auth-confirm-icon {
+    font-size: 72px;
+    color: var(--primary-color);
+    line-height: 1;
+    margin-bottom: 16px;
+}
+
+.auth-confirm-caption {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-color);
+    line-height: 1.45;
+    margin: 0;
+}
+
+.auth-form-alert {
+    margin-bottom: 14px;
+    padding: 10px 12px;
+    border: 1px solid #ebc6c6;
+    border-radius: 8px;
+    background: #fff4f4;
+    color: #b12c2c;
+    font-size: 13px;
 }
 
 /* —— Dashboard shell —— */
@@ -711,4 +768,17 @@ body {
     .bottom-grid {
         grid-template-columns: 1fr;
     }
+}
+
+.card h3 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: var(--text-color);
+}
+
+.card-divider {
+    margin: 20px 0;
+    border: none;
+    border-top: 1px solid var(--header-border);
 }

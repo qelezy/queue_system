@@ -22,7 +22,7 @@
             @if (granted)
             {
                 <input type="checkbox"
-                       class="access-matrix__checkbox"
+                       class="app-checkbox access-matrix__checkbox"
                        data-role="@role.Key"
                        data-item="@Model.Key"
                        checked="checked"
@@ -31,7 +31,7 @@
             else
             {
                 <input type="checkbox"
-                       class="access-matrix__checkbox"
+                       class="app-checkbox access-matrix__checkbox"
                        data-role="@role.Key"
                        data-item="@Model.Key"
                        aria-label="Доступ «@Model.Title» для роли @role.Label" />

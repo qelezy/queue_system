@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
 using WebApplication.Hubs;
 using WebApplication.Models.Configuration;
-using WebApplication.Models.ViewModels.Dashboard;
 
 namespace WebApplication.Services.Dashboard;
 
@@ -10,20 +9,20 @@ public sealed class DashboardRefreshHostedService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IHubContext<DashboardHub> _hubContext;
-    private readonly IHostEnvironment _environment;
+    private readonly IDashboardHubConnectionTracker _connectionTracker;
     private readonly MonitoringOptions _options;
     private readonly ILogger<DashboardRefreshHostedService> _logger;
 
     public DashboardRefreshHostedService(
         IServiceScopeFactory scopeFactory,
         IHubContext<DashboardHub> hubContext,
-        IHostEnvironment environment,
+        IDashboardHubConnectionTracker connectionTracker,
         IOptions<MonitoringOptions> options,
         ILogger<DashboardRefreshHostedService> logger)
     {
         _scopeFactory = scopeFactory;
         _hubContext = hubContext;
-        _environment = environment;
+        _connectionTracker = connectionTracker;
         _options = options.Value;
         _logger = logger;
     }
@@ -60,38 +59,35 @@ public sealed class DashboardRefreshHostedService : BackgroundService
 
     private async Task TickAsync(CancellationToken cancellationToken)
     {
+        if (_connectionTracker.ConnectionCount == 0)
+            return;
+
         using var scope = _scopeFactory.CreateScope();
         var availability = scope.ServiceProvider.GetRequiredService<IElectronicQueueAvailability>();
         var dashboard = scope.ServiceProvider.GetRequiredService<IQueueDashboardService>();
 
-        var canLive = await availability.CanQueryLiveDataAsync(cancellationToken).ConfigureAwait(false);
-
-        if (!_environment.IsDevelopment() && !canLive)
+        if (!await availability.CanQueryLiveDataAsync(cancellationToken).ConfigureAwait(false))
             return;
-
-        DashboardViewModel model;
-        var isDemoData = false;
 
         try
         {
-            isDemoData = _environment.IsDevelopment() && !canLive;
-            model = await dashboard.GetDashboardAsync(cancellationToken).ConfigureAwait(false);
+            var model = await dashboard.GetDashboardAsync(cancellationToken).ConfigureAwait(false);
+            var dto = DashboardSnapshotMapper.ToSnapshot(model);
+            await _hubContext.Clients.All
+                .SendAsync("DashboardUpdated", dto, cancellationToken)
+                .ConfigureAwait(false);
+
+            availability.MarkAvailable();
+            _logger.LogInformation(
+                "Dashboard broadcast: waiting={Waiting}, inService={InService}, queueRows={QueueRows}",
+                dto.WaitingCount,
+                dto.InServiceCount,
+                dto.ActiveQueue.Count);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Dashboard live query failed; marking queue DB unavailable");
             availability.MarkUnavailable();
-
-            if (!_environment.IsDevelopment())
-                return;
-
-            isDemoData = true;
-            model = await dashboard.GetDashboardAsync(cancellationToken).ConfigureAwait(false);
+            _logger.LogWarning(ex, "Dashboard live query failed; skipping broadcast for this tick");
         }
-
-        var dto = DashboardSnapshotMapper.ToSnapshot(model, isDemoData);
-        await _hubContext.Clients.All
-            .SendAsync("DashboardUpdated", dto, cancellationToken)
-            .ConfigureAwait(false);
     }
 }

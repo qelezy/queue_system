@@ -2,43 +2,29 @@
 
 namespace WebApplication.Models.Reports.Charts;
 
-/// <summary>
-/// Данные для круговой диаграммы в предпросмотре; при экспорте в CSV отражаются в блоке перед таблицей.
-/// Предпочтительно задавать вместе с <see cref="ReportResultViewModel.PreviewCharts"/>; свойство сохранено для совместимости.
-/// </summary>
 public sealed class ReportPreviewPieChart
 {
     public List<string> Labels { get; set; } = new();
     public List<double> Values { get; set; } = new();
 }
 
-/// <summary>
-/// Описание диаграммы для предпросмотра; при экспорте в CSV данные диаграммы выводятся отдельным блоком перед таблицей.
-/// </summary>
 public sealed class ReportPreviewChartDescriptor
 {
-    /// <summary>Вид диаграммы: <c>doughnut</c>, <c>pie</c> и т.д. (регистрация кастомных видов на клиенте).</summary>
+    
     public string Kind { get; set; } = "doughnut";
 
     public List<string> Labels { get; set; } = new();
     public List<double> Values { get; set; } = new();
 
-    /// <summary>Единица для подсказки (например «мин»); пусто — только число.</summary>
     public string? ValueUnit { get; set; }
 
     public string? AriaLabel { get; set; }
 
-    /// <summary>Уникальный id элемента canvas; по умолчанию на клиенте — report-preview-chart-индекс.</summary>
     public string? CanvasElementId { get; set; }
 
-    /// <summary>Серии для <c>groupedBar</c>: подпись (час) и значения по дням (ось X — <see cref="Labels"/>).</summary>
     public List<ReportPreviewChartDataset>? Datasets { get; set; }
-
-    /// <summary>Сноска под диаграммой (например при агрегации оси X по неделям).</summary>
-    public string? Footnote { get; set; }
 }
 
-/// <summary>Одна серия grouped bar (например час суток).</summary>
 public sealed class ReportPreviewChartDataset
 {
     public string Label { get; set; } = "";
@@ -46,15 +32,12 @@ public sealed class ReportPreviewChartDataset
     [JsonConverter(typeof(ChartDatasetValueListJsonConverter))]
     public List<double> Values { get; set; } = new();
 
-    /// <summary>Норматив по дням (параллельно <see cref="Values"/>); наложение на один столбец среза.</summary>
     [JsonConverter(typeof(ChartDatasetValueListJsonConverter))]
     public List<double>? NormValues { get; set; }
 
-    /// <summary>Устаревающее; для новых отчётов использовать <see cref="NormValues"/>.</summary>
     public string? ChartSeriesType { get; set; }
 }
 
-/// <summary>Готовые дескрипторы предпросмотра для конкретных отчётов.</summary>
 public static class ReportPreviewChartDescriptors
 {
     public static List<ReportPreviewChartDescriptor>? ForLoadDowntimePie(ReportPreviewPieChart? pie)
@@ -76,7 +59,6 @@ public static class ReportPreviewChartDescriptors
         ];
     }
 
-    /// <summary>Doughnut (итоги) и groupedBar (по дням) для отчёта «Исходы обслуживания».</summary>
     public static List<ReportPreviewChartDescriptor>? ForServiceRouteOutcomesCharts(
         int completedCount,
         int incompleteCount,
@@ -100,7 +82,6 @@ public static class ReportPreviewChartDescriptors
         return outList.Count == 0 ? null : outList;
     }
 
-    /// <summary>Doughnut по исходам талонов за период: завершённый маршрут; незавершённое обслуживание.</summary>
     public static List<ReportPreviewChartDescriptor>? ForServiceRouteOutcomesMix(
         int completedRoute,
         int incomplete)
@@ -136,7 +117,6 @@ public static class ReportPreviewChartDescriptors
         ];
     }
 
-    /// <summary>Ось X — дни; серии: завершённый маршрут; незавершённое обслуживание (шт.).</summary>
     public static List<ReportPreviewChartDescriptor>? ForServiceRouteOutcomesDailyGroupedBar(
         IReadOnlyList<string> dayLabels,
         IReadOnlyList<double> completedPerDay,
@@ -213,14 +193,11 @@ public static class ReportPreviewChartDescriptors
         ];
     }
 
-
-    /// <summary>Устаревший alias — делегирует в <see cref="ForServiceRouteOutcomesMix"/>.</summary>
     public static List<ReportPreviewChartDescriptor>? ForArrivedCompletedAppointmentMix(
         int completedRoute,
         int incomplete) =>
         ForServiceRouteOutcomesMix(completedRoute, incomplete);
 
-    /// <summary>Grouped bar: по оси X — дни, серии — часы 00:00–23:00, значение — среднее ожидание (мин).</summary>
     public static List<ReportPreviewChartDescriptor>? ForWaitingBeforeAppointmentDailyGroupedBar(
         IReadOnlyList<string> dayLabels,
         IReadOnlyList<ReportPreviewChartDataset> hourSeries)
@@ -255,7 +232,6 @@ public static class ReportPreviewChartDescriptors
         ];
     }
 
-    /// <summary>Grouped bar: по оси X — дни, серии — топ значений среза, значение — средняя длительность (мин).</summary>
     public static List<ReportPreviewChartDescriptor>? ForAppointmentDurationDailyGroupedBar(
         IReadOnlyList<string> dayLabels,
         IReadOnlyList<ReportPreviewChartDataset> series)
@@ -296,7 +272,6 @@ public static class ReportPreviewChartDescriptors
         ];
     }
 
-    /// <summary>Grouped bar: по оси X — дни, серии — суммы прохождения и пауз по дню.</summary>
     public static List<ReportPreviewChartDescriptor>? ForRouteAndPausesDailyGroupedBar(
         IReadOnlyList<string> dayLabels,
         IReadOnlyList<ReportPreviewChartDataset> series)

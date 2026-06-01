@@ -48,13 +48,6 @@ public static partial class ReportTabularExporter
             sb.Append("<div class=\"").Append(wrapClass).Append("\" role=\"presentation\">")
                 .Append(chartSvgs[ci])
                 .Append("</div>\n");
-            if (ci < chartDescriptors.Count
-                && !string.IsNullOrWhiteSpace(chartDescriptors[ci].Footnote))
-            {
-                sb.Append("<p class=\"report-preview-modal__chart-footnote\">")
-                    .Append(WebUtility.HtmlEncode(chartDescriptors[ci].Footnote))
-                    .Append("</p>\n");
-            }
         }
 
         sb.Append("<div class=\"report-preview-modal__table-wrap\"><div class=\"users-table-wrap report-preview-table\"><table class=\"users-table users-table--report-preview\"><thead><tr>\n");
@@ -93,6 +86,12 @@ public static partial class ReportTabularExporter
 
     private static void AppendHtmlTableBody(StringBuilder sb, ReportResultViewModel result)
     {
+        if (HasNoReportRows(result))
+        {
+            AppendHtmlNoDataRow(sb, result.ColumnHeaders.Count);
+            return;
+        }
+
         if (!UsesDateRowspanTable(result))
         {
             foreach (var row in result.Rows)
@@ -103,7 +102,15 @@ public static partial class ReportTabularExporter
         AppendHtmlRowspanFirstColumnBody(sb, result, GetDetailRowPredicate(result));
     }
 
-    /// <summary>Группировка подряд идущих строк с пустой первой ячейкой: rowspan по колонке даты.</summary>
+    private static void AppendHtmlNoDataRow(StringBuilder sb, int colCount)
+    {
+        var span = Math.Max(1, colCount);
+        var attr = span > 1 ? " colspan=\"" + span.ToString(CultureInfo.InvariantCulture) + "\"" : "";
+        sb.Append("<tr><td").Append(attr).Append(">")
+            .Append(WebUtility.HtmlEncode(NoDataLabel))
+            .Append("</td></tr>\n");
+    }
+
     private static void AppendHtmlRowspanFirstColumnBody(
         StringBuilder sb,
         ReportResultViewModel result,

@@ -1,6 +1,5 @@
 ﻿namespace WebApplication.Models.ViewModels.Dashboard;
 
-/// <summary>Какие блоки мониторинга показывать по permission_name.</summary>
 public sealed class DashboardUiVisibility
 {
     public bool WaitingCard { get; init; }

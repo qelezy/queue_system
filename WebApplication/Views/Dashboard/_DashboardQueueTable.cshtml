@@ -1,26 +1,7 @@
-@using WebApplication.Models
-@model IReadOnlyList<DashboardQueueRowViewModel>
-
-@{
-    var specialties = Model
-        .Select(r => r.Specialty)
-        .Where(s => !string.IsNullOrWhiteSpace(s))
-        .Distinct(StringComparer.OrdinalIgnoreCase)
-        .OrderBy(s => s, StringComparer.CurrentCulture)
-        .ToList();
-
-    var statuses = new (string Code, string Label)[]
-    {
-        ("waiting",    "Ожидает"),
-        ("called",     "Вызван"),
-        ("in-service", "На приёме"),
-        ("done",       "Завершён"),
-        ("no-show",    "Не явился"),
-    };
-}
+@model DashboardQueueTableViewModel
 
 <div class="dashboard-panel">
-    <h3 class="dashboard-panel__title">Текущая очередь</h3>
+    <h3 class="dashboard-panel__title">Лист ожидания</h3>
 
     <div class="table-toolbar queue-toolbar">
         <div class="table-toolbar__left">
@@ -31,21 +12,19 @@
                 OnInput = "QueueTable.search(this.value)"
             })
             <div class="toolbar-role-filter">
-                <select class="toolbar-role-filter__select" onchange="QueueTable.filterSpecialty(this.value)">
+                <select id="queue-filter-specialty" class="toolbar-role-filter__select" onchange="QueueTable.filterSpecialty(this.value)">
                     <option value="">Все специальности</option>
-                    @foreach (var s in specialties)
+                    @foreach (var s in Model.Filters.Specialties)
                     {
-                        <option value="@s">@s</option>
+                        <option value="@s.Id">@s.Label</option>
                     }
                 </select>
             </div>
             <div class="toolbar-role-filter">
-                <select class="toolbar-role-filter__select" onchange="QueueTable.filterStatus(this.value)">
+                <select id="queue-filter-status" class="toolbar-role-filter__select" onchange="QueueTable.filterStatus(this.value)">
                     <option value="">Все статусы</option>
-                    @foreach (var (code, label) in statuses)
-                    {
-                        <option value="@code">@label</option>
-                    }
+                    <option value="waiting">Ожидает</option>
+                    <option value="called">Вызван</option>
                 </select>
             </div>
             <div class="queue-wait-filter">
@@ -58,41 +37,44 @@
     </div>
 
     <div class="users-table-wrap queue-table-scroll">
-        <table class="users-table" aria-label="Текущая очередь">
+        <table class="users-table" aria-label="Лист ожидания">
             <thead>
                 <tr>
-                    <th>Пациент</th>
+                    <th>№ талона</th>
                     <th>Врач</th>
                     <th>Кабинет</th>
-                    <th>Время записи</th>
-                    <th>Время ожидания</th>
                     <th>Статус</th>
+                    <th>Время ожидания</th>
                 </tr>
             </thead>
             <tbody>
-            @if (Model.Count == 0)
+            @if (Model.Rows.Count == 0)
             {
-                <tr><td colspan="6">Нет записей в очереди</td></tr>
+                <tr><td colspan="5">Лист ожидания пуст</td></tr>
             }
             else
             {
-                foreach (var r in Model)
+                foreach (var r in Model.Rows)
                 {
-                    <tr data-queue-row
-                        data-specialty="@r.Specialty"
-                        data-status="@r.StatusCode"
-                        data-wait="@r.WaitingMinutes">
-                        <td>@r.Patient</td>
+                    <tr class="queue-row--clickable"
+                        data-queue-row
+                        data-appointment-id="@r.IdAppointment"
+                        data-specialty-id="@r.IdSpecialty"
+                        data-status-code="@r.StatusCode"
+                        data-wait="@r.WaitingMinutes"
+                        tabindex="0"
+                        role="button"
+                        aria-label="Этапы маршрута талона @r.TicketNumber">
+                        <td>@r.TicketNumber</td>
                         <td>
                             <div class="queue-row__doctor-name">@r.CurrentDoctor</div>
                             <div class="queue-row__doctor-specialty">@r.Specialty</div>
                         </td>
                         <td>@r.CurrentCabinet</td>
-                        <td>@r.ArrivalTime</td>
-                        <td>@r.WaitingMinutes мин</td>
                         <td>
                             <span class="queue-status-badge queue-status-badge--@r.StatusCode">@r.StatusLabel</span>
                         </td>
+                        <td>@r.WaitingMinutes мин</td>
                     </tr>
                 }
             }

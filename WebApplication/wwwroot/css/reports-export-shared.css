@@ -1,5 +1,4 @@
-/* Общие стили таблицы и итогов каталожных отчётов. Эталон: report-load-and-downtime-spec §6.
-   Классы report-load-table__row--* — для всего каталога. */
+
 
 .report-preview-modal__chart-scroll,
 .report-export-html .report-preview-modal__chart-scroll {
@@ -12,15 +11,6 @@
 .report-export-html .report-preview-modal__chart-wrap--grouped-bar {
     height: 380px;
     min-height: 0;
-}
-
-.report-preview-modal__chart-footnote,
-.report-export-html .report-preview-modal__chart-footnote {
-    margin: -8px 0 16px;
-    font-size: 12px;
-    line-height: 1.4;
-    color: #64748b;
-    text-align: center;
 }
 
 .report-preview-modal__chart-wrap,
@@ -52,7 +42,6 @@
     max-height: min(400px, 38vh);
 }
 
-/* HTML-экспорт: диаграммы чуть компактнее */
 .report-export-html .report-preview-modal__chart-wrap {
     min-height: clamp(235px, 28vh, 370px);
     margin-bottom: 12px;

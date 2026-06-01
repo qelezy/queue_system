@@ -1,16 +1,17 @@
+using WebApplication.Models.Configuration;
+
 namespace WebApplication.Configuration;
 
 public static class JwtConfiguration
 {
-    public static string GetRequiredSigningKey(IConfiguration configuration)
+    public static string GetRequiredSigningKey(AppSettingsOptions appSettings)
     {
-        var token = configuration["AppSettings:Token"];
-        if (string.IsNullOrWhiteSpace(token))
+        if (string.IsNullOrWhiteSpace(appSettings.Token))
         {
             throw new InvalidOperationException(
-                "AppSettings:Token не задан. Укажите JWT signing key в .env или User Secrets (AppSettings__Token).");
+                "AppSettings:Token не задан. Укажите AppSettings__Token в .env или User Secrets.");
         }
 
-        return token;
+        return appSettings.Token;
     }
 }

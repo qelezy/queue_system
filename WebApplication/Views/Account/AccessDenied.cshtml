@@ -1,0 +1,12 @@
+@{
+    Layout = "_AuthForm";
+    ViewData["Title"] = "Доступ запрещён";
+}
+
+<p class="auth-form-subtitle">У вас недостаточно прав для просмотра этой страницы.</p>
+
+<p class="auth-links">
+    <a href="@Url.Action("Index", "Dashboard")">Перейти к мониторингу</a>
+    ·
+    <a href="@Url.Action("Login", "Account")">Войти под другой учётной записью</a>
+</p>

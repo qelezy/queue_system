@@ -1,6 +1,5 @@
 ﻿namespace WebApplication.Models.Reports.Constants;
 
-/// <summary>Идентификаторы отчётов из <c>appsettings.json</c> → <c>Reports:Catalog</c>.</summary>
 public static class ReportIds
 {
     public const string LoadAndDowntime = "load-and-downtime";

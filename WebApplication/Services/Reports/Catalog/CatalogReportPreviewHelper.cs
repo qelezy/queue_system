@@ -4,8 +4,10 @@ internal static class CatalogReportPreviewHelper
 {
     internal const string PeriodTotalsLabel = "Итого за период";
 
-    /// <summary>Строки блока «Итого за период» (подпись + значения).</summary>
     private const int PreviewTotalsRowCount = 2;
+
+    internal static bool HasNoDetailRows(IReadOnlyList<ReportResultRowViewModel> detailRows) =>
+        detailRows.Count == 0;
 
     internal static void ApplyDetailPreviewAndTotals<TAgg>(
         ReportResultViewModel model,

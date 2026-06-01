@@ -6,12 +6,10 @@
         public string Unit { get; set; } = string.Empty;
         public string Hint { get; set; } = string.Empty;
 
-        /// <summary>Вторая строка (например максимум за период).</summary>
         public string? SubLabel { get; set; }
         public string? SubValue { get; set; }
         public string? SubUnit { get; set; }
 
-        /// <summary>Ключ для live-обновления (data-stat).</summary>
         public string? DataStatKey { get; set; }
     }
 }

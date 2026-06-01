@@ -1,4 +1,4 @@
-/* ReportPreviewCore: встроено в этот файл (раньше отдельный report-preview-core.js), чтобы скрипт всегда поднимался одним запросом. */
+
 (function (global) {
     'use strict';
 
@@ -9,7 +9,7 @@
         groupedbar: mountGroupedBarChart
     };
 
-    /** Синхронизировать с Services/Reports/ReportChartPalette.cs BaseRgb */
+    
     var REPORT_CHART_BASE_RGB = [
         [0, 179, 184],
         [148, 163, 184],
@@ -134,6 +134,20 @@
         return { minWidthPx: minWidthPx, minHeightPx: minHeightPx, dayCount: dayCount };
     }
 
+    function applyGroupedChartLayout(root) {
+        if (!root) return;
+        root.querySelectorAll('.report-preview-modal__chart-wrap--grouped-bar').forEach(function (el) {
+            var minWidth = el.getAttribute('data-chart-min-width');
+            var height = el.getAttribute('data-chart-height');
+            if (minWidth) {
+                el.style.setProperty('--report-chart-min-width', minWidth + 'px');
+            }
+            if (height) {
+                el.style.setProperty('--report-chart-height', height + 'px');
+            }
+        });
+    }
+
     function buildChartBlocksHtml(descriptors) {
         var html = '';
         (descriptors || []).forEach(function (d, i) {
@@ -143,17 +157,14 @@
             var metrics = calcChartLayoutMetrics(d);
             var isGrouped = metrics !== null;
             var wrapClass = 'report-preview-modal__chart-wrap' + (isGrouped ? ' report-preview-modal__chart-wrap--grouped-bar' : '');
-            var styleAttr = isGrouped
-                ? ' style="min-width:' + metrics.minWidthPx + 'px;height:' + metrics.minHeightPx + 'px;"'
+            var dataAttrs = isGrouped
+                ? ' data-chart-min-width="' + metrics.minWidthPx + '" data-chart-height="' + metrics.minHeightPx + '"'
                 : '';
             var canvasTag = '<canvas id="' + escapeHtmlAttribute(id) + '"' +
                 (aria ? ' aria-label="' + aria + '"' : '') + '></canvas>';
             if (isGrouped) {
                 html += '<div class="report-preview-modal__chart-scroll" role="presentation">' +
-                    '<div class="' + wrapClass + '"' + styleAttr + '>' + canvasTag + '</div></div>';
-                if (d.footnote) {
-                    html += '<p class="report-preview-modal__chart-footnote">' + escapeHtml(d.footnote) + '</p>';
-                }
+                    '<div class="' + wrapClass + '"' + dataAttrs + '>' + canvasTag + '</div></div>';
             } else {
                 html += '<div class="' + wrapClass + '" role="presentation">' + canvasTag + '</div>';
             }
@@ -569,13 +580,19 @@
         }
     }
 
+    var reportPreviewEmptyHtml = '<p class="report-params__empty">Нет данных</p>';
+
     function buildPreviewTableHtml(result) {
+        var rows = result.rows || [];
+        if (rows.length === 0) {
+            return '';
+        }
+
         var html = '<div class="users-table-wrap report-preview-table"><table class="users-table users-table--report-preview"><thead><tr>';
         result.columnHeaders.forEach(function (h) {
             html += '<th>' + escapeHtml(h) + '</th>';
         });
         html += '</tr></thead><tbody>';
-        var rows = result.rows || [];
         var rid = (result.generatedForReportId || '').trim();
         var detailKind = result.detailRowKind;
         if (usesDateRowspanForResult(result)) {
@@ -613,14 +630,21 @@
         if (!root) return;
         if (typeof deps.destroyCharts === 'function') deps.destroyCharts();
 
-        if (!result || !result.columnHeaders || !result.rows) {
-            root.innerHTML = '<p class="report-params__empty">Нет данных для предпросмотра.</p>';
+        if (!result || !result.columnHeaders) {
+            root.innerHTML = reportPreviewEmptyHtml;
             return;
         }
 
+        var rows = result.rows || [];
         var descriptors = extractChartDescriptors(result);
         var chartHtml = buildChartBlocksHtml(descriptors);
+        if (rows.length === 0 && !chartHtml) {
+            root.innerHTML = reportPreviewEmptyHtml;
+            return;
+        }
+
         root.innerHTML = chartHtml + buildPreviewTableHtml(result);
+        applyGroupedChartLayout(root);
 
         if (chartHtml && descriptors.length) {
             window.requestAnimationFrame(function () {
@@ -701,7 +725,6 @@
 (function () {
     'use strict';
 
-    /** Контракт: сервер отдаёт ReportResultViewModel; поля формы — reportCustomConfig ниже. */
     var modalId = 'report-workflow-modal';
 
     var reportCustomConfig = {};
@@ -771,18 +794,6 @@
         lastFocusedElement = null;
     }
 
-    function setDemoDataBadge(isDemo) {
-        var badge = document.getElementById('reports-demo-badge');
-        if (!badge) return;
-        if (isDemo) {
-            badge.hidden = false;
-            badge.classList.remove('reports-demo-badge--hidden');
-        } else {
-            badge.hidden = true;
-            badge.classList.add('reports-demo-badge--hidden');
-        }
-    }
-
     function readInitialState() {
         var node = document.getElementById('reports-page-data');
         if (!node) return;
@@ -794,7 +805,6 @@
             state.options.cabinetOptions = payload.toolbar && payload.toolbar.cabinetOptions ? payload.toolbar.cabinetOptions : [];
             state.options.doctorOptions = payload.toolbar && payload.toolbar.doctorOptions ? payload.toolbar.doctorOptions : [];
             state.options.categoryOptions = payload.toolbar && payload.toolbar.categoryOptions ? payload.toolbar.categoryOptions : [];
-            setDemoDataBadge(!!payload.usingElectronicQueueMockData);
             reportCustomConfig = payload.reportCustomConfig && typeof payload.reportCustomConfig === 'object'
                 ? payload.reportCustomConfig
                 : {};
@@ -821,7 +831,11 @@
 
     function toDateTimeLocal(raw) {
         if (!raw) return '';
-        var d = new Date(raw);
+        var s = String(raw).trim();
+        if (!s) return '';
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s + 'T00:00';
+        if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s)) return s;
+        var d = new Date(s);
         if (isNaN(d.getTime())) return '';
         var m = String(d.getMonth() + 1).padStart(2, '0');
         var day = String(d.getDate()).padStart(2, '0');
@@ -869,7 +883,7 @@
             }
             html += '<label class="form-field"><span class="form-field__label">' + esc(f.label) + '</span>';
             if (f.type === 'select') {
-                html += '<select class="form-input" data-custom-key="' + escAttr(f.key) + '">';
+                html += '<select class="form-field" data-custom-key="' + escAttr(f.key) + '">';
                 (f.options || []).forEach(function (opt) {
                     html += '<option value="' + escAttr(opt.value) + '"' + (value === String(opt.value) ? ' selected="selected"' : '') + '>' + esc(opt.label) + '</option>';
                 });
@@ -877,7 +891,7 @@
             } else if (f.type === 'select-dynamic') {
                 var list = state.options[f.source] || [];
                 var placeholderLabel = f.placeholderLabel || 'Все';
-                html += '<select class="form-input" data-custom-key="' + escAttr(f.key) + '"><option value="">' + esc(placeholderLabel) + '</option>';
+                html += '<select class="form-field" data-custom-key="' + escAttr(f.key) + '"><option value="">' + esc(placeholderLabel) + '</option>';
                 list.forEach(function (opt) {
                     var oid = String(opt.id);
                     html += '<option value="' + escAttr(oid) + '"' + (value === oid ? ' selected="selected"' : '') + '>' + esc(opt.label) + '</option>';
@@ -887,7 +901,7 @@
                 var type = f.type === 'date' ? 'date' : (f.type || 'text');
                 var minAttr = f.min ? ' min="' + escAttr(f.min) + '"' : '';
                 var pAttr = f.placeholder ? ' placeholder="' + escAttr(f.placeholder) + '"' : '';
-                html += '<input class="form-input" type="' + escAttr(type) + '" data-custom-key="' + escAttr(f.key) + '" value="' + escAttr(value) + '"' + minAttr + pAttr + ' />';
+                html += '<input class="form-field" type="' + escAttr(type) + '" data-custom-key="' + escAttr(f.key) + '" value="' + escAttr(value) + '"' + minAttr + pAttr + ' />';
             }
             html += '</label>';
         });
@@ -897,6 +911,7 @@
     function updateGenerateButton() {
         var btn = document.getElementById('report-generate-btn');
         if (!btn) return;
+        if (btn.classList.contains('is-loading')) return;
         var noSelection = !state.selectedReportId;
         btn.disabled = noSelection;
         btn.classList.toggle('report-toolbar__run-disabled', noSelection);
@@ -910,7 +925,7 @@
         try {
             var payload = JSON.parse(node.textContent || '{}');
             applyCatalogTitles(payload.catalog);
-        } catch (_) { /* ignore */ }
+        } catch (_) { }
     }
 
     function setModalTitle(title) {
@@ -996,14 +1011,20 @@
             el.textContent = '';
             el.classList.add('is-empty');
         }
-        var btn = document.getElementById('report-generate-btn');
-        if (btn) btn.disabled = false;
+        setGenerating(false);
+        updateGenerateButton();
     }
 
     function setGenerating(isLoading) {
         var btn = document.getElementById('report-generate-btn');
         var el = document.getElementById('report-generate-status');
         if (btn) {
+            btn.classList.toggle('is-loading', isLoading);
+            if (isLoading) {
+                btn.setAttribute('aria-busy', 'true');
+            } else {
+                btn.removeAttribute('aria-busy');
+            }
             btn.disabled = isLoading || !state.selectedReportId;
             btn.classList.toggle('report-toolbar__run-disabled', isLoading || !state.selectedReportId);
         }
@@ -1104,7 +1125,7 @@
         (state.previewCharts || []).forEach(function (ch) {
             try {
                 ch.destroy();
-            } catch (_) { /* ignore */ }
+            } catch (_) { }
         });
         state.previewCharts = [];
     }
@@ -1126,7 +1147,6 @@
     }
 
     async function generateReport() {
-        // Предпросмотр: POST /Reports/Generate — таблица может быть усечена; диаграммы из previewCharts/previewPieChart (полные агрегаты на сервере).
         if (!state.selectedReportId) return;
         collectFiltersFromUi();
         setGenerating(true);
@@ -1162,7 +1182,6 @@
                 showInfoToast(data.message || 'Формирование этого отчёта находится в разработке.');
                 return;
             }
-            setDemoDataBadge(!!data.isDemoData);
             state.lastResult = data.result || null;
             var previewTitle = state.lastResult && state.lastResult.title ? state.lastResult.title : (state.titlesById[state.selectedReportId] || 'Предпросмотр');
             setModalTitle(previewTitle);
@@ -1199,7 +1218,7 @@
             try {
                 var dec = decodeURIComponent(star[1].replace(/["']/g, '').trim());
                 if (dec) return dec;
-            } catch (_) { /* ignore */ }
+            } catch (_) { }
         }
         var quoted = header.match(/filename="([^"]+)"/i);
         if (quoted && quoted[1]) return quoted[1].trim();
@@ -1223,8 +1242,57 @@
         return String(id).replace(/[^\w.-]+/g, '_');
     }
 
+    function setExporting(isLoading) {
+        var btn = document.getElementById('report-save-as');
+        if (!btn) return;
+        btn.classList.toggle('is-loading', isLoading);
+        if (isLoading) {
+            btn.setAttribute('aria-busy', 'true');
+            btn.setAttribute('aria-disabled', 'true');
+        } else {
+            btn.removeAttribute('aria-busy');
+            btn.removeAttribute('aria-disabled');
+        }
+    }
+
+    async function withExportLoading(exportWork) {
+        setExporting(true);
+        try {
+            return await exportWork();
+        } finally {
+            setExporting(false);
+        }
+    }
+
+    function notifyExportSuccess() {
+        showInfoToast('Отчёт успешно сохранён');
+    }
+
+    function exportErrorMessageFromCaught(err) {
+        if (err instanceof TypeError) {
+            return 'Сеть недоступна или запрос прерван.';
+        }
+        if (err && err.message && String(err.message).trim()) {
+            return String(err.message).trim();
+        }
+        return 'Не удалось выгрузить файл.';
+    }
+
+    async function resolveExportErrorMessage(response) {
+        if (response.status === 403) return 'Нет доступа к этому отчёту';
+        if (response.status === 404) return 'Отчёт не найден';
+        if (response.status === 400) return 'Неверные параметры экспорта';
+        if (response.status >= 500) {
+            try {
+                var data = await response.clone().json();
+                if (data && data.message) return String(data.message);
+            } catch (_) { }
+            return 'Не удалось сформировать файл';
+        }
+        return 'Не удалось выгрузить файл';
+    }
+
     async function fetchExportBlob(format) {
-        // Файл: POST /Reports/Export — полный пересчёт отчёта на сервере, без лимита строк предпросмотра.
         var payload = collectExportPayload(format);
         var response = await fetch('/Reports/Export', {
             method: 'POST',
@@ -1235,7 +1303,8 @@
             body: JSON.stringify(payload)
         });
         if (!response.ok) {
-            throw new Error('export_http_' + response.status);
+            var msg = await resolveExportErrorMessage(response);
+            throw new Error(msg);
         }
         var blob = await response.blob();
         var cd = response.headers.get('Content-Disposition');
@@ -1270,10 +1339,13 @@
                     ]
                 });
                 var format = formatFromFileName(handle.name);
-                var result = await fetchExportBlob(format);
-                var writable = await handle.createWritable();
-                await writable.write(result.blob);
-                await writable.close();
+                await withExportLoading(async function () {
+                    var result = await fetchExportBlob(format);
+                    var writable = await handle.createWritable();
+                    await writable.write(result.blob);
+                    await writable.close();
+                    notifyExportSuccess();
+                });
             } catch (e) {
                 if (e && e.name === 'AbortError') return;
                 var dlgErr = document.getElementById('report-export-fallback-dialog');
@@ -1281,7 +1353,7 @@
                     dlgErr.showModal();
                     return;
                 }
-                showErrorToast('Не удалось выгрузить файл.');
+                showErrorToast(exportErrorMessageFromCaught(e));
             }
             return;
         }
@@ -1300,10 +1372,12 @@
             btn.addEventListener('click', function () {
                 var fmt = btn.getAttribute('data-export-fallback-format') || 'csv';
                 dlg.close();
-                fetchExportBlob(fmt).then(function (result) {
+                withExportLoading(async function () {
+                    var result = await fetchExportBlob(fmt);
                     downloadBlobViaAnchor(result.blob, result.fileName);
-                }).catch(function () {
-                    showErrorToast('Не удалось выгрузить файл.');
+                    notifyExportSuccess();
+                }).catch(function (err) {
+                    showErrorToast(exportErrorMessageFromCaught(err));
                 });
             });
         });

@@ -45,6 +45,18 @@ public static partial class ReportTabularExporter
 
         ws.Row(tableStartRow).Style.Font.Bold = true;
         var r = tableStartRow + 1;
+        if (HasNoReportRows(result))
+        {
+            if (colCount > 0)
+            {
+                ws.Cell(r, 1).Value = NoDataLabel;
+                if (colCount > 1)
+                    ws.Range(r, 1, r, colCount).Merge();
+            }
+
+            r++;
+        }
+
         foreach (var row in result.Rows)
         {
             var cells = PadRowCells(row, colCount);

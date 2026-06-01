@@ -1,4 +1,4 @@
-/* Оболочка скачанного HTML-отчёта (подключается в ReportTabularExporter вместе с reports-export-shared.css) */
+
 body.report-export-html {
     font-family: system-ui, "Segoe UI", Roboto, sans-serif;
     margin: 24px;

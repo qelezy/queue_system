@@ -3,7 +3,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using WebApplication.Services;
-using System.Text.Encodings.Web;
+using WebApplication.Models.Emails;
+using WebApplication.Services.Emails;
 
 namespace WebApplication.Controllers.Auth {
     [Route("api/[controller]")]
@@ -12,16 +13,23 @@ namespace WebApplication.Controllers.Auth {
     {
         private readonly IAuthService _authService;
         private readonly IEmailService _emailService;
+        private readonly IEmailTemplateRenderer _emailTemplates;
         private readonly JwtOptions _jwtOptions;
 
-        public AuthController(IAuthService authService, IEmailService emailService, IOptions<JwtOptions> jwtOptions)
+        public AuthController(
+            IAuthService authService,
+            IEmailService emailService,
+            IEmailTemplateRenderer emailTemplates,
+            IOptions<JwtOptions> jwtOptions)
         {
             _authService = authService;
             _emailService = emailService;
+            _emailTemplates = emailTemplates;
             _jwtOptions = jwtOptions.Value;
         }
 
         [HttpPost("login")]
+        [AllowAnonymous]
         public async Task<ActionResult<TokenResponseDto>> Login(LoginRequestDto request)
         {
             var result = await _authService.LoginAsync(request);
@@ -36,6 +44,7 @@ namespace WebApplication.Controllers.Auth {
         }
 
         [HttpPost("refresh-token")]
+        [AllowAnonymous]
         public async Task<ActionResult<TokenResponseDto>> RefreshToken(RefreshTokenRequestDto request)
         {
             var refreshToken = string.IsNullOrWhiteSpace(request.RefreshToken)
@@ -54,6 +63,7 @@ namespace WebApplication.Controllers.Auth {
         }
 
         [HttpGet("confirm-email")]
+        [AllowAnonymous]
         public async Task<ActionResult> ConfirmEmail(Guid userId, string token)
         {
             var result = await _authService.ConfirmEmailAsync(userId, token);
@@ -65,6 +75,7 @@ namespace WebApplication.Controllers.Auth {
         }
 
         [HttpPost("forgot-password")]
+        [AllowAnonymous]
         public async Task<ActionResult> ForgotPassword(ForgotPasswordRequestDto request)
         {
             var result = await _authService.ForgotPasswordAsync(request);
@@ -83,13 +94,12 @@ namespace WebApplication.Controllers.Auth {
             if (string.IsNullOrEmpty(resetLink))
                 return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, errors = new[] { "Не удалось сформировать ссылку для сброса пароля" } });
 
-            await _emailService.SendEmailAsync(
-                request.Email,
-                "Сброс пароля",
-                $@"
-                <p>Чтобы сбросить пароль, перейдите по ссылке:</p>
-                <a href='{HtmlEncoder.Default.Encode(resetLink)}'>Сбросить пароль</a>"
-            );
+            var body = await _emailTemplates.RenderPasswordResetAsync(new PasswordResetEmailViewModel
+            {
+                ResetLink = resetLink
+            });
+
+            await _emailService.SendEmailAsync(request.Email, "Сброс пароля", body);
 
             return Ok(new { success = true, message = "Ссылка для сброса пароля отправлена на email" });
         }

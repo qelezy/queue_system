@@ -33,7 +33,7 @@ public class SidebarViewComponent : ViewComponent
 
         var menuItems = new List<SidebarItem>
         {
-            new("Dashboard/Index", "Мониторинг очереди", "/dashboard"),
+            new("Dashboard/Index", "Мониторинг", "/dashboard"),
         };
 
         if (user != null)
@@ -46,7 +46,7 @@ public class SidebarViewComponent : ViewComponent
                 menuItems.Add(new SidebarItem("Reports/Index", "Отчёты", "/reports"));
 
             if (User.IsInRole("Admin"))
-                menuItems.Add(new SidebarItem("Users/Index", "Управление пользователями", "/users"));
+                menuItems.Add(new SidebarItem("Users/Index", "Управление", "/users"));
         }
 
         var model = new SidebarViewModel

@@ -1,6 +1,9 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using WebApplication.Data;
+using WebApplication.Models.Configuration;
+using WebApplication.Services.Dashboard;
+using WebApplication.Services.Reports;
 
 namespace WebApplication.Services.Users;
 
@@ -8,43 +11,26 @@ public sealed class RolePermissionService : IRolePermissionService
 {
     private static readonly string[] MatrixRoleNames = ["Admin", "Manager", "Dispatcher"];
 
-    private static readonly (string CurrentId, string LegacyId)[] LegacyReportPermissionMappings =
-    [
-        ("service-delays", "bottleneck-ranking"),
-        ("service-route-outcomes", "unserved-and-chain-breaks"),
-        ("service-route-outcomes", "no-shows-and-incomplete-service"),
-        ("service-route-outcomes", "arrived-and-completed"),
-    ];
-
-    private static readonly (string Name, string Title, string Description)[] DashboardLines =
-    [
-        ("dashboard.waiting", "Ожидают", "Карточка: записи в очереди без вызова к врачу, приём ещё не завершён."),
-        ("dashboard.in-service", "На приёме", "Карточка: пациенты с начатым и ещё не завершённым приёмом."),
-        ("dashboard.accepted-today", "Обслужено", "Карточка: завершённые приёмы за сегодня."),
-        ("dashboard.avg-wait", "Среднее время ожидания", "Карточка: среднее и максимальное время ожидания (мин.) по завершённым ожиданиям за сегодня."),
-        ("dashboard.avg-service", "Средняя длительность приёма", "Карточка: средняя и максимальная длительность приёма (мин.) за сегодня."),
-        ("dashboard.chart-cabinets-load", "Состояние врачей", "Таблица: врач, статус, длительность текущего приёма, норма, число записей в очереди."),
-        ("dashboard.queue-table", "Текущая очередь", "Таблица: пациент, врач, кабинет, время записи, ожидание (мин.), статус."),
-    ];
-
     private readonly AppDbContext _db;
     private readonly RoleManager<IdentityRole> _roleManager;
     private readonly IReportsCatalog _reportsCatalog;
+    private readonly IDashboardPermissionsCatalog _permissionsCatalog;
 
     public RolePermissionService(
         AppDbContext db,
         RoleManager<IdentityRole> roleManager,
-        IReportsCatalog reportsCatalog)
+        IReportsCatalog reportsCatalog,
+        IDashboardPermissionsCatalog permissionsCatalog)
     {
         _db = db;
         _roleManager = roleManager;
         _reportsCatalog = reportsCatalog;
+        _permissionsCatalog = permissionsCatalog;
     }
 
     public async Task SyncPermissionsAndSeedDefaultsAsync(CancellationToken cancellationToken = default)
     {
         await EnsurePermissionRowsAsync(cancellationToken).ConfigureAwait(false);
-        await MigrateLegacyReportPermissionsAsync(cancellationToken).ConfigureAwait(false);
         await RemoveOrphanReportPermissionsAsync(cancellationToken).ConfigureAwait(false);
         await SeedDefaultRoleLinksIfEmptyAsync(cancellationToken).ConfigureAwait(false);
     }
@@ -57,10 +43,10 @@ public sealed class RolePermissionService : IRolePermissionService
             .ConfigureAwait(false);
         var set = existing.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var (name, _, _) in DashboardLines)
+        foreach (var item in _permissionsCatalog.GetPermissions())
         {
-            if (set.Add(name))
-                _db.Permissions.Add(new Permission { PermissionName = name });
+            if (set.Add(item.Id))
+                _db.Permissions.Add(new Permission { PermissionName = item.Id });
         }
 
         foreach (var item in _reportsCatalog.GetCatalog())
@@ -74,77 +60,12 @@ public sealed class RolePermissionService : IRolePermissionService
             await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task MigrateLegacyReportPermissionsAsync(CancellationToken cancellationToken)
-    {
-        foreach (var (currentId, legacyId) in LegacyReportPermissionMappings)
-        {
-            var permissions = await _db.Permissions
-                .Where(p => p.PermissionName == currentId || p.PermissionName == legacyId)
-                .ToListAsync(cancellationToken)
-                .ConfigureAwait(false);
-
-            var current = permissions.FirstOrDefault(p =>
-                string.Equals(p.PermissionName, currentId, StringComparison.OrdinalIgnoreCase));
-            var legacy = permissions.FirstOrDefault(p =>
-                string.Equals(p.PermissionName, legacyId, StringComparison.OrdinalIgnoreCase));
-
-            if (legacy is null)
-                continue;
-
-            if (current is null)
-            {
-                legacy.PermissionName = currentId;
-                continue;
-            }
-
-            if (legacy.PermissionId == current.PermissionId)
-                continue;
-
-            var legacyRoleIds = await _db.RolePermissions.AsNoTracking()
-                .Where(rp => rp.PermissionId == legacy.PermissionId)
-                .Select(rp => rp.RoleId)
-                .ToListAsync(cancellationToken)
-                .ConfigureAwait(false);
-
-            var currentRoleIds = await _db.RolePermissions.AsNoTracking()
-                .Where(rp => rp.PermissionId == current.PermissionId)
-                .Select(rp => rp.RoleId)
-                .ToHashSetAsync(cancellationToken)
-                .ConfigureAwait(false);
-
-            foreach (var roleId in legacyRoleIds)
-            {
-                if (currentRoleIds.Contains(roleId))
-                    continue;
-
-                _db.RolePermissions.Add(new RolePermission
-                {
-                    RoleId = roleId,
-                    PermissionId = current.PermissionId,
-                });
-            }
-
-            await _db.RolePermissions
-                .Where(rp => rp.PermissionId == legacy.PermissionId)
-                .ExecuteDeleteAsync(cancellationToken)
-                .ConfigureAwait(false);
-
-            _db.Permissions.Remove(legacy);
-        }
-
-        if (_db.ChangeTracker.HasChanges())
-            await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-    }
-
     private async Task RemoveOrphanReportPermissionsAsync(CancellationToken cancellationToken)
     {
         var knownReportIds = _reportsCatalog.GetCatalog()
             .Select(i => i.Id.Trim())
             .Where(id => !string.IsNullOrEmpty(id))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var (_, legacyId) in LegacyReportPermissionMappings)
-            knownReportIds.Add(legacyId);
 
         var orphans = await _db.Permissions
             .Where(p => !p.PermissionName.StartsWith("dashboard."))
@@ -167,8 +88,6 @@ public sealed class RolePermissionService : IRolePermissionService
 
     private static bool DefaultGrant(string roleName, string permissionName)
     {
-        if (permissionName.StartsWith("dashboard.manager.", StringComparison.OrdinalIgnoreCase))
-            return !string.Equals(roleName, "Dispatcher", StringComparison.OrdinalIgnoreCase);
         if (permissionName.StartsWith("dashboard.", StringComparison.OrdinalIgnoreCase))
             return true;
         return !string.Equals(roleName, "Dispatcher", StringComparison.OrdinalIgnoreCase);
@@ -245,16 +164,16 @@ public sealed class RolePermissionService : IRolePermissionService
             .ConfigureAwait(false);
 
         var vizItems = new List<AccessItemViewModel>();
-        foreach (var (name, title, desc) in DashboardLines)
+        foreach (var item in _permissionsCatalog.GetPermissions())
         {
-            if (!permByName.TryGetValue(name, out var pid))
+            if (!permByName.TryGetValue(item.Id, out var pid))
                 continue;
 
             vizItems.Add(new AccessItemViewModel
             {
-                Key = name,
-                Title = title,
-                Description = desc,
+                Key = item.Id,
+                Title = item.Title,
+                Description = item.Description,
                 RolePermissions = MatrixRoleNames.ToDictionary(
                     rn => rn,
                     rn => IsGranted(rn, pid),
@@ -288,7 +207,7 @@ public sealed class RolePermissionService : IRolePermissionService
             new()
             {
                 Key = "viz",
-                Title = "Визуализации мониторинга очереди",
+                Title = "Визуализации мониторинга",
                 Icon = "bi-graph-up-arrow",
                 Items = vizItems,
             },
@@ -388,33 +307,56 @@ public sealed class RolePermissionService : IRolePermissionService
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        var set = names.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        ExpandLegacyReportPermissionNames(set);
-        return set;
-    }
-
-    private static void ExpandLegacyReportPermissionNames(HashSet<string> permissionNames)
-    {
-        foreach (var (currentId, legacyId) in LegacyReportPermissionMappings)
-        {
-            if (permissionNames.Contains(legacyId))
-                permissionNames.Add(currentId);
-        }
+        return names.ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
     public DashboardUiVisibility BuildDashboardVisibility(IReadOnlySet<string> permissionNames)
     {
-        bool Has(string n) => permissionNames.Contains(n);
-
-        return new DashboardUiVisibility
+        var visibility = new DashboardVisibilityBuilder();
+        foreach (var item in _permissionsCatalog.GetPermissions())
         {
-            WaitingCard = Has("dashboard.waiting"),
-            InServiceCard = Has("dashboard.in-service"),
-            AcceptedTodayCard = Has("dashboard.accepted-today"),
-            AvgWaitCard = Has("dashboard.avg-wait"),
-            AvgServiceCard = Has("dashboard.avg-service"),
-            QueueTable = Has("dashboard.queue-table"),
-            DoctorLoad = Has("dashboard.chart-cabinets-load"),
+            if (!permissionNames.Contains(item.Id))
+                continue;
+            if (MonitoringPermissionDefaults.TryResolveUiBlock(item.Id, out var block))
+                visibility.Grant(block);
+        }
+
+        return visibility.Build();
+    }
+
+    private sealed class DashboardVisibilityBuilder
+    {
+        private bool _waitingCard;
+        private bool _inServiceCard;
+        private bool _acceptedTodayCard;
+        private bool _avgWaitCard;
+        private bool _avgServiceCard;
+        private bool _queueTable;
+        private bool _doctorLoad;
+
+        public void Grant(DashboardUiBlock block)
+        {
+            switch (block)
+            {
+                case DashboardUiBlock.WaitingCard: _waitingCard = true; break;
+                case DashboardUiBlock.InServiceCard: _inServiceCard = true; break;
+                case DashboardUiBlock.AcceptedTodayCard: _acceptedTodayCard = true; break;
+                case DashboardUiBlock.AvgWaitCard: _avgWaitCard = true; break;
+                case DashboardUiBlock.AvgServiceCard: _avgServiceCard = true; break;
+                case DashboardUiBlock.QueueTable: _queueTable = true; break;
+                case DashboardUiBlock.DoctorLoad: _doctorLoad = true; break;
+            }
+        }
+
+        public DashboardUiVisibility Build() => new()
+        {
+            WaitingCard = _waitingCard,
+            InServiceCard = _inServiceCard,
+            AcceptedTodayCard = _acceptedTodayCard,
+            AvgWaitCard = _avgWaitCard,
+            AvgServiceCard = _avgServiceCard,
+            QueueTable = _queueTable,
+            DoctorLoad = _doctorLoad,
         };
     }
 }

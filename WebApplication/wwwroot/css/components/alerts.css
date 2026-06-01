@@ -1,0 +1,23 @@
+﻿.alert-success {
+    padding: 12px 16px;
+    border-radius: 8px;
+    background: rgba(10, 143, 106, 0.1);
+    border: 1px solid rgba(10, 143, 106, 0.3);
+    color: #0a6e4a;
+    font-size: 14px;
+    margin-bottom: 18px;
+}
+
+.field-error {
+    display: block;
+    font-size: 12px;
+    color: #c43d3d;
+    margin-top: 3px;
+}
+
+.register-form input.input-validation-error,
+.register-form select.input-validation-error {
+    border-color: #c43d3d;
+    box-shadow: 0 0 0 2px rgba(196, 61, 61, 0.15);
+}
+

@@ -1,4 +1,4 @@
-# Спецификация UI страницы «Мониторинг очереди»
+# Спецификация UI страницы «Мониторинг»
 
 Используй этот документ как **единый источник требований к интерфейсу** при доработке или переработке страницы мониторинга очереди (Razor + JS, см. также [reusable-ui-components-requirements.md](reusable-ui-components-requirements.md)). Страница доступна по маршруту `/Dashboard` и является точкой входа для роли «Диспетчер».
 
@@ -20,8 +20,8 @@
 1. **Один экран без вкладок.** Контент идёт сверху вниз тремя смысловыми блоками: верхняя панель карточек метрик → таблица текущей очереди → загрузка врачей.
 2. **Live-обновление.** Данные на странице периодически обновляются без действий пользователя; транспорт и серверный контур — [dashboard-signalr-live-spec.md](dashboard-signalr-live-spec.md) (SignalR, snapshot `DashboardViewModel`). Краткий обзор — [dashboard-live-monitoring-minimum.md](dashboard-live-monitoring-minimum.md).
 3. **Единый формат карточек метрик.** Все карточки верхней панели используют общий partial [Views/Shared/_StatCard.cshtml](Views/Shared/_StatCard.cshtml) и стили `stat-card*`; новые карточки добавляются той же раскладкой.
-4. **Минимум переключателей и фильтров.** Live-страница не дублирует функционал отчётов: на ней нет фильтров по периоду, кабинету, категории и т. п. (это домен страницы «Отчёты» / менеджерской аналитики).
-5. **Статус как бейдж.** В таблице очереди и в карточках врачей статус выделяется цветным бейджем — пользователь должен распознавать состояние без чтения текста.
+4. **Фильтры только для таблиц очереди и врачей.** Нет фильтров по периоду, кабинету, категории талона и т. п. (это домен «Отчёты»). В «Лист ожидания» — поиск, специальность, **статус** (`waiting` / `called`), порог ожидания (мин). В «Состояние врачей» — поиск, **специальность** (`data-specialty-id`, тот же справочник, что в листе), **статус** (`in-service` / `free`). Верхние метрики **не** пересчитываются по фильтрам.
+5. **Статус как бейдж.** В таблице «Лист ожидания» — колонка «Статус» (`StatusLabel` / `StatusCode`: «Ожидает» / `waiting`, «Вызван» / `called`). В блоке «Состояние врачей» — бейджи «Принимает» / «Ожидает пациента».
 6. **Минуты как единая единица времени.** Длительности и ожидания во всех блоках — в целых минутах с подписью «мин». Не смешивать `HH:mm` и минуты в одной таблице/карточке.
 7. **Пустые состояния.** В каждом списке (таблица очереди, сетка врачей) предусмотреть осмысленное пустое состояние с короткой подписью.
 
@@ -29,9 +29,9 @@
 
 Сверху вниз:
 
-1. Заголовок страницы: **«Мониторинг очереди»** (как сейчас, через `ViewData["Title"]` в [Controllers/DashboardController.cs](Controllers/DashboardController.cs)).
+1. Заголовок страницы: **«Мониторинг»** (через `ViewData["Title"]` в [Controllers/DashboardController.cs](Controllers/DashboardController.cs)).
 2. **Верхняя панель метрик** — `stats-row`, 5 карточек.
-3. **Таблица «Текущая очередь»** — `dashboard-panel` с таблицей.
+3. **Таблица «Лист ожидания»** — `dashboard-panel` с таблицей.
 4. **Блок «Загрузка врачей»** — `dashboard-panel` с сеткой карточек по врачу.
 
 ### 1. Верхняя панель метрик (5 карточек)
@@ -40,9 +40,9 @@
 
 | # | Заголовок | Значение | Sub-блок | Hint |
 |---|-----------|----------|----------|------|
-| 1 | Ожидают сейчас | `WaitingCount` | — | пациенты, ожидающие приёма |
+| 1 | Ожидают сейчас | `WaitingCount` | — | только статус «Ожидает» (`IsWaitingQueueStep`), без вызванных |
 | 2 | На приёме сейчас | `InServiceCount` | — | пациенты, находящиеся на приёме |
-| 3 | **Принято за сегодня** | `AcceptedTodayCount` | — | завершённые приёмы за сегодня |
+| 3 | **Обслужено** | `AcceptedTodayCount` | — | пациенты с завершённым маршрутом (`time_complete` или все этапы с `time_end_servicing`) |
 | 4 | Среднее время ожидания | `AvgWaitMinutes`, ед. «мин» | `Максимум` = `MaxWaitMinutes` мин | по завершённым ожиданиям за сегодня |
 | 5 | Средняя длительность приёма | `AvgServiceMinutes`, ед. «мин» | `Максимум` = `MaxServiceMinutes` мин | по завершённым приёмам за сегодня |
 
@@ -55,45 +55,44 @@
 
 Сетка должна корректно умещать 5 карточек: при необходимости в `additions.css` поправить `stats-row` (например, `grid-template-columns: repeat(auto-fit, minmax(180px, 1fr))`), не ломая остальные страницы, использующие тот же класс.
 
-### 2. Таблица «Текущая очередь»
+### 2. Таблица «Лист ожидания»
 
 Заменяет текущий [Views/Dashboard/_DashboardQueueTable.cshtml](Views/Dashboard/_DashboardQueueTable.cshtml).
 
-**Контейнер:** `dashboard-panel` с заголовком **«Текущая очередь»** и коротким hint-описанием порядка сортировки (например, «сортировка: приоритет талона и категории, затем время ожидания»).
+**Контейнер:** `dashboard-panel` с заголовком **«Лист ожидания»**. В таблицу попадают пациенты с текущим этапом «Ожидает» или «Вызван» (`QueueDashboardStatusMapper.IsWaitingListStep`). На приёме — в метрике и блоке врачей, не в листе.
 
 **Колонки (слева направо):**
 
 | Колонка | Содержимое | Примечание |
 |---------|-----------|------------|
-| Пациент | ФИО (`Appointment.Info`) | Если пусто — fallback `Талон #ID` |
-| Врач | Двухстрочная ячейка: ФИО врача (основная строка), специальность (вторая строка, серым) | Одна `td`, две вложенные `<div>`/`<span>` с разными классами (например, `queue-row__doctor-name`, `queue-row__doctor-specialty`) |
-| Кабинет | `Каб. <number>` | Если кабинет неизвестен — `—` |
-| Время записи | Время прибытия `time_arrival` в формате `HH:mm` | Без даты |
-| Время ожидания | Целое число минут с подписью «мин» (`{N} мин`) | Расчёт текущего ожидания — на стороне сервиса (как сейчас в `BuildActiveQueueAsync`) |
-| Статус | Бейдж с человекочитаемой подписью | См. правила ниже |
+| № талона | `Appointment.number` | NOT NULL в БД; при пустой строке в UI — `—` |
+| Врач | Двухстрочная ячейка: ФИО врача (основная строка), специальность (вторая строка, серым) | `queue-row__doctor-name`, `queue-row__doctor-specialty` |
+| Кабинет | номер кабинета | Если неизвестен — `—` |
+| Статус | бейдж `StatusLabel` | CSS-модификатор `queue-status-badge--{StatusCode}` (`waiting`, `called`) |
+| Время ожидания | `{N} мин` | «Ожидает»: от прибытия талона (МСК); «Вызван»: от `time_call` до текущего момента (МСК) |
 
-**Правила бейджа статуса:**
+**Сортировка** — приоритет талона → приоритет категории → время ожидания.
 
-- UI получает уже готовую человекочитаемую строку (`StatusLabel`) и код-модификатор (`StatusCode`); названия должны звучать применительно к пациенту, а не к технической записи в БД.
-- Базовые коды и подписи:
-  - `waiting` — «Ожидает»;
-  - `called` — «Вызван»;
-  - `in-service` — «На приёме»;
-  - `done` — «Завершён» (для строк, которые ещё показываются в очереди до закрытия талона);
-  - `no-show` — «Не явился».
-- Маппинг `Status_item_list.name` → `(StatusLabel, StatusCode)` выполняется на стороне сервиса; UI просто отображает.
-- Разметка бейджа: `<span class="queue-status-badge queue-status-badge--{StatusCode}">{StatusLabel}</span>`. Цвета и фоны задаются классами в [wwwroot/css/additions.css](wwwroot/css/additions.css).
+**Пустое состояние:** «Лист ожидания пуст»; при активных фильтрах без совпадений — «Записи не найдены».
 
-**Сортировка** — текущая (приоритет талона → приоритет категории → время ожидания). Колонка приоритета в таблице **не показывается** (приоритет уходит в неявную сортировку, чтобы не перегружать таблицу).
+**Toolbar (клиентская фильтрация, [wwwroot/js/dashboard-queue.js](wwwroot/js/dashboard-queue.js)):**
 
-**Пустое состояние:** одна строка с текстом «Нет записей в очереди» на всю ширину таблицы.
+| Элемент | Источник опций | Сопоставление строк |
+|---------|----------------|---------------------|
+| Специальность | все строки `Specialty` (`QueueFilters.Specialties`, SSR) | `data-specialty-id` = `id_specialty` этапа |
+| Статус | фиксированный список: Ожидает / Вызван | `data-status-code` = `waiting` / `called` |
+| Поиск | — | текст строки |
+| Время ожидания &gt; N мин | — | `data-wait` |
 
-**ViewModel:** для реализации потребуется расширить [Models/DashboardViewModel.cs](Models/DashboardViewModel.cs) (`DashboardQueueRowViewModel`) полями:
+Справочники фильтров задаются при первой отрисовке страницы и **не** входят в SignalR snapshot; при live-обновлении tbody пересобирается, выбранные значения select сохраняются.
 
-- `Specialty` (строка),
-- `ArrivalTime` (форматированная `HH:mm`),
-- `StatusLabel` (строка),
-- `StatusCode` (строка-модификатор).
+**Клик по строке** — модальное окно «Этапы маршрута» ([`_DashboardCompletedStagesModal.cshtml`](Views/Dashboard/_DashboardCompletedStagesModal.cshtml), [wwwroot/js/dashboard-queue-stages.js](wwwroot/js/dashboard-queue-stages.js)): `GET /dashboard/appointments/{id}/route-stages`, все этапы маршрута за сегодня (без «неяв»), по `id_list_item`. Колонки: специальность, кабинет, **статус** (бейдж), время вызова / начала / окончания (`HH:mm:ss`, `—` если нет). Высота диалога по контенту; внутренний скролл таблицы при переполнении `max-height` ([`additions.css`](wwwroot/css/additions.css), `.queue-route-stages-panel`).
+
+**ViewModel:** [Models/ViewModels/Dashboard/DashboardViewModel.cs](Models/ViewModels/Dashboard/DashboardViewModel.cs):
+
+- `DashboardQueueRowViewModel`: `Specialty`, `IdSpecialty`, `IdStatusItem`, `StatusLabel`, `StatusCode`;
+- `DashboardQueueFilterViewModel` / `DashboardFilterOption`: справочники для select;
+- partial `_DashboardQueueTable` — модель `DashboardQueueTableViewModel` (строки + фильтры).
 
 Сами поля приоритета (`TicketPriority`, `CategoryPriority`) остаются для сортировки, но в Razor не выводятся.
 
@@ -101,9 +100,17 @@
 
 **Полностью заменяет** существующий блок «Загруженность за сегодня» (тот, в котором сейчас переключатели «Кабинеты/Врачи» и «Завершённые приёмы / Доля занятого времени» с графиком `chartLoadToday` в [Views/Dashboard/Index.cshtml](Views/Dashboard/Index.cshtml)). Старый блок и связанная с ним логика на странице мониторинга больше не нужны.
 
-**Контейнер:** `dashboard-panel` с заголовком **«Загрузка врачей»** и hint-подписью (например, «текущая длительность приёма и личная очередь по каждому врачу»).
+**Контейнер:** `dashboard-panel` с заголовком **«Состояние врачей»** (таблица в [_DashboardDoctorLoad.cshtml](Views/Dashboard/_DashboardDoctorLoad.cshtml)).
 
-**Раскладка:** адаптивная сетка карточек врачей `doctor-load-grid`:
+**Toolbar ([wwwroot/js/dashboard-doctor-load.js](wwwroot/js/dashboard-doctor-load.js)):**
+
+| Элемент | Сопоставление строк |
+|---------|---------------------|
+| Поиск | текст строки |
+| Специальность | `Model.Filters.Specialties` (как в листе) | `data-specialty-id` |
+| Статус | фиксированный список: Принимает / Ожидает пациента | `data-doctor-status` = `in-service` / `free` |
+
+**Раскладка (устаревший макет карточек):** адаптивная сетка `doctor-load-grid`:
 
 ```css
 .doctor-load-grid {
@@ -120,7 +127,7 @@
 1. **Шапка**:
    - ФИО врача (основная строка);
    - специальность (вторая строка, серым);
-   - бейдж состояния справа: `queue-status-badge--in-service` («На приёме») или `queue-status-badge--free` («Свободен»). Стилистика бейджей переиспользуется/наследуется из таблицы очереди.
+   - бейдж состояния: `queue-status-badge--in-service` (**«Принимает»** — этап с кодом `in-service`, `QueueDashboardStatusMapper.IsInServiceStep`) или `queue-status-badge--free` (**«Ожидает пациента»** — есть очередь ожидания/вызова, активного приёма нет). Вызванный, но ещё не начатый приём → «Ожидает пациента».
 2. **Длительность текущего приёма**:
    - подпись формата `{currentMin} мин из {normMin} мин нормы`;
    - прогресс-бар, заполненный пропорционально `currentMin / normMin`;
@@ -129,14 +136,14 @@
    - норма берётся из `Specialty.time_servicing` для специальности текущего этапа врача;
    - если врач **свободен** (нет активного приёма) — прогресс-бар не отображается, вместо него выводится прочерк `—` или строка «Сейчас не на приёме».
 3. **В очереди**:
-   - крупное число — количество пациентов, ожидающих этого врача (этапы со статусом «Ожидает»/«Вызван», у которых `id_doctor` равен текущему);
+   - крупное число — **число талонов** (не этапов маршрута): открытые талоны за сегодня, у которых **текущий** этап (`List_item` без `time_end_servicing`, минимальный `id_list_item`) назначен на этого врача и в статусе «Ожидает»/«Вызван» — та же логика, что для строк листа ожидания по колонке «Врач» ([`QueueDashboardDoctorQueueCount`](../../../Services/Dashboard/QueueDashboardDoctorQueueCount.cs));
    - подпись «в очереди» под числом;
    - 0 — допустимое значение, отображается как «0».
 
 **Сортировка карточек** (в порядке убывания приоритета):
 
-1. Сначала врачи в состоянии «На приёме».
-2. Потом «Свободен».
+1. Сначала врачи со статусом «Принимает».
+2. Потом «Ожидает пациента».
 3. Внутри каждой группы — по ФИО (по возрастанию).
 
 **Пустое состояние:** если нет ни одного врача с активной очередью или текущим приёмом за сегодня — короткая подпись «Нет активных врачей».
@@ -146,6 +153,7 @@
 - список объектов вида `DoctorLoadCardViewModel` с полями:
   - `FullName` (строка);
   - `Specialty` (строка);
+  - `IdSpecialty` (int — для фильтра; текущий этап при приёме или очередь при «Ожидает пациента»);
   - `IsInService` (bool);
   - `CurrentServiceMinutes` (int? — null если свободен);
   - `NormServiceMinutes` (int? — null если у специальности норма не задана);
@@ -156,7 +164,7 @@
 
 - Возвращать на эту страницу графики кабинетов / часов и переключатели «Кабинеты/Врачи» — место для них в менеджерской аналитике / отчётах, а не в live-мониторинге.
 - Смешивать форматы времени в одной таблице/карточке (`HH:mm` и минуты одновременно).
-- Дублировать «На приёме сейчас» в верхней панели и счётчик карточек со статусом «На приёме» — это разные сущности: верхняя карточка — общий счётчик пациентов, бейджи в карточках врачей — локальное состояние конкретного врача.
+- Считать «На приёме сейчас» и бейдж «Принимает» по разным правилам: оба — открытые талоны, **текущий** этап с кодом `in-service` (`IsInServiceStep`, есть `time_start_servicing`, нет `time_end_servicing`).
 - Скрывать колонку «Статус» под иконку без текстовой подписи — статус должен читаться без наведения курсора.
 - Заменять live-данные снапшотом, который не обновляется без перезагрузки страницы.
 
@@ -171,7 +179,7 @@
 - Карточки метрик: [Views/Shared/_StatCard.cshtml](Views/Shared/_StatCard.cshtml) + [Models/StatCardViewModel.cs](Models/StatCardViewModel.cs)
 - ViewModel страницы: [Models/DashboardViewModel.cs](Models/DashboardViewModel.cs)
 - Контроллер: [Controllers/DashboardController.cs](Controllers/DashboardController.cs)
-- Сервис live-данных: [Services/Dashboard/QueueDashboardService.cs](Services/Dashboard/QueueDashboardService.cs); маппинг статусов: [Services/Dashboard/QueueDashboardStatusMapper.cs](Services/Dashboard/QueueDashboardStatusMapper.cs); демо при недоступной БД (только Development): [Services/Demo/MockQueueDashboardService.cs](Services/Demo/MockQueueDashboardService.cs) через [Services/Resilience/ResilientQueueDashboardService.cs](Services/Resilience/ResilientQueueDashboardService.cs)
+- Сервис live-данных: [Services/Dashboard/QueueDashboardService.cs](Services/Dashboard/QueueDashboardService.cs); маппинг статусов: [Services/Dashboard/QueueDashboardStatusMapper.cs](Services/Dashboard/QueueDashboardStatusMapper.cs); только live БД (без mock)
 - Скрипты страницы: [wwwroot/js/dashboard-queue.js](../wwwroot/js/dashboard-queue.js), [wwwroot/js/dashboard-doctor-load.js](../wwwroot/js/dashboard-doctor-load.js); live-контур (при реализации): `wwwroot/js/dashboard-live.js` — см. [dashboard-signalr-live-spec.md](dashboard-signalr-live-spec.md)
 - Стили: [wwwroot/css/site.css](wwwroot/css/site.css), [wwwroot/css/additions.css](wwwroot/css/additions.css)
 

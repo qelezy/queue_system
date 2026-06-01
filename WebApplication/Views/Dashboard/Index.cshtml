@@ -1,6 +1,10 @@
 @using WebApplication.Models
 @model DashboardViewModel
 
+@section Head {
+    <link rel="stylesheet" href="~/css/features/dashboard.css" asp-append-version="true" />
+}
+
 <div class="dashboard-monitoring-page">
     @if (ViewData["QueueDatabaseUnavailable"] is true)
     {
@@ -46,7 +50,7 @@
                 Label = "Обслужено",
                 Value = Model.AcceptedTodayCount.ToString(),
                 Unit = "",
-                Hint = "завершённые приёмы за сегодня"
+                Hint = "пациенты с завершённым маршрутом"
             })" />
         }
         @if (Model.Ui.AvgWaitCard)
@@ -79,11 +83,12 @@
 
     @if (Model.Ui.DoctorLoad)
     {
-        <partial name="_DashboardDoctorLoad" model="Model.DoctorLoadCards" />
+        <partial name="_DashboardDoctorLoad" model="@(new DashboardDoctorLoadViewModel { Cards = Model.DoctorLoadCards, Filters = Model.QueueFilters })" />
     }
     @if (Model.Ui.QueueTable)
     {
-        <partial name="_DashboardQueueTable" model="Model.ActiveQueue" />
+        <partial name="_DashboardQueueTable" model="@(new DashboardQueueTableViewModel { Rows = Model.ActiveQueue, Filters = Model.QueueFilters })" />
+        <partial name="_DashboardCompletedStagesModal" />
     }
     }
 </div>
@@ -96,4 +101,8 @@
     }
     <script src="~/js/dashboard-doctor-load.js" asp-append-version="true"></script>
     <script src="~/js/dashboard-queue.js" asp-append-version="true"></script>
+    @if (Model.Ui.QueueTable && ViewData["QueueDatabaseUnavailable"] is not true)
+    {
+        <script src="~/js/dashboard-queue-stages.js" asp-append-version="true"></script>
+    }
 }

@@ -1,0 +1,8 @@
+@model WebApplication.Models.Emails.PasswordResetEmailViewModel
+@{
+    Layout = "~/Views/Emails/_EmailLayout.cshtml";
+}
+<p>Вы запросили сброс пароля. Нажмите кнопку ниже, чтобы задать новый пароль.</p>
+<div class="email-btn-wrap">
+    <a class="email-btn" href="@Model.ResetLink">Сбросить пароль</a>
+</div>

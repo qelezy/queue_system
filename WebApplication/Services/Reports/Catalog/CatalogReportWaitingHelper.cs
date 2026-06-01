@@ -2,9 +2,6 @@ using WebApplication.Models.ElectronicQueueProf;
 
 namespace WebApplication.Services.Reports.Catalog;
 
-/// <summary>
-/// Расчёт ожидания до вызова по этапам маршрута талона.
-/// </summary>
 internal static class CatalogReportWaitingHelper
 {
     internal readonly record struct WaitStageRow(

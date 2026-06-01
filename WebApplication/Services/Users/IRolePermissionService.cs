@@ -3,7 +3,7 @@ namespace WebApplication.Services.Users;
 
 public interface IRolePermissionService
 {
-    /// <summary>Синхронизирует строки permission и при пустых role_permission задаёт значения по умолчанию.</summary>
+    
     Task SyncPermissionsAndSeedDefaultsAsync(CancellationToken cancellationToken = default);
 
     Task<AccessSettingsViewModel> GetAccessMatrixAsync(CancellationToken cancellationToken = default);

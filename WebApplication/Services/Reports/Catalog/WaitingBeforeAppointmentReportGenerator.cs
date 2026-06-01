@@ -1,18 +1,11 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using WebApplication.Data;
-using WebApplication.Models.Configuration;
 using WebApplication.Models.ElectronicQueueProf;
 
 namespace WebApplication.Services.Reports.Catalog;
 
 public sealed class WaitingBeforeAppointmentReportGenerator : IReportGenerator
 {
-    private readonly MonitoringOptions _monitoring;
-
-    public WaitingBeforeAppointmentReportGenerator(IOptions<MonitoringOptions> monitoring) =>
-        _monitoring = monitoring.Value;
-
     public ReportGeneratorKind Kind => ReportGeneratorKind.WaitingBeforeAppointment;
 
     public ReportGenerateResponse Generate(
@@ -44,9 +37,7 @@ public sealed class WaitingBeforeAppointmentReportGenerator : IReportGenerator
             toDo,
             periodFrom,
             periodTo,
-            purpose,
-            _monitoring.WorkdayStartHour,
-            _monitoring.WorkdayEndHour);
+            purpose);
         return new ReportGenerateResponse { Success = true, Implemented = true, Result = model };
     }
 }

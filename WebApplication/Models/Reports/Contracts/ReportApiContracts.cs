@@ -3,12 +3,6 @@ using System.Text.Json.Serialization;
 
 namespace WebApplication.Models.Reports.Contracts;
 
-/// <summary>
-/// Тело POST для <c>/Reports/Generate</c> и <c>/Reports/Export</c>. Доп. поля отчёта — в <see cref="CustomParams"/>
-/// и/или встроенных свойствах; на клиенте источник значений — форма и <c>reportCustomConfig</c>.
-/// Контроллер вызывает генерацию с <see cref="ReportGenerationPurpose.JsonPreview"/> только для <c>/Reports/Generate</c>;
-/// для <c>/Reports/Export</c> используется <see cref="ReportGenerationPurpose.ExportOrFull"/> (полная таблица в файле).
-/// </summary>
 public class ReportGenerateRequest
 {
     [Required]
@@ -27,8 +21,6 @@ public sealed class ReportGenerateResponse
     public bool Success { get; set; }
     public string Message { get; set; } = "";
     public bool Implemented { get; set; }
-    /// <summary><c>true</c>, если отчёт сформирован по демо-данным (mock / недоступная БД).</summary>
-    public bool IsDemoData { get; set; }
     public ReportResultViewModel? Result { get; set; }
 }
 

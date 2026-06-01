@@ -2,7 +2,7 @@ namespace WebApplication.Services.Reports.Intervals;
 
 public static class IntervalOperations
 {
-    /// <summary>Объединение пересекающихся и касающихся интервалов.</summary>
+    
     public static List<DateTimeInterval> MergeOverlapping(IEnumerable<DateTimeInterval> intervals)
     {
         var sorted = intervals
@@ -32,7 +32,6 @@ public static class IntervalOperations
         return result;
     }
 
-    /// <summary>Пересечение одного интервала с полуоткрытым периодом [clipStart, clipEnd] — по факту обрезка включительно по минутам.</summary>
     public static DateTimeInterval? ClipToRange(DateTimeInterval interval, DateTime clipStart, DateTime clipEnd)
     {
         if (interval.IsEmptyOrInverted || clipStart >= clipEnd)
@@ -57,7 +56,6 @@ public static class IntervalOperations
         return list;
     }
 
-    /// <summary>Пересечение двух интервалов.</summary>
     public static DateTimeInterval? Intersect(DateTimeInterval a, DateTimeInterval b)
     {
         if (a.IsEmptyOrInverted || b.IsEmptyOrInverted)
@@ -69,7 +67,6 @@ public static class IntervalOperations
         return new DateTimeInterval(s, e);
     }
 
-    /// <summary>Окно минус объединение занятых. Занятые обрезаются пересечением с окном и объединяются.</summary>
     public static List<DateTimeInterval> SubtractUnionFromWindow(DateTimeInterval window, IReadOnlyList<DateTimeInterval> busyIntervals)
     {
         if (window.IsEmptyOrInverted)

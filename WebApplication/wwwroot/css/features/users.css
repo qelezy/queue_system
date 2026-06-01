@@ -1,0 +1,252 @@
+﻿.register-fio-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+    gap: 16px 20px;
+    align-items: start;
+}
+
+@media (max-width: 900px) {
+    .register-fio-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.register-form .form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.register-form label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary-color);
+}
+
+.register-form input,
+.register-form select {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 14px;
+    font-family: inherit;
+    border: 1px solid var(--input-border-color);
+    border-radius: 8px;
+    background: #fff;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+    .register-form input:focus,
+    .register-form select:focus {
+        border-color: var(--input-focus-color);
+        box-shadow: 0 0 0 2px rgba(0, 179, 184, 0.18);
+        outline: none;
+    }
+
+    .register-form input::placeholder {
+        color: #aaa;
+    }
+
+.access-matrix__footer.register-actions {
+    margin-top: 0;
+    border-top: 1px solid var(--header-border);
+    padding: 18px 0 0;
+    justify-content: flex-end;
+}
+
+.actions-cell {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: flex-start;
+}
+
+.icon-btn {
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: transparent;
+    cursor: pointer;
+    font-size: 16px;
+    transition: all 0.2s ease;
+}
+
+.edit-btn {
+    background: var(--primary-soft);
+    color: var(--primary-color);
+    border-color: transparent;
+}
+
+    .edit-btn:hover {
+        background: var(--primary-color);
+        color: #fff;
+        transform: translateY(-1px);
+    }
+
+.delete-btn {
+    background: rgba(220, 53, 69, 0.08);
+    color: #dc3545;
+}
+
+    .delete-btn:hover {
+        background: #dc3545;
+        color: #fff;
+        transform: translateY(-1px);
+    }
+
+.icon-btn:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.access-matrix__groups {
+    padding: 0 0 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+}
+
+.access-matrix__group-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 12px 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.access-matrix__group-title .bi {
+    color: var(--primary-color);
+}
+
+.access-matrix__table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 10px;
+    border: 1px solid rgba(0, 179, 184, 0.08);
+    box-shadow: var(--card-shadow);
+    background: #fff;
+}
+
+.access-matrix__table {
+    width: 100%;
+    min-width: 720px;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.access-matrix__table th,
+.access-matrix__table td {
+    padding: 12px 14px;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+    vertical-align: middle;
+}
+
+.access-matrix__table thead th {
+    background: #fafcfc;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary-color);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.access-matrix__table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.access-matrix__col-element {
+    min-width: 200px;
+    width: auto;
+    padding-right: 24px;
+}
+
+.access-matrix__table th.access-matrix__role-col,
+.access-matrix__table td.access-matrix__role-cell {
+    width: 180px;
+    min-width: 160px;
+    padding-left: 24px;
+    padding-right: 24px;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.access-matrix__role-cell .app-checkbox {
+    display: block;
+    margin: 0 auto;
+}
+
+.access-matrix__name-cell {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.access-matrix__name-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.access-matrix__name-title {
+    font-weight: 600;
+    color: var(--text-color);
+    font-size: 14px;
+}
+
+.access-matrix__name-desc {
+    font-size: 12px;
+    color: #888;
+    line-height: 1.35;
+}
+
+.access-matrix__row--select-all td {
+    background: #fafcfc;
+    border-bottom: 1px solid #e6efef;
+    font-size: 12px;
+    color: var(--text-secondary-color);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    vertical-align: middle;
+}
+
+.access-matrix__select-all-label {
+    font-weight: 600;
+    text-align: left;
+}
+
+#panel-access.is-visible .access-matrix__groups {
+    padding-bottom: 72px;
+}
+
+#panel-access.is-visible .access-matrix__save-float {
+    position: fixed;
+    right: 28px;
+    bottom: 24px;
+    z-index: 20;
+}
+
+#panel-access.is-visible .access-matrix__save-float .register-submit {
+    min-width: 180px;
+    transition: background-color 0.2s, box-shadow 0.2s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+#panel-access.is-visible .access-matrix__save-float .register-submit:hover {
+    background: var(--primary-hover-color);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.14);
+}
+
+@media (max-width: 640px) {
+    #panel-access.is-visible .access-matrix__save-float {
+        right: 16px;
+        bottom: 16px;
+    }
+}
+

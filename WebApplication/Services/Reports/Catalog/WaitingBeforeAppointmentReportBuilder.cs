@@ -5,7 +5,6 @@ using WebApplication.Services.Reports.Charts;
 
 namespace WebApplication.Services.Reports.Catalog;
 
-/// <summary>Сборка таблицы и диаграммы отчёта «Ожидание до приёма» (дата × интервалы в границах периода).</summary>
 internal static class WaitingBeforeAppointmentReportBuilder
 {
     internal static readonly string[] ColumnHeaders =
@@ -30,11 +29,9 @@ internal static class WaitingBeforeAppointmentReportBuilder
         DateOnly toDo,
         DateTime periodFrom,
         DateTime periodTo,
-        ReportGenerationPurpose purpose,
-        int workdayStartHour = 8,
-        int workdayEndHour = 19)
+        ReportGenerationPurpose purpose)
     {
-        var model = Build(observations, fromDo, toDo, periodFrom, periodTo, workdayStartHour, workdayEndHour);
+        var model = Build(observations, fromDo, toDo, periodFrom, periodTo);
         ApplyPeriodTotalsAndPreview(model, observations, purpose);
         return model;
     }
@@ -44,9 +41,7 @@ internal static class WaitingBeforeAppointmentReportBuilder
         DateOnly fromDo,
         DateOnly toDo,
         DateTime periodFrom,
-        DateTime periodTo,
-        int workdayStartHour = 8,
-        int workdayEndHour = 19)
+        DateTime periodTo)
     {
         var rows = new List<ReportResultRowViewModel>();
         var chartDays = new List<DateOnly>();
@@ -56,7 +51,7 @@ internal static class WaitingBeforeAppointmentReportBuilder
         for (var day = fromDo; day <= toDo; day = day.AddDays(1))
         {
             var dayObs = observations.Where(o => o.Date == day).ToList();
-            var hourRange = GetActiveHourRange(dayObs, workdayStartHour, workdayEndHour);
+            var hourRange = GetActiveHourRange(dayObs);
             if (hourRange is null)
                 continue;
 
@@ -129,8 +124,6 @@ internal static class WaitingBeforeAppointmentReportBuilder
         var previewCharts = ReportPreviewChartDescriptors.ForWaitingBeforeAppointmentDailyGroupedBar(
             axis.Labels.ToList(),
             axis.Datasets.ToList());
-        GroupedBarChartTimeAxis.SetGroupedBarFootnote(previewCharts, axis.Footnote);
-
         return new ReportResultViewModel
         {
             ColumnHeaders = [..ColumnHeaders],
@@ -139,19 +132,13 @@ internal static class WaitingBeforeAppointmentReportBuilder
         };
     }
 
-    internal static (int MinHour, int MaxHour)? GetActiveHourRange(
-        IReadOnlyList<WaitingObservation> dayObs,
-        int workdayStartHour,
-        int workdayEndHourExclusive)
+    internal static (int MinHour, int MaxHour)? GetActiveHourRange(IReadOnlyList<WaitingObservation> dayObs)
     {
         if (dayObs.Count == 0)
             return null;
 
-        var lastWorkHour = workdayEndHourExclusive - 1;
         var dataHours = dayObs.Select(o => o.Hour).ToList();
-        var minHour = Math.Max(dataHours.Min(), workdayStartHour);
-        var maxHour = Math.Min(dataHours.Max(), lastWorkHour);
-        return minHour > maxHour ? null : (minHour, maxHour);
+        return (dataHours.Min(), dataHours.Max());
     }
 
     internal readonly record struct HourSlot(int Hour, string IntervalLabel);
@@ -203,6 +190,12 @@ internal static class WaitingBeforeAppointmentReportBuilder
         ReportGenerationPurpose purpose)
     {
         var detailRows = model.Rows;
+        if (CatalogReportPreviewHelper.HasNoDetailRows(detailRows))
+        {
+            model.PreviewCharts = null;
+            return;
+        }
+
         if (purpose != ReportGenerationPurpose.JsonPreview)
         {
             AppendPeriodTotals(detailRows, observations, PeriodTotalsLabel);

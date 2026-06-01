@@ -1,0 +1,55 @@
+﻿.app-checkbox {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    flex-shrink: 0;
+    cursor: pointer;
+    border: 1px solid var(--input-border-color);
+    border-radius: 4px;
+    background: #fff;
+    vertical-align: middle;
+    position: relative;
+    transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s;
+}
+
+.app-checkbox:checked:not(:indeterminate) {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.app-checkbox:checked:not(:indeterminate)::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 13px;
+    height: 13px;
+    border: none;
+    background: var(--app-checkbox-check-icon) center center / 13px 13px no-repeat;
+}
+
+.app-checkbox:indeterminate {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.app-checkbox:indeterminate::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 10px;
+    height: 2px;
+    background: #fff;
+    border: none;
+    transform: translate(-50%, -50%);
+}
+
+.app-checkbox:focus-visible {
+    outline: none;
+    border-color: var(--input-focus-color);
+    box-shadow: 0 0 0 2px rgba(0, 179, 184, 0.2);
+}
+

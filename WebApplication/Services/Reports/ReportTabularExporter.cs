@@ -36,7 +36,7 @@ public static partial class ReportTabularExporter
     private const float PdfGroupedBarChartHeightWhenPair = 260f;
     private static float PdfContentWidth(bool portrait)
     {
-        // Горизонталь страницы: portrait — Width, landscape — длинная сторона A4 (Height в struct).
+        
         var horizontal = portrait ? PageSizes.A4.Width : PageSizes.A4.Height;
         return horizontal - PdfPageMargin * 2f;
     }
@@ -129,8 +129,6 @@ public static partial class ReportTabularExporter
             _ => IsDateGroupedDetailDataRow
         };
 
-    /// <summary>CSV: только строки детализации; без итогов, подсказок превью и пустых ячеек даты (дата дублируется в каждой строке).</summary>
-
     public static (byte[] Bytes, string ContentType, string FileName) Export(
         ReportResultViewModel result,
         string format,
@@ -189,6 +187,10 @@ public static partial class ReportTabularExporter
         var ext = Path.GetExtension(name);
         return string.IsNullOrEmpty(ext) ? name : Path.GetFileNameWithoutExtension(name);
     }
+
+    private const string NoDataLabel = "Нет данных";
+
+    private static bool HasNoReportRows(ReportResultViewModel result) => result.Rows.Count == 0;
 
     private static IReadOnlyList<string> PadRowCells(ReportResultRowViewModel row, int colCount)
     {
