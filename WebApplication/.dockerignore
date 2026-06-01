@@ -1,0 +1,13 @@
+**/bin/
+**/obj/
+**/.vs/
+**/.env
+**/.env.*
+!**/.env.example
+**/docs/
+**/*.user
+**/*.suo
+**/TestResults/
+**/.git/
+**/.gitignore
+**/WebApplication.Tests/

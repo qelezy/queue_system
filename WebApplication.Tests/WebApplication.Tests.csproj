@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>WebApplication.Tests</RootNamespace>
+    <AssemblyName>WebApplication.Tests</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="WebApplication.Models.Reports.ViewModels" />
+    <Using Include="WebApplication.Models.Reports.Constants" />
+    <Using Include="WebApplication.Models.Reports.Configuration" />
+    <Using Include="WebApplication.Models.Reports.Charts" />
+    <Using Include="WebApplication.Models.Reports.Contracts" />
+    <Using Include="WebApplication.Models.Configuration" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DotNetEnv" Version="3.2.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\WebApplication\WebApplication.csproj" />
+  </ItemGroup>
+
+</Project>

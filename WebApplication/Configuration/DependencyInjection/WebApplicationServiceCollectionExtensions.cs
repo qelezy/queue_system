@@ -110,5 +110,7 @@ public static class WebApplicationServiceCollectionExtensions
 
         var permissionService = scope.ServiceProvider.GetRequiredService<IRolePermissionService>();
         await permissionService.SyncPermissionsAndSeedDefaultsAsync().ConfigureAwait(false);
+
+        await app.SeedDockerBootstrapAdminAsync().ConfigureAwait(false);
     }
 }
