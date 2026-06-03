@@ -19,7 +19,7 @@
 }
 
 .report-toolbar-panel .dashboard-panel__title {
-    font-size: 14px;
+    font-size: var(--font-size-base);
     margin: 0 0 4px;
     display: flex;
     align-items: center;
@@ -29,7 +29,7 @@
 
 .report-toolbar__selected {
     margin: 0;
-    font-size: 14px;
+    font-size: var(--font-size-base);
     color: var(--primary-color);
     line-height: 1.3;
     font-weight: 600;
@@ -62,11 +62,11 @@
 .report-toolbar-panel .form-field input,
 .report-toolbar-panel .form-field select {
     padding: 6px 10px;
-    font-size: 13px;
+    font-size: var(--font-size-sm);
 }
 
 .report-toolbar-panel .form-field__label {
-    font-size: 12px;
+    font-size: var(--font-size-xs);
 }
 
 .report-toolbar-panel .report-toolbar__actions {
@@ -83,7 +83,7 @@
     align-items: center;
     gap: 8px;
     padding: 8px 16px;
-    font-size: 13px;
+    font-size: var(--font-size-sm);
 }
 
 .report-toolbar__run-disabled {
@@ -93,7 +93,7 @@
 
 .report-toolbar__hint {
     margin-top: 10px;
-    font-size: 13px;
+    font-size: var(--font-size-sm);
     color: var(--text-secondary-color, #666);
 }
 
@@ -126,7 +126,7 @@
 
 .report-params__heading,
 .report-result__heading {
-    font-size: 16px;
+    font-size: var(--font-size-lg);
     font-weight: 600;
     margin: 0 0 12px;
     color: var(--text-color, #0d3d40);
@@ -143,8 +143,8 @@
 
 .report-category {
     border: 1px solid var(--header-border, #e0eaea);
-    border-radius: 10px;
-    background: #fff;
+    border-radius: var(--radius-lg);
+    background: var(--color-white);
     overflow: hidden;
     margin-bottom: 10px;
     box-shadow: var(--card-shadow);
@@ -157,12 +157,12 @@
     align-items: center;
     gap: 10px;
     padding: 12px 16px;
-    font-size: 14px;
+    font-size: var(--font-size-base);
     color: var(--text-color, #0d3d40);
 }
 
 .report-category__title {
-    font-size: 14px;
+    font-size: var(--font-size-base);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.06em;
@@ -176,7 +176,7 @@
 .report-category__count {
     margin-left: auto;
     margin-right: 8px;
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     color: var(--text-secondary-color, #666);
     background: rgba(0, 179, 184, 0.08);
     padding: 2px 8px;
@@ -218,9 +218,9 @@
     width: 100%;
     box-sizing: border-box;
     padding: 14px 16px;
-    border-radius: 10px;
+    border-radius: var(--radius-lg);
     border: 1px solid var(--header-border, #e0eaea);
-    background: #fff;
+    background: var(--color-white);
     text-decoration: none;
     text-align: left;
     font: inherit;
@@ -241,19 +241,19 @@
 
 .report-catalog-card__title {
     font-weight: 600;
-    font-size: 15px;
+    font-size: var(--font-size-md);
     color: var(--text-color);
 }
 
 .report-catalog-card__desc {
-    font-size: 13px;
+    font-size: var(--font-size-sm);
     color: var(--text-secondary-color, #555);
     line-height: 1.4;
 }
 
 .report-params__empty {
     color: var(--text-secondary-color, #666);
-    font-size: 14px;
+    font-size: var(--font-size-base);
     margin: 0;
 }
 
@@ -349,6 +349,21 @@
     hyphens: auto;
 }
 
+.report-workflow-modal__head-text .register-panel-title {
+    font-size: var(--font-size-lg);
+    line-height: 1.3;
+}
+
+.report-workflow-modal__subtitle {
+    font-size: var(--font-size-base);
+    color: var(--text-secondary-color);
+    margin: 4px 0 0;
+}
+
+.report-workflow-modal__subtitle.is-empty {
+    display: none;
+}
+
 .report-workflow-modal__content {
     box-sizing: border-box;
     display: flex;
@@ -388,11 +403,11 @@
 .report-workflow-modal .form-field input,
 .report-workflow-modal .form-field select {
     padding: 6px 10px;
-    font-size: 13px;
+    font-size: var(--font-size-sm);
 }
 
 .report-workflow-modal .form-field__label {
-    font-size: 12px;
+    font-size: var(--font-size-xs);
 }
 
 .report-workflow-modal input[type="datetime-local"] {
@@ -499,7 +514,7 @@
     border: none;
     background: none;
     font: inherit;
-    font-size: 14px;
+    font-size: var(--font-size-base);
     font-weight: 500;
     color: var(--primary-color);
     text-decoration: none;
@@ -536,7 +551,7 @@
 #report-save-as.btn-primary.is-loading,
 #report-save-as.btn-primary[aria-disabled="true"] {
     background: var(--primary-color);
-    color: #fff;
+    color: var(--color-on-primary);
     opacity: 1;
     cursor: wait;
     pointer-events: none;
@@ -545,7 +560,7 @@
 #report-save-as.btn-primary.is-loading:hover,
 #report-save-as.btn-primary[aria-disabled="true"]:hover {
     background: var(--primary-color);
-    color: #fff;
+    color: var(--color-on-primary);
 }
 
 .report-preview-modal__actions .btn {
@@ -575,7 +590,7 @@
 .report-export-fallback-dialog {
     padding: 0;
     border: none;
-    border-radius: 12px;
+    border-radius: var(--radius-xl);
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
     max-width: calc(100vw - 32px);
 }
@@ -592,14 +607,14 @@
 
 .report-export-fallback-dialog__title {
     margin: 0 0 8px;
-    font-size: 16px;
+    font-size: var(--font-size-lg);
     font-weight: 600;
     color: var(--text-color);
 }
 
 .report-export-fallback-dialog__hint {
     margin: 0 0 16px;
-    font-size: 13px;
+    font-size: var(--font-size-sm);
     line-height: 1.45;
     color: var(--text-secondary-color);
 }
@@ -623,13 +638,13 @@
 .btn {
     font-family: inherit;
     cursor: pointer;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     border: none;
 }
 
 .btn-sm {
     padding: 6px 12px;
-    font-size: 13px;
+    font-size: var(--font-size-sm);
     font-weight: 500;
 }
 

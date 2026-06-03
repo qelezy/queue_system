@@ -5,10 +5,11 @@ public sealed class DashboardSnapshotDto
     public int WaitingCount { get; set; }
     public int InServiceCount { get; set; }
     public int AcceptedTodayCount { get; set; }
-    public int AvgWaitMinutes { get; set; }
-    public int MaxWaitMinutes { get; set; }
-    public int AvgServiceMinutes { get; set; }
-    public int MaxServiceMinutes { get; set; }
+    public int TicketsIssuedTodayCount { get; set; }
+
+    public int DoctorsOnShiftCount { get; set; }
+
+    public int DoctorsTotalCount { get; set; }
 
     public IReadOnlyList<DashboardQueueRowDto> ActiveQueue { get; set; } = [];
     public IReadOnlyList<DoctorLoadCardDto> DoctorLoadCards { get; set; } = [];
@@ -37,6 +38,7 @@ public sealed class DoctorLoadCardDto
     public string Specialty { get; set; } = "";
     public int IdSpecialty { get; set; }
     public string Cabinet { get; set; } = "";
+    public bool IsOnShift { get; set; }
     public bool IsInService { get; set; }
     public int? CurrentServiceMinutes { get; set; }
     public int? NormServiceMinutes { get; set; }

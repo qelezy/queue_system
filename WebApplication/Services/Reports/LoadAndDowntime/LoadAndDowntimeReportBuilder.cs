@@ -122,8 +122,6 @@ internal static class LoadAndDowntimeReportBuilder
         {
             if (!keySet.Contains((row.IdDoctor, row.IdCabinet, row.DateArrival)))
                 continue;
-            if (IsExcludedStatusName(row.StatusName))
-                continue;
             if (row.TimeCall is null)
                 continue;
             if (!logKeys.Contains((row.IdDoctor, row.IdCabinet, row.DateArrival)))
@@ -146,8 +144,6 @@ internal static class LoadAndDowntimeReportBuilder
         out DateTimeInterval interval)
     {
         interval = default;
-        if (IsExcludedStatusName(row.StatusName))
-            return false;
         if (row.TimeCall is null)
             return false;
 
@@ -707,16 +703,4 @@ internal static class LoadAndDowntimeReportBuilder
         double IdleMinutes,
         int IdleSegments,
         int CompletedAppointments);
-
-    private static bool IsExcludedStatusName(string? statusName)
-    {
-        if (string.IsNullOrWhiteSpace(statusName))
-            return false;
-        var n = statusName.Trim().ToLowerInvariant();
-        return n.Contains("неяв", StringComparison.Ordinal)
-               || n.Contains("не яв", StringComparison.Ordinal)
-               || n.Contains("no-show", StringComparison.Ordinal)
-               || n.Contains("noshow", StringComparison.Ordinal)
-               || n.Contains("пропуск", StringComparison.Ordinal);
-    }
 }

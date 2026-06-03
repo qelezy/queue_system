@@ -8,7 +8,7 @@
     cursor: pointer;
     border: 1px solid var(--input-border-color);
     border-radius: 4px;
-    background: #fff;
+    background: var(--color-white);
     vertical-align: middle;
     position: relative;
     transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s;
@@ -20,14 +20,21 @@
 }
 
 .app-checkbox:checked:not(:indeterminate)::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    margin: auto;
-    width: 13px;
-    height: 13px;
+    content: "\f633";
+    font-family: "bootstrap-icons";
+    font-size: 14px;
+    font-weight: normal;
+    font-style: normal;
+    line-height: 1;
+    color: var(--color-white);
+    background: none;
     border: none;
-    background: var(--app-checkbox-check-icon) center center / 13px 13px no-repeat;
+    width: auto;
+    height: auto;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
 }
 
 .app-checkbox:indeterminate {
@@ -42,7 +49,7 @@
     top: 50%;
     width: 10px;
     height: 2px;
-    background: #fff;
+    background: var(--color-white);
     border: none;
     transform: translate(-50%, -50%);
 }
@@ -52,4 +59,3 @@
     border-color: var(--input-focus-color);
     box-shadow: 0 0 0 2px rgba(0, 179, 184, 0.2);
 }
-

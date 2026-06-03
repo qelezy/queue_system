@@ -6,10 +6,9 @@ namespace WebApplication.Services.Dashboard;
 internal static class QueueDashboardCompletedStagesMapper
 {
     internal static bool IsCompletedStage(EqListItem li) =>
-        li.TimeEndServicing.HasValue && !QueueDashboardStatusMapper.IsExcludedStatusItem(li);
+        li.TimeEndServicing.HasValue;
 
-    internal static bool IsRouteStage(EqListItem li) =>
-        !QueueDashboardStatusMapper.IsExcludedStatusItem(li);
+    internal static bool IsRouteStage(EqListItem li) => true;
 
     internal static AppointmentCompletedStageDto ToDto(EqListItem li)
     {

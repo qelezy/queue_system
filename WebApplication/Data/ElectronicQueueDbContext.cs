@@ -163,7 +163,7 @@ public sealed class ElectronicQueueDbContext : DbContext
             entity.Property(x => x.DateWork).HasColumnName("date_work");
             entity.Property(x => x.TimeBegin).HasColumnName("time_begin");
             entity.Property(x => x.TimeEnd).HasColumnName("time_end");
-            entity.Property(x => x.LastRefresh).HasColumnName("last_refresh");
+            entity.Ignore(x => x.LastRefresh);
 
             entity.HasOne(x => x.Cabinet)
                 .WithMany(x => x.LogWorks)

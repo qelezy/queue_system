@@ -3,14 +3,14 @@
     justify-content: center;
     align-items: center;
     min-height: 100vh;
-    background: linear-gradient(160deg, #e8f5f6 0%, #ffffff 45%, #f0fbfc 100%);
-    padding: 20px;
+    background: linear-gradient(160deg, #e8f5f6 0%, var(--color-white) 45%, #f0fbfc 100%);
+    padding: var(--space-5);
 }
 
 .auth-form-container {
     background: var(--form-bg-color);
     padding: 40px 30px;
-    border-radius: 12px;
+    border-radius: var(--radius-xl);
     box-shadow: var(--card-shadow);
     width: 100%;
     max-width: 400px;
@@ -18,16 +18,16 @@
 }
 
 .auth-form-title {
-    font-size: 24px;
+    font-size: var(--font-size-2xl);
     font-weight: 600;
     text-align: center;
-    margin-bottom: 8px;
+    margin-bottom: var(--space-2);
     color: var(--text-color);
 }
 
 .auth-form-subtitle {
     text-align: center;
-    font-size: 14px;
+    font-size: var(--font-size-base);
     color: var(--text-secondary-color);
     margin-bottom: 25px;
     line-height: 1.45;
@@ -35,12 +35,12 @@
 
 .auth-form-alert {
     margin-bottom: 14px;
-    padding: 10px 12px;
+    padding: 10px var(--space-3);
     border: 1px solid #ebc6c6;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     background: #fff4f4;
     color: #b12c2c;
-    font-size: 13px;
+    font-size: var(--font-size-sm);
 }
 
 .auth-form .form-field {
@@ -48,7 +48,7 @@
 }
 
 .auth-form .form-field label {
-    font-size: 14px;
+    font-size: var(--font-size-base);
     font-weight: 400;
     margin-bottom: 4px;
 }
@@ -56,15 +56,15 @@
 .auth-form label {
     display: block;
     margin-bottom: 4px;
-    font-size: 14px;
+    font-size: var(--font-size-base);
     color: var(--text-secondary-color);
 }
 
 .auth-form input,
 .auth-form select {
     width: 100%;
-    padding: 10px 12px;
-    font-size: 14px;
+    padding: 10px var(--space-3);
+    font-size: var(--font-size-base);
     border: 1px solid var(--input-border-color);
     border-radius: 4px;
     font-family: inherit;
@@ -114,7 +114,7 @@
 }
 
 .auth-form .auth-password-toggle .bi {
-    font-size: 16px;
+    font-size: var(--font-size-lg);
     line-height: 1;
 }
 
@@ -133,7 +133,7 @@
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: var(--space-3);
     margin-bottom: 18px;
     flex-wrap: wrap;
 }
@@ -143,7 +143,7 @@
     flex-direction: row;
     flex-wrap: nowrap;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-2);
     margin-bottom: 0;
     flex-shrink: 0;
 }
@@ -162,7 +162,7 @@
     }
 
 .forgot-inline {
-    font-size: 14px;
+    font-size: var(--font-size-base);
     color: var(--primary-color);
     text-decoration: none;
     white-space: nowrap;
@@ -177,7 +177,7 @@
     flex-direction: row;
     flex-wrap: nowrap;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-2);
     margin-bottom: 0;
     flex-shrink: 0;
 }
@@ -185,13 +185,13 @@
     .login-options-row .remember-me label {
         display: inline;
         margin: 0;
-        font-size: 14px;
+        font-size: var(--font-size-base);
         color: var(--text-secondary-color);
         white-space: nowrap;
     }
 
 .login-options-row .forgot-inline {
-    font-size: 14px;
+    font-size: var(--font-size-base);
     color: var(--primary-color);
     text-decoration: none;
     white-space: nowrap;
@@ -217,7 +217,7 @@
 .auth-links {
     text-align: center;
     margin-top: 15px;
-    font-size: 14px;
+    font-size: var(--font-size-base);
 }
 
     .auth-links a {
@@ -254,21 +254,20 @@
     flex-direction: column;
     align-items: center;
     text-align: center;
-    padding: 8px 0 4px;
+    padding: var(--space-2) 0 4px;
 }
 
 .auth-confirm-icon {
-    font-size: 72px;
+    font-size: var(--font-size-display);
     color: var(--primary-color);
     line-height: 1;
-    margin-bottom: 16px;
+    margin-bottom: var(--space-4);
 }
 
 .auth-confirm-caption {
-    font-size: 20px;
+    font-size: var(--font-size-xl);
     font-weight: 600;
     color: var(--text-color);
     line-height: 1.45;
     margin: 0;
 }
-

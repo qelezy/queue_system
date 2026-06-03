@@ -74,7 +74,8 @@ public static class WebApplicationServiceCollectionExtensions
             .CreateLogger("WebApplication.Startup");
 
         var appDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await appDb.Database.MigrateAsync().ConfigureAwait(false);
+        if (!app.Configuration.GetValue("DOCKER_SKIP_EF_MIGRATE", false))
+            await appDb.Database.MigrateAsync().ConfigureAwait(false);
 
         var queueDb = scope.ServiceProvider.GetRequiredService<ElectronicQueueDbContext>();
         try

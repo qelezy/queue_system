@@ -7,16 +7,17 @@ public class DashboardViewModel
 
     public int AcceptedTodayCount { get; set; }
 
-    public int AvgWaitMinutes { get; set; }
-    public int MaxWaitMinutes { get; set; }
-    public int AvgServiceMinutes { get; set; }
-    public int MaxServiceMinutes { get; set; }
+    public int TicketsIssuedTodayCount { get; set; }
 
     public IReadOnlyList<DashboardQueueRowViewModel> ActiveQueue { get; set; } = [];
 
     public DashboardQueueFilterViewModel QueueFilters { get; set; } = new();
 
     public IReadOnlyList<DoctorLoadCardViewModel> DoctorLoadCards { get; set; } = [];
+
+    public int DoctorsOnShiftCount { get; set; }
+
+    public int DoctorsTotalCount { get; set; }
 
     public DashboardUiVisibility Ui { get; set; } = new();
 }
@@ -31,6 +32,8 @@ public sealed class DashboardDoctorLoadViewModel
 {
     public IReadOnlyList<DoctorLoadCardViewModel> Cards { get; set; } = [];
     public DashboardQueueFilterViewModel Filters { get; set; } = new();
+    public int DoctorsOnShiftCount { get; set; }
+    public int DoctorsTotalCount { get; set; }
 }
 
 public sealed class DashboardQueueFilterViewModel
@@ -69,6 +72,7 @@ public sealed class DoctorLoadCardViewModel
     public int IdSpecialty { get; set; }
     
     public string Cabinet { get; set; } = "";
+    public bool IsOnShift { get; set; }
     public bool IsInService { get; set; }
     public int? CurrentServiceMinutes { get; set; }
     public int? NormServiceMinutes { get; set; }

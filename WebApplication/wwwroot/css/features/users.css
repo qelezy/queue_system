@@ -1,7 +1,7 @@
 ﻿.register-fio-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
-    gap: 16px 20px;
+    gap: var(--space-4) var(--space-5);
     align-items: start;
 }
 
@@ -19,7 +19,7 @@
 }
 
 .register-form label {
-    font-size: 13px;
+    font-size: var(--font-size-sm);
     font-weight: 500;
     color: var(--text-secondary-color);
 }
@@ -27,19 +27,19 @@
 .register-form input,
 .register-form select {
     width: 100%;
-    padding: 10px 12px;
-    font-size: 14px;
+    padding: 10px var(--space-3);
+    font-size: var(--font-size-base);
     font-family: inherit;
     border: 1px solid var(--input-border-color);
-    border-radius: 8px;
-    background: #fff;
+    border-radius: var(--radius-md);
+    background: var(--color-white);
     transition: border-color 0.2s, box-shadow 0.2s;
 }
 
     .register-form input:focus,
     .register-form select:focus {
         border-color: var(--input-focus-color);
-        box-shadow: 0 0 0 2px rgba(0, 179, 184, 0.18);
+        box-shadow: 0 0 0 2px var(--primary-focus-ring);
         outline: none;
     }
 
@@ -56,7 +56,7 @@
 
 .actions-cell {
     display: flex;
-    gap: 8px;
+    gap: var(--space-2);
     align-items: center;
     justify-content: flex-start;
 }
@@ -67,11 +67,11 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     border: 1px solid transparent;
     background: transparent;
     cursor: pointer;
-    font-size: 16px;
+    font-size: var(--font-size-lg);
     transition: all 0.2s ease;
 }
 
@@ -83,18 +83,18 @@
 
     .edit-btn:hover {
         background: var(--primary-color);
-        color: #fff;
+        color: var(--color-white);
         transform: translateY(-1px);
     }
 
 .delete-btn {
     background: rgba(220, 53, 69, 0.08);
-    color: #dc3545;
+    color: var(--color-danger-bootstrap);
 }
 
     .delete-btn:hover {
-        background: #dc3545;
-        color: #fff;
+        background: var(--color-danger-bootstrap);
+        color: var(--color-white);
         transform: translateY(-1px);
     }
 
@@ -103,18 +103,18 @@
 }
 
 .access-matrix__groups {
-    padding: 0 0 20px;
+    padding: 0 0 var(--space-5);
     display: flex;
     flex-direction: column;
-    gap: 28px;
+    gap: var(--space-7);
 }
 
 .access-matrix__group-title {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin: 0 0 12px 0;
-    font-size: 16px;
+    margin: 0 0 var(--space-3) 0;
+    font-size: var(--font-size-lg);
     font-weight: 600;
     color: var(--text-color);
 }
@@ -126,30 +126,30 @@
 .access-matrix__table-scroll {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
-    border-radius: 10px;
+    border-radius: var(--radius-lg);
     border: 1px solid rgba(0, 179, 184, 0.08);
     box-shadow: var(--card-shadow);
-    background: #fff;
+    background: var(--color-white);
 }
 
 .access-matrix__table {
     width: 100%;
     min-width: 720px;
     border-collapse: collapse;
-    font-size: 14px;
+    font-size: var(--font-size-base);
 }
 
 .access-matrix__table th,
 .access-matrix__table td {
-    padding: 12px 14px;
+    padding: var(--space-3) 14px;
     text-align: left;
     border-bottom: 1px solid #eee;
     vertical-align: middle;
 }
 
 .access-matrix__table thead th {
-    background: #fafcfc;
-    font-size: 12px;
+    background: var(--surface-subtle);
+    font-size: var(--font-size-xs);
     font-weight: 600;
     color: var(--text-secondary-color);
     text-transform: uppercase;
@@ -163,15 +163,15 @@
 .access-matrix__col-element {
     min-width: 200px;
     width: auto;
-    padding-right: 24px;
+    padding-right: var(--space-6);
 }
 
 .access-matrix__table th.access-matrix__role-col,
 .access-matrix__table td.access-matrix__role-cell {
     width: 180px;
     min-width: 160px;
-    padding-left: 24px;
-    padding-right: 24px;
+    padding-left: var(--space-6);
+    padding-right: var(--space-6);
     text-align: center;
     vertical-align: middle;
 }
@@ -184,7 +184,7 @@
 .access-matrix__name-cell {
     display: flex;
     align-items: flex-start;
-    gap: 12px;
+    gap: var(--space-3);
 }
 
 .access-matrix__name-text {
@@ -197,19 +197,19 @@
 .access-matrix__name-title {
     font-weight: 600;
     color: var(--text-color);
-    font-size: 14px;
+    font-size: var(--font-size-base);
 }
 
 .access-matrix__name-desc {
-    font-size: 12px;
-    color: #888;
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
     line-height: 1.35;
 }
 
 .access-matrix__row--select-all td {
-    background: #fafcfc;
+    background: var(--surface-subtle);
     border-bottom: 1px solid #e6efef;
-    font-size: 12px;
+    font-size: var(--font-size-xs);
     color: var(--text-secondary-color);
     text-transform: uppercase;
     letter-spacing: 0.03em;
@@ -227,8 +227,8 @@
 
 #panel-access.is-visible .access-matrix__save-float {
     position: fixed;
-    right: 28px;
-    bottom: 24px;
+    right: var(--space-7);
+    bottom: var(--space-6);
     z-index: 20;
 }
 
@@ -245,8 +245,7 @@
 
 @media (max-width: 640px) {
     #panel-access.is-visible .access-matrix__save-float {
-        right: 16px;
-        bottom: 16px;
+        right: var(--space-4);
+        bottom: var(--space-4);
     }
 }
-

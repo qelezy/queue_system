@@ -217,10 +217,7 @@ NuGet: SignalR входит в shared framework `Microsoft.AspNetCore.App` дл�
 | `inServiceCount` | int | На приёме |
 | `acceptedTodayCount` | int | Обслужено за сегодня |
 | `noShowTodayCount` | int | Не явились за сегодня |
-| `avgWaitMinutes` | int | Среднее ожидание (мин) |
-| `maxWaitMinutes` | int | Макс. ожидание (мин) |
-| `avgServiceMinutes` | int | Средняя длительность приёма (мин) |
-| `maxServiceMinutes` | int | Макс. длительность приёма (мин) |
+| `ticketsIssuedTodayCount` | int | Талонов выдано за сегодня |
 
 ### 5.3. `activeQueue[]`
 
@@ -269,8 +266,7 @@ NuGet: SignalR входит в shared framework `Microsoft.AspNetCore.App` дл�
 | `dashboard.waiting` | `WaitingCard` | значение карточки |
 | `dashboard.in-service` | `InServiceCard` | … |
 | `dashboard.accepted-today` | `AcceptedTodayCard` | … |
-| `dashboard.avg-wait` | `AvgWaitCard` | … |
-| `dashboard.avg-service` | `AvgServiceCard` | … |
+| `dashboard.tickets-issued` | `TicketsIssuedCard` | … |
 | `dashboard.queue-table` | `QueueTable` | `activeQueue` → tbody |
 | `dashboard.chart-cabinets-load` | `DoctorLoad` | `doctorLoadCards` |
 

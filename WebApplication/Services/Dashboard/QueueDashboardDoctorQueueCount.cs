@@ -17,8 +17,7 @@ public static class QueueDashboardDoctorQueueCount
                 .OrderBy(li => li.IdListItem)
                 .FirstOrDefault(li => li.TimeEndServicing == null);
             if (current == null
-                || current.IdDoctor != idDoctor
-                || QueueDashboardStatusMapper.IsExcludedStatusItem(current))
+                || current.IdDoctor != idDoctor)
                 continue;
 
             if (excludeInServiceListItem != null && current.IdListItem == excludeInServiceListItem.IdListItem)

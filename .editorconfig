@@ -11,3 +11,9 @@ indent_size = 4
 
 [*.cs]
 dotnet_diagnostic.IDE0005.severity = warning
+
+[*.sh]
+end_of_line = lf
+
+[*.sql]
+end_of_line = lf

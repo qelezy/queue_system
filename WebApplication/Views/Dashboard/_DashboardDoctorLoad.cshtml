@@ -8,6 +8,7 @@
 <div class="dashboard-panel">
     <h3 class="dashboard-panel__title doctor-load-panel__title">
         <span class="doctor-load-panel__title-text">Состояние врачей</span>
+        <span class="doctor-load-shift-badge" aria-label="На смене: @Model.DoctorsOnShiftCount из @Model.DoctorsTotalCount">На смене: @Model.DoctorsOnShiftCount/@Model.DoctorsTotalCount</span>
         @if (delaysCount > 0)
         {
             <span class="doctor-load-delays-badge" aria-label="Задержек: @delaysCount">Задержек: @delaysCount</span>

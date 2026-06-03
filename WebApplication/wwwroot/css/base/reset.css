@@ -4,10 +4,15 @@
     box-sizing: border-box;
 }
 
+html {
+    font-size: 18px;
+}
+
 body {
     font-family: 'Poppins', sans-serif;
+    font-size: var(--font-size-base);
+    line-height: 1.5;
     background: var(--main-bg-color);
     color: var(--text-color);
     min-height: 100vh;
 }
-

@@ -14,16 +14,20 @@ public class DashboardController : Controller
     private readonly IUserPermissionContext _permissionContext;
     private readonly IRolePermissionService _rolePermissionService;
 
+    private readonly ILogger<DashboardController> _logger;
+
     public DashboardController(
         IQueueDashboardService queueDashboard,
         IElectronicQueueAvailability queueAvailability,
         IUserPermissionContext permissionContext,
-        IRolePermissionService rolePermissionService)
+        IRolePermissionService rolePermissionService,
+        ILogger<DashboardController> logger)
     {
         _queueDashboard = queueDashboard;
         _queueAvailability = queueAvailability;
         _permissionContext = permissionContext;
         _rolePermissionService = rolePermissionService;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -47,9 +51,9 @@ public class DashboardController : Controller
             model.Ui = ui;
             return View(model);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            ViewData["QueueDatabaseUnavailable"] = true;
+            _logger.LogError(ex, "Dashboard snapshot failed");
             return View(new DashboardViewModel { Ui = ui });
         }
     }

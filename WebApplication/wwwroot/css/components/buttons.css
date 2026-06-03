@@ -1,11 +1,11 @@
 ﻿.auth-form button[type="submit"] {
     width: 100%;
-    padding: 12px;
-    font-size: 15px;
+    padding: var(--space-3);
+    font-size: var(--font-size-md);
     background-color: var(--primary-color);
-    color: #ffffff;
+    color: var(--color-on-primary);
     border: none;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
     font-family: inherit;
     font-weight: 500;
@@ -20,7 +20,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: var(--space-2);
 }
 
 .app-btn-spinner {
@@ -28,7 +28,7 @@
     width: 18px;
     height: 18px;
     border: 2px solid rgba(255, 255, 255, 0.35);
-    border-top-color: #fff;
+    border-top-color: var(--color-white);
     border-radius: 50%;
     animation: app-btn-spin 0.8s linear infinite;
     flex-shrink: 0;
@@ -48,28 +48,28 @@ button.is-loading .app-btn-spinner {
 }
 
 .register-actions {
-    margin-top: 8px;
+    margin-top: var(--space-2);
     display: flex;
     justify-content: flex-end;
     align-items: center;
-    gap: 12px;
+    gap: var(--space-3);
 }
 
 .register-form > .register-actions {
-    margin-top: 8px;
+    margin-top: var(--space-2);
     padding-top: 22px;
-    border-top: 1px solid #edf2f2;
+    border-top: 1px solid var(--border-subtle);
 }
 
     .register-actions .register-submit {
-        padding: 11px 24px;
-        font-size: 14px;
+        padding: 11px var(--space-6);
+        font-size: var(--font-size-base);
         font-weight: 500;
         font-family: inherit;
-        color: #fff;
+        color: var(--color-on-primary);
         background: var(--primary-color);
         border: none;
-        border-radius: 8px;
+        border-radius: var(--radius-md);
         cursor: pointer;
         min-width: 180px;
         transition: background-color 0.2s;
@@ -80,26 +80,26 @@ button.is-loading .app-btn-spinner {
         }
 
 .register-submit {
-    padding: 11px 24px;
-    font-size: 14px;
+    padding: 11px var(--space-6);
+    font-size: var(--font-size-base);
     font-weight: 500;
     font-family: inherit;
-    color: #fff;
+    color: var(--color-on-primary);
     background: var(--primary-color);
     border: none;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     cursor: pointer;
 }
 
 .btn-primary {
-    padding: 11px 24px;
-    font-size: 14px;
+    padding: 11px var(--space-6);
+    font-size: var(--font-size-base);
     font-weight: 500;
     font-family: inherit;
-    color: #fff;
+    color: var(--color-on-primary);
     background: var(--primary-color);
     border: none;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     cursor: pointer;
     transition: background-color 0.2s;
 }
@@ -109,7 +109,7 @@ button.is-loading .app-btn-spinner {
     }
 
 .logout-panel {
-    margin-top: 12px;
+    margin-top: var(--space-3);
 }
 
 .logout-panel-row {
@@ -118,37 +118,37 @@ button.is-loading .app-btn-spinner {
     justify-content: space-between;
     gap: 10px;
     background: var(--form-bg-color);
-    border-radius: 12px;
+    border-radius: var(--radius-xl);
     box-shadow: var(--card-shadow);
-    padding: 12px 28px;
-    margin-top: 24px;
+    padding: var(--space-3) var(--space-7);
+    margin-top: var(--space-6);
 }
 
 .logout-panel-title {
-    font-size: 15px;
+    font-size: var(--font-size-md);
     color: var(--text-color);
     letter-spacing: 0.01em;
 }
 
 .btn-danger {
-    padding: 8px 14px;
-    font-size: 13px;
+    padding: var(--space-2) 14px;
+    font-size: var(--font-size-sm);
     font-weight: 500;
     font-family: inherit;
     line-height: 1.2;
-    color: #dc3545;
+    color: var(--color-danger-bootstrap);
     background: rgba(220, 53, 69, 0.08);
     border: 1px solid rgba(220, 53, 69, 0.2);
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     cursor: pointer;
     white-space: nowrap;
     transition: background-color 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s;
 }
 
     .btn-danger:hover {
-        color: #fff;
-        background: #dc3545;
-        border-color: #dc3545;
+        color: var(--color-white);
+        background: var(--color-danger-bootstrap);
+        border-color: var(--color-danger-bootstrap);
         box-shadow: 0 4px 12px rgba(220, 53, 69, 0.22);
     }
 
@@ -162,4 +162,3 @@ button.is-loading .app-btn-spinner {
         width: 100%;
     }
 }
-

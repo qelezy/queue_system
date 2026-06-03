@@ -7,8 +7,7 @@ public static class MonitoringPermissionDefaults
         "dashboard.waiting",
         "dashboard.in-service",
         "dashboard.accepted-today",
-        "dashboard.avg-wait",
-        "dashboard.avg-service",
+        "dashboard.tickets-issued",
         "dashboard.chart-cabinets-load",
         "dashboard.queue-table",
     ];
@@ -19,8 +18,7 @@ public static class MonitoringPermissionDefaults
             ["dashboard.waiting"] = DashboardUiBlock.WaitingCard,
             ["dashboard.in-service"] = DashboardUiBlock.InServiceCard,
             ["dashboard.accepted-today"] = DashboardUiBlock.AcceptedTodayCard,
-            ["dashboard.avg-wait"] = DashboardUiBlock.AvgWaitCard,
-            ["dashboard.avg-service"] = DashboardUiBlock.AvgServiceCard,
+            ["dashboard.tickets-issued"] = DashboardUiBlock.TicketsIssuedCard,
             ["dashboard.chart-cabinets-load"] = DashboardUiBlock.DoctorLoad,
             ["dashboard.queue-table"] = DashboardUiBlock.QueueTable,
         };

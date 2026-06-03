@@ -16,7 +16,7 @@ sqlcmd -S "%SERVER%" -d "%DB%" -E -i dashboard-test-verify-today.sql
 if errorlevel 1 goto :fail
 
 echo.
-echo Gotovo: 8 talonov na segodnya MSK, 0 min ozhidaniya/priema na /dashboard
+echo Gotovo: 8 talonov na segodnya MSK, max ozhidanie do 20 min na /dashboard
 exit /b 0
 
 :fail

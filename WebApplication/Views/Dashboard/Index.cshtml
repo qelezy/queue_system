@@ -19,10 +19,19 @@
          data-ui-waiting="@Model.Ui.WaitingCard.ToString().ToLowerInvariant()"
          data-ui-in-service="@Model.Ui.InServiceCard.ToString().ToLowerInvariant()"
          data-ui-accepted-today="@Model.Ui.AcceptedTodayCard.ToString().ToLowerInvariant()"
-         data-ui-avg-wait="@Model.Ui.AvgWaitCard.ToString().ToLowerInvariant()"
-         data-ui-avg-service="@Model.Ui.AvgServiceCard.ToString().ToLowerInvariant()"
+         data-ui-tickets-issued="@Model.Ui.TicketsIssuedCard.ToString().ToLowerInvariant()"
          data-ui-queue-table="@Model.Ui.QueueTable.ToString().ToLowerInvariant()"
          data-ui-doctor-load="@Model.Ui.DoctorLoad.ToString().ToLowerInvariant()">
+        @if (Model.Ui.TicketsIssuedCard)
+        {
+            <partial name="_StatCard" model="@(new StatCardViewModel {
+                DataStatKey = "tickets-issued",
+                Label = "Талонов выдано",
+                Value = Model.TicketsIssuedTodayCount.ToString(),
+                Unit = "",
+                Hint = "зарегистрировано талонов за сегодня"
+            })" />
+        }
         @if (Model.Ui.WaitingCard)
         {
             <partial name="_StatCard" model="@(new StatCardViewModel {
@@ -53,37 +62,11 @@
                 Hint = "пациенты с завершённым маршрутом"
             })" />
         }
-        @if (Model.Ui.AvgWaitCard)
-        {
-            <partial name="_StatCard" model="@(new StatCardViewModel {
-                DataStatKey = "avg-wait",
-                Label = "Среднее время ожидания",
-                Value = Model.AvgWaitMinutes.ToString(),
-                Unit = "мин",
-                SubLabel = "Максимум",
-                SubValue = Model.MaxWaitMinutes.ToString(),
-                SubUnit = "мин",
-                Hint = "по завершённым ожиданиям за сегодня"
-            })" />
-        }
-        @if (Model.Ui.AvgServiceCard)
-        {
-            <partial name="_StatCard" model="@(new StatCardViewModel {
-                DataStatKey = "avg-service",
-                Label = "Средняя длительность приёма",
-                Value = Model.AvgServiceMinutes.ToString(),
-                Unit = "мин",
-                SubLabel = "Максимум",
-                SubValue = Model.MaxServiceMinutes.ToString(),
-                SubUnit = "мин",
-                Hint = "по завершённым приёмам за сегодня"
-            })" />
-        }
     </div>
 
     @if (Model.Ui.DoctorLoad)
     {
-        <partial name="_DashboardDoctorLoad" model="@(new DashboardDoctorLoadViewModel { Cards = Model.DoctorLoadCards, Filters = Model.QueueFilters })" />
+        <partial name="_DashboardDoctorLoad" model="@(new DashboardDoctorLoadViewModel { Cards = Model.DoctorLoadCards, Filters = Model.QueueFilters, DoctorsOnShiftCount = Model.DoctorsOnShiftCount, DoctorsTotalCount = Model.DoctorsTotalCount })" />
     }
     @if (Model.Ui.QueueTable)
     {

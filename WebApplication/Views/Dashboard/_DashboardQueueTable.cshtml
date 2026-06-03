@@ -1,7 +1,10 @@
 @model DashboardQueueTableViewModel
 
 <div class="dashboard-panel">
-    <h3 class="dashboard-panel__title">Лист ожидания</h3>
+    <h3 class="dashboard-panel__title queue-panel__title">
+        <span class="queue-panel__title-text">Лист ожидания</span>
+        <span class="queue-list-count-badge" aria-label="Ожидающих: @Model.Rows.Count">Ожидающих: @Model.Rows.Count</span>
+    </h3>
 
     <div class="table-toolbar queue-toolbar">
         <div class="table-toolbar__left">

@@ -86,7 +86,6 @@ public sealed class DashboardRefreshHostedService : BackgroundService
         }
         catch (Exception ex)
         {
-            availability.MarkUnavailable();
             _logger.LogWarning(ex, "Dashboard live query failed; skipping broadcast for this tick");
         }
     }

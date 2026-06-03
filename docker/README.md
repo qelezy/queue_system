@@ -4,9 +4,11 @@
 
 ## Запуск после clone
 
-Из **корня репозитория** (файлы `.bak` не нужны):
+1. Положите `UserDb.bak` и `ElectronicQueueProf.bak` в [docker/backups/](backups/) — см. [backups/README.md](backups/README.md).
+2. Из **корня репозитория**:
 
 ```bash
+docker compose build --no-cache db-init
 docker compose up --build
 ```
 
@@ -18,30 +20,21 @@ docker compose up --build
 | http://localhost:8025 | MailHog UI |
 | localhost:1433 | SQL Server (отладка) |
 
-Учётная запись dev: `admin@local.test` / `Admin123!` (см. `DOCKER_BOOTSTRAP_*` в `.env.docker.example`).
+Вход — пользователи из `UserDb.bak`. Bootstrap admin отключён (`DOCKER_BOOTSTRAP_ADMIN=false`).
 
 ## Что происходит при первом старте
 
 1. **mssql** — поднимается SQL Server 2022.
-2. **db-init** — если в `docker/backups/` **нет** пары `.bak`, выполняются SQL из `docker/mssql/sql/` (схема очереди + демо-талоны). Если оба `.bak` есть — `RESTORE` обеих баз.
-3. **web** — EF-миграции **UserDb**, seed ролей/permissions, опционально bootstrap admin.
+2. **db-init** — `RESTORE` `UserDb` и `ElectronicQueueProf` из `.bak`, выравнивание compatibility level.
+3. **web** — EF-миграции **UserDb** (если не `DOCKER_SKIP_EF_MIGRATE=true`), seed ролей/permissions.
 
 Повторный `docker compose up` не перезаписывает существующие БД (данные в volume `mssql-data`).
 
-## Свои данные из backup
-
-1. Положите `UserDb.bak` и `ElectronicQueueProf.bak` в [docker/backups/](backups/) — см. [backups/README.md](backups/README.md).
-2. Сброс volume и пересоздание:
-
-   ```bash
-   docker compose down -v
-   docker compose up --build
-   ```
-
-## Сброс к демо-данным
+## Сброс и повторный restore
 
 ```bash
 docker compose down -v
+docker compose build --no-cache db-init
 docker compose up --build
 ```
 
@@ -55,9 +48,12 @@ docker compose up --build
 
 | Симптом | Что проверить |
 |--------|----------------|
-| `db-init` exit 1, один `.bak` | Нужны **оба** файла или **ни одного** |
-| `web` не стартует | Логи: JWT, connection strings; пароль SA совпадает везде |
-| Дашборд пустой | БД `ElectronicQueueProf`; для SQL bootstrap — талоны на сегодня (`DEMO-*`) |
-| `/health` unhealthy | Логи контейнера `web` после migrate |
+| `db-init` exit 1, missing backup | Оба файла в `docker/backups/` |
+| `set: pipefail` / `invalid option name` | Пересоберите `db-init`: `docker compose build --no-cache db-init` |
+| restore Msg 3169 | Backup новее SQL 2022 в контейнере — пересоздайте `.bak` на SQL ≤ 2022 |
+| `web` не стартует на migrate | `DOCKER_SKIP_EF_MIGRATE=true` в `.env.docker` |
+| `web` не стартует | JWT, connection strings; пароль SA совпадает везде |
+| Дашборд пустой | Данные в `ElectronicQueueProf.bak` |
+| `/health` unhealthy | Логи контейнера `web` |
 
-Для production смените `MSSQL_SA_PASSWORD`, `AppSettings__Token`, отключите `DOCKER_BOOTSTRAP_ADMIN=false`.
+Для production смените `MSSQL_SA_PASSWORD`, `AppSettings__Token`.

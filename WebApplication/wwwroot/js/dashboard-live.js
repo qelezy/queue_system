@@ -15,8 +15,7 @@
         waiting: root.dataset.uiWaiting === "true",
         inService: root.dataset.uiInService === "true",
         acceptedToday: root.dataset.uiAcceptedToday === "true",
-        avgWait: root.dataset.uiAvgWait === "true",
-        avgService: root.dataset.uiAvgService === "true",
+        ticketsIssued: root.dataset.uiTicketsIssued === "true",
         queueTable: root.dataset.uiQueueTable === "true",
         doctorLoad: root.dataset.uiDoctorLoad === "true",
     };
@@ -68,14 +67,7 @@
         if (ui.waiting) setStatValue("waiting", dto.waitingCount ?? 0, "");
         if (ui.inService) setStatValue("in-service", dto.inServiceCount ?? 0, "");
         if (ui.acceptedToday) setStatValue("accepted-today", dto.acceptedTodayCount ?? 0, "");
-        if (ui.avgWait) {
-            setStatValue("avg-wait", dto.avgWaitMinutes ?? 0, "мин");
-            setStatSubValue("avg-wait", dto.maxWaitMinutes ?? 0, "мин");
-        }
-        if (ui.avgService) {
-            setStatValue("avg-service", dto.avgServiceMinutes ?? 0, "мин");
-            setStatSubValue("avg-service", dto.maxServiceMinutes ?? 0, "мин");
-        }
+        if (ui.ticketsIssued) setStatValue("tickets-issued", dto.ticketsIssuedTodayCount ?? 0, "");
     }
 
     function buildQueueStatusBadge(label, code) {
@@ -107,6 +99,28 @@
         );
     }
 
+    function updateQueueCountBadge(count) {
+        if (!ui.queueTable) return;
+
+        const countValue = toDisplayNumber(count);
+        const label = "Ожидающих: " + countValue;
+        let badge = document.querySelector(".queue-list-count-badge");
+
+        if (!badge) {
+            const title = document.querySelector(".queue-panel__title");
+            const titleText = title?.querySelector(".queue-panel__title-text");
+            if (!(title instanceof HTMLElement) || !(titleText instanceof HTMLElement)) return;
+
+            badge = document.createElement("span");
+            badge.className = "queue-list-count-badge";
+            titleText.insertAdjacentElement("afterend", badge);
+        }
+
+        badge.textContent = label;
+        badge.setAttribute("aria-label", label);
+        badge.hidden = false;
+    }
+
     function updateQueueTable(rows) {
         if (!ui.queueTable) return;
         const table = document.querySelector(".queue-table-scroll .users-table");
@@ -120,6 +134,7 @@
             tbody.innerHTML = rows.map(buildQueueRowHtml).join("");
         }
 
+        updateQueueCountBadge(rows?.length ?? 0);
         window.QueueTable?.rebind?.();
     }
 
@@ -160,6 +175,30 @@
         );
     }
 
+    function updateShiftBadge(onShift, total) {
+        if (!ui.doctorLoad) return;
+
+        const onShiftValue = toDisplayNumber(onShift);
+        const totalValue = toDisplayNumber(total);
+        const label = "На смене: " + onShiftValue + "/" + totalValue;
+        const ariaLabel = "На смене: " + onShiftValue + " из " + totalValue;
+        let badge = document.querySelector(".doctor-load-shift-badge");
+
+        if (!badge) {
+            const title = document.querySelector(".doctor-load-panel__title");
+            const titleText = title?.querySelector(".doctor-load-panel__title-text");
+            if (!(title instanceof HTMLElement) || !(titleText instanceof HTMLElement)) return;
+
+            badge = document.createElement("span");
+            badge.className = "doctor-load-shift-badge";
+            titleText.insertAdjacentElement("afterend", badge);
+        }
+
+        badge.textContent = label;
+        badge.setAttribute("aria-label", ariaLabel);
+        badge.hidden = false;
+    }
+
     function updateDelaysBadge(cards) {
         if (!cards) return;
 
@@ -191,7 +230,8 @@
 
             badge = document.createElement("span");
             badge.className = "doctor-load-delays-badge";
-            titleText.insertAdjacentElement("afterend", badge);
+            const anchor = document.querySelector(".doctor-load-shift-badge") ?? titleText;
+            anchor.insertAdjacentElement("afterend", badge);
         }
 
         badge.textContent = label;
@@ -199,7 +239,7 @@
         badge.hidden = false;
     }
 
-    function updateDoctorLoad(cards) {
+    function updateDoctorLoad(cards, total) {
         if (!ui.doctorLoad) return;
         const table = document.querySelector(".doctor-load-table");
         if (!(table instanceof HTMLTableElement)) return;
@@ -212,6 +252,7 @@
             tbody.innerHTML = cards.map(buildDoctorRowHtml).join("");
         }
 
+        updateShiftBadge(cards?.length ?? 0, total ?? 0);
         updateDelaysBadge(cards);
         window.DoctorLoadTable?.rebind?.();
     }
@@ -220,7 +261,7 @@
         if (!dto) return;
         updateStats(dto);
         updateQueueTable(dto.activeQueue);
-        updateDoctorLoad(dto.doctorLoadCards);
+        updateDoctorLoad(dto.doctorLoadCards, dto.doctorsTotalCount);
     }
 
     const connection = new signalR.HubConnectionBuilder()

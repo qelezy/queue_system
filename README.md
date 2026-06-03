@@ -6,7 +6,8 @@
 
 Требования: [Docker Desktop](https://www.docker.com/products/docker-desktop/) с Docker Compose v2.
 
-Из корня репозитория:
+1. Положите `UserDb.bak` и `ElectronicQueueProf.bak` в [docker/backups/](docker/backups/).
+2. Из корня репозитория:
 
 ```bash
 docker compose up --build
@@ -19,14 +20,7 @@ docker compose up --build
 | Приложение | http://localhost:8080 |
 | MailHog (письма) | http://localhost:8025 |
 
-Вход по умолчанию (только Docker dev):
-
-- Email: `admin@local.test`
-- Пароль: `Admin123!`
-
-Демо-данные очереди на дашборде создаются автоматически (талоны `DEMO-*` на сегодня).
-
-Подробности: [docker/README.md](docker/README.md).
+Вход — учётные записи из `UserDb.bak` (см. [docker/README.md](docker/README.md)).
 
 ## Локальная разработка без Docker
 

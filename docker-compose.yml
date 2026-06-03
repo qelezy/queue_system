@@ -25,7 +25,9 @@ services:
       start_period: 30s
 
   db-init:
-    image: mcr.microsoft.com/mssql/server:2022-latest
+    build:
+      context: .
+      dockerfile: docker/mssql/Dockerfile
     depends_on:
       mssql:
         condition: service_healthy
@@ -34,15 +36,12 @@ services:
       - path: .env.docker
         required: false
     environment:
+      ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:-YourStrong!Passw0rd}
       MSSQL_HOST: mssql
       BACKUP_DIR: /backups
-      SQL_DIR: /scripts/sql
     volumes:
       - ./docker/backups:/backups:ro
-      - ./docker/mssql/init-db.sh:/scripts/init-db.sh:ro
-      - ./docker/mssql/sql:/scripts/sql:ro
-    entrypoint: ["/bin/bash", "/scripts/init-db.sh"]
     restart: "no"
 
   mailhog:

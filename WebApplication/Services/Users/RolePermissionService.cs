@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using WebApplication.Data;
 using WebApplication.Models.Configuration;
 using WebApplication.Services.Dashboard;
@@ -15,23 +16,26 @@ public sealed class RolePermissionService : IRolePermissionService
     private readonly RoleManager<IdentityRole> _roleManager;
     private readonly IReportsCatalog _reportsCatalog;
     private readonly IDashboardPermissionsCatalog _permissionsCatalog;
+    private readonly ILogger<RolePermissionService> _logger;
 
     public RolePermissionService(
         AppDbContext db,
         RoleManager<IdentityRole> roleManager,
         IReportsCatalog reportsCatalog,
-        IDashboardPermissionsCatalog permissionsCatalog)
+        IDashboardPermissionsCatalog permissionsCatalog,
+        ILogger<RolePermissionService> logger)
     {
         _db = db;
         _roleManager = roleManager;
         _reportsCatalog = reportsCatalog;
         _permissionsCatalog = permissionsCatalog;
+        _logger = logger;
     }
 
     public async Task SyncPermissionsAndSeedDefaultsAsync(CancellationToken cancellationToken = default)
     {
         await EnsurePermissionRowsAsync(cancellationToken).ConfigureAwait(false);
-        await RemoveOrphanReportPermissionsAsync(cancellationToken).ConfigureAwait(false);
+        await RemoveOrphanPermissionsAsync(cancellationToken).ConfigureAwait(false);
         await SeedDefaultRoleLinksIfEmptyAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -60,18 +64,25 @@ public sealed class RolePermissionService : IRolePermissionService
             await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task RemoveOrphanReportPermissionsAsync(CancellationToken cancellationToken)
+    private async Task RemoveOrphanPermissionsAsync(CancellationToken cancellationToken)
     {
-        var knownReportIds = _reportsCatalog.GetCatalog()
-            .Select(i => i.Id.Trim())
-            .Where(id => !string.IsNullOrEmpty(id))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var knownIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in _permissionsCatalog.GetPermissions())
+            knownIds.Add(item.Id);
+
+        foreach (var item in _reportsCatalog.GetCatalog())
+        {
+            if (!string.IsNullOrWhiteSpace(item.Id))
+                knownIds.Add(item.Id.Trim());
+        }
 
         var orphans = await _db.Permissions
-            .Where(p => !p.PermissionName.StartsWith("dashboard."))
-            .Where(p => !knownReportIds.Contains(p.PermissionName))
+            .Where(p => !knownIds.Contains(p.PermissionName))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
+
+        if (orphans.Count == 0)
+            return;
 
         foreach (var orphan in orphans)
         {
@@ -82,8 +93,12 @@ public sealed class RolePermissionService : IRolePermissionService
             _db.Permissions.Remove(orphan);
         }
 
-        if (_db.ChangeTracker.HasChanges())
-            await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        _logger.LogInformation(
+            "Удалены устаревшие permissions ({Count}): {Names}",
+            orphans.Count,
+            string.Join(", ", orphans.Select(p => p.PermissionName)));
     }
 
     private static bool DefaultGrant(string roleName, string permissionName)
@@ -329,8 +344,7 @@ public sealed class RolePermissionService : IRolePermissionService
         private bool _waitingCard;
         private bool _inServiceCard;
         private bool _acceptedTodayCard;
-        private bool _avgWaitCard;
-        private bool _avgServiceCard;
+        private bool _ticketsIssuedCard;
         private bool _queueTable;
         private bool _doctorLoad;
 
@@ -341,8 +355,7 @@ public sealed class RolePermissionService : IRolePermissionService
                 case DashboardUiBlock.WaitingCard: _waitingCard = true; break;
                 case DashboardUiBlock.InServiceCard: _inServiceCard = true; break;
                 case DashboardUiBlock.AcceptedTodayCard: _acceptedTodayCard = true; break;
-                case DashboardUiBlock.AvgWaitCard: _avgWaitCard = true; break;
-                case DashboardUiBlock.AvgServiceCard: _avgServiceCard = true; break;
+                case DashboardUiBlock.TicketsIssuedCard: _ticketsIssuedCard = true; break;
                 case DashboardUiBlock.QueueTable: _queueTable = true; break;
                 case DashboardUiBlock.DoctorLoad: _doctorLoad = true; break;
             }
@@ -353,8 +366,7 @@ public sealed class RolePermissionService : IRolePermissionService
             WaitingCard = _waitingCard,
             InServiceCard = _inServiceCard,
             AcceptedTodayCard = _acceptedTodayCard,
-            AvgWaitCard = _avgWaitCard,
-            AvgServiceCard = _avgServiceCard,
+            TicketsIssuedCard = _ticketsIssuedCard,
             QueueTable = _queueTable,
             DoctorLoad = _doctorLoad,
         };

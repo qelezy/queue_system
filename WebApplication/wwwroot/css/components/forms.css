@@ -1,21 +1,21 @@
 ﻿.auth-form .label-optional {
     font-weight: 400;
-    color: #888;
-    font-size: 12px;
+    color: var(--text-muted);
+    font-size: var(--font-size-xs);
 }
 
 label.field-required::after {
     content: "*";
-    color: #c43d3d;
+    color: var(--color-danger);
     font-weight: 600;
     margin-left: 2px;
 }
 
 .register-panel {
-    background: #fff;
-    border-radius: 12px;
+    background: var(--color-white);
+    border-radius: var(--radius-xl);
     box-shadow: var(--card-shadow);
-    border: 1px solid rgba(0, 179, 184, 0.06);
+    border: 1px solid var(--primary-border-subtle);
     overflow: hidden;
 }
 
@@ -24,16 +24,16 @@ label.field-required::after {
 }
 
 .register-form {
-    padding: 24px 28px 28px;
+    padding: var(--space-6) var(--space-7) var(--space-7);
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: var(--space-5);
 }
 
 .register-fio-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
-    gap: 16px 20px;
+    gap: var(--space-4) var(--space-5);
 }
 
 .form-field {
@@ -43,7 +43,7 @@ label.field-required::after {
 }
 
     .form-field label {
-        font-size: 13px;
+        font-size: var(--font-size-sm);
         font-weight: 500;
         color: var(--text-secondary-color);
     }
@@ -51,19 +51,19 @@ label.field-required::after {
     .form-field input,
     .form-field select {
         width: 100%;
-        padding: 10px 12px;
-        font-size: 14px;
+        padding: 10px var(--space-3);
+        font-size: var(--font-size-base);
         font-family: inherit;
         border: 1px solid var(--input-border-color);
-        border-radius: 8px;
-        background: #fff;
+        border-radius: var(--radius-md);
+        background: var(--color-white);
         transition: border-color 0.2s, box-shadow 0.2s;
     }
 
         .form-field input:focus,
         .form-field select:focus {
             border-color: var(--input-focus-color);
-            box-shadow: 0 0 0 2px rgba(0, 179, 184, 0.18);
+            box-shadow: 0 0 0 2px var(--primary-focus-ring);
             outline: none;
         }
 
@@ -72,32 +72,32 @@ label.field-required::after {
 }
 
 .form-card-wrap {
-    background: #fff;
-    border-radius: 12px;
+    background: var(--color-white);
+    border-radius: var(--radius-xl);
     box-shadow: var(--card-shadow);
-    border: 1px solid rgba(0, 179, 184, 0.06);
+    border: 1px solid var(--primary-border-subtle);
 }
 
 .card {
     background: var(--form-bg-color);
-    border-radius: 12px;
+    border-radius: var(--radius-xl);
     box-shadow: var(--card-shadow);
-    border: 1px solid rgba(0, 179, 184, 0.06);
-    padding: 28px;
+    border: 1px solid var(--primary-border-subtle);
+    padding: var(--space-7);
     overflow: hidden;
 }
 
     .card h2 {
-        font-size: 18px;
+        font-size: var(--font-size-xl);
         font-weight: 600;
-        margin-bottom: 12px;
+        margin-bottom: var(--space-3);
         color: var(--text-color);
     }
 
 .form-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 16px 20px;
+    gap: var(--space-4) var(--space-5);
     align-items: start;
 }
 
@@ -108,27 +108,27 @@ label.field-required::after {
 }
 
 .actions {
-    margin-top: 24px;
+    margin-top: var(--space-6);
     display: flex;
     justify-content: flex-start;
 }
 
 hr {
     border: 1px solid var(--header-border);
-    margin: 30px 0 20px;
+    margin: 30px 0 var(--space-5);
 }
 
 .form-grid--fio {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 16px 20px;
+    gap: var(--space-4) var(--space-5);
 }
 
 .module-section {
-    margin-top: 24px;
-    background: #fff;
-    border-radius: 12px;
+    margin-top: var(--space-6);
+    background: var(--color-white);
+    border-radius: var(--radius-xl);
     box-shadow: var(--card-shadow);
-    border: 1px solid rgba(0, 179, 184, 0.06);
+    border: 1px solid var(--primary-border-subtle);
     overflow: hidden;
 }
 
@@ -136,17 +136,17 @@ hr {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 14px;
-    padding: 18px 20px 22px;
+    padding: 18px var(--space-5) 22px;
 }
 
 .module-link-card {
     display: block;
-    padding: 14px 16px;
+    padding: 14px var(--space-4);
     border: 1px solid rgba(0, 179, 184, 0.25);
-    border-radius: 10px;
+    border-radius: var(--radius-lg);
     text-decoration: none;
     color: var(--text-color);
-    background: linear-gradient(180deg, #ffffff 0%, #f6fbfb 100%);
+    background: linear-gradient(180deg, var(--color-white) 0%, #f6fbfb 100%);
     font-weight: 500;
     transition: border-color 0.15s, background-color 0.15s;
 }
@@ -155,4 +155,3 @@ hr {
         border-color: var(--primary-color);
         background: rgba(0, 179, 184, 0.08);
     }
-

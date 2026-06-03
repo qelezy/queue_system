@@ -23,30 +23,13 @@ public static class QueueDashboardStatusMapper
 
     public static bool IsInServiceStep(EqListItem li)
     {
-        if (IsExcludedStatusItem(li))
-            return false;
         var (_, code) = ResolveForCurrentStep(li);
         return code == "in-service";
     }
 
-    public static bool IsExcludedStatusName(string? statusName)
-    {
-        if (string.IsNullOrWhiteSpace(statusName))
-            return false;
-        var n = statusName.Trim().ToLowerInvariant();
-        return n.Contains("неяв", StringComparison.Ordinal)
-               || n.Contains("не яв", StringComparison.Ordinal)
-               || n.Contains("no-show", StringComparison.Ordinal)
-               || n.Contains("noshow", StringComparison.Ordinal)
-               || n.Contains("пропуск", StringComparison.Ordinal);
-    }
-
-    public static bool IsExcludedStatusItem(EqListItem li) =>
-        IsExcludedStatusName(li.StatusItem?.Name);
-
     public static bool IsWaitingQueueStep(EqListItem li)
     {
-        if (li.TimeCall.HasValue || IsExcludedStatusItem(li))
+        if (li.TimeCall.HasValue)
             return false;
         var (_, code) = ResolveForCurrentStep(li);
         return code == "waiting";
@@ -54,7 +37,7 @@ public static class QueueDashboardStatusMapper
 
     public static bool IsWaitingListStep(EqListItem li)
     {
-        if (IsExcludedStatusItem(li) || li.TimeStartServicing.HasValue)
+        if (li.TimeStartServicing.HasValue)
             return false;
         var (_, code) = ResolveForCurrentStep(li);
         return IsWaitingOrCalledCode(code);

@@ -5,8 +5,7 @@ public enum DashboardUiBlock
     WaitingCard,
     InServiceCard,
     AcceptedTodayCard,
-    AvgWaitCard,
-    AvgServiceCard,
+    TicketsIssuedCard,
     DoctorLoad,
     QueueTable,
 }

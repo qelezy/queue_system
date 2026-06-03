@@ -7,7 +7,7 @@ namespace WebApplication.Tests.Dashboard;
 public sealed class QueueDashboardCompletedStagesTests
 {
     [Fact]
-    public void IsCompletedStage_true_when_ended_and_not_excluded()
+    public void IsCompletedStage_true_when_ended()
     {
         var li = new EqListItem
         {
@@ -29,17 +29,6 @@ public sealed class QueueDashboardCompletedStagesTests
     }
 
     [Fact]
-    public void IsCompletedStage_false_when_excluded()
-    {
-        var li = new EqListItem
-        {
-            TimeEndServicing = new TimeOnly(11, 0),
-            StatusItem = new EqStatusItemList { Name = "Неявка" }
-        };
-        Assert.False(QueueDashboardCompletedStagesMapper.IsCompletedStage(li));
-    }
-
-    [Fact]
     public void IsRouteStage_true_for_open_called_step()
     {
         var li = new EqListItem
@@ -49,17 +38,6 @@ public sealed class QueueDashboardCompletedStagesTests
         };
         Assert.True(QueueDashboardCompletedStagesMapper.IsRouteStage(li));
         Assert.False(QueueDashboardCompletedStagesMapper.IsCompletedStage(li));
-    }
-
-    [Fact]
-    public void IsRouteStage_false_when_excluded()
-    {
-        var li = new EqListItem
-        {
-            TimeEndServicing = new TimeOnly(11, 0),
-            StatusItem = new EqStatusItemList { Name = "Неявка" }
-        };
-        Assert.False(QueueDashboardCompletedStagesMapper.IsRouteStage(li));
     }
 
     [Fact]

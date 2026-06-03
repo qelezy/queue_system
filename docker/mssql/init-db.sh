@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -eu
 
 MSSQL_HOST="${MSSQL_HOST:-mssql}"
 BACKUP_DIR="${BACKUP_DIR:-/backups}"
-SQL_DIR="${SQL_DIR:-/scripts/sql}"
 DATA_DIR="${MSSQL_DATA_DIR:-/var/opt/mssql/data}"
-SQLCMD=(/opt/mssql-tools18/bin/sqlcmd -S "$MSSQL_HOST" -U sa -P "${MSSQL_SA_PASSWORD}" -C)
+TARGET_COMPATIBILITY_LEVEL="${TARGET_COMPATIBILITY_LEVEL:-160}"
+SQLCMD=(/opt/mssql-tools18/bin/sqlcmd -S "$MSSQL_HOST" -U sa -P "${MSSQL_SA_PASSWORD}" -C -b)
 
 if [[ -f /scripts/restore.env ]]; then
   set -a
-  # shellcheck source=/dev/null
   source /scripts/restore.env
   set +a
 fi
@@ -22,10 +21,35 @@ QUEUE_BAK_FILE="${QUEUE_BAK_FILE:-ElectronicQueueProf.bak}"
 USER_BAK_PATH="${BACKUP_DIR}/${USER_BAK_FILE}"
 QUEUE_BAK_PATH="${BACKUP_DIR}/${QUEUE_BAK_FILE}"
 
+run_sqlcmd() {
+  if ! "${SQLCMD[@]}" "$@"; then
+    echo "ERROR: sqlcmd failed."
+    exit 1
+  fi
+}
+
+escape_sql_literal() {
+  local value="$1"
+  echo "${value//\'/\'\'}"
+}
+
+require_both_backups() {
+  local missing=()
+  [[ -f "$USER_BAK_PATH" ]] || missing+=("$USER_BAK_FILE")
+  [[ -f "$QUEUE_BAK_PATH" ]] || missing+=("$QUEUE_BAK_FILE")
+  if [[ ${#missing[@]} -eq 0 ]]; then
+    return 0
+  fi
+  echo "ERROR: Missing backup file(s) in ${BACKUP_DIR}: ${missing[*]}"
+  echo "Place both ${USER_BAK_FILE} and ${QUEUE_BAK_FILE} in docker/backups/ before docker compose up."
+  exit 1
+}
+
 wait_for_sql() {
   echo "Waiting for SQL Server at ${MSSQL_HOST}..."
-  for _ in $(seq 1 60); do
-    if "${SQLCMD[@]}" -Q "SELECT 1" &>/dev/null; then
+  local probe=(/opt/mssql-tools18/bin/sqlcmd -S "$MSSQL_HOST" -U sa -P "${MSSQL_SA_PASSWORD}" -C)
+  for _ in $(seq 1 15); do
+    if "${probe[@]}" -Q "SELECT 1" &>/dev/null; then
       echo "SQL Server is ready."
       return 0
     fi
@@ -37,26 +61,55 @@ wait_for_sql() {
 
 database_exists() {
   local db="$1"
-  local escaped="${db//\'/\'\'}"
+  local escaped
+  escaped=$(escape_sql_literal "$db")
   local count
-  count=$("${SQLCMD[@]}" -h -1 -W -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM sys.databases WHERE name = N'${escaped}'" | tr -d '[:space:]')
+  count=$(run_sqlcmd -h -1 -W -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM sys.databases WHERE name = N'${escaped}'" | tr -d '[:space:]')
   [[ "$count" == "1" ]]
+}
+
+log_backup_header() {
+  local bak_path="$1"
+  local escaped_bak
+  escaped_bak=$(escape_sql_literal "$bak_path")
+  echo "Backup header for [${bak_path}]:"
+  run_sqlcmd -W -Q "RESTORE HEADERONLY FROM DISK = N'${escaped_bak}'"
+}
+
+finalize_database() {
+  local db_name="$1"
+  local escaped
+  escaped=$(escape_sql_literal "$db_name")
+  echo "Finalizing [${db_name}] (compatibility / ONLINE)..."
+  run_sqlcmd -Q "
+SET NOCOUNT ON;
+IF DB_ID(N'${escaped}') IS NULL
+BEGIN
+  RAISERROR(N'Database not found after restore.', 16, 1);
+  RETURN;
+END
+DECLARE @level INT = (SELECT compatibility_level FROM sys.databases WHERE name = N'${escaped}');
+IF @level < ${TARGET_COMPATIBILITY_LEVEL}
+  EXEC(N'ALTER DATABASE [${db_name}] SET COMPATIBILITY_LEVEL = ${TARGET_COMPATIBILITY_LEVEL}');
+ALTER DATABASE [${db_name}] SET MULTI_USER;
+IF (SELECT state_desc FROM sys.databases WHERE name = N'${escaped}') <> N'ONLINE'
+  ALTER DATABASE [${db_name}] SET ONLINE;
+"
 }
 
 restore_database() {
   local db_name="$1"
   local bak_path="$2"
+  local escaped_bak
+  escaped_bak=$(escape_sql_literal "$bak_path")
 
   if database_exists "$db_name"; then
     echo "Database [${db_name}] already exists — skip restore."
+    finalize_database "$db_name"
     return 0
   fi
 
-  if [[ ! -f "$bak_path" ]]; then
-    echo "ERROR: Backup file not found: ${bak_path}"
-    exit 1
-  fi
-
+  log_backup_header "$bak_path"
   echo "Restoring [${db_name}] from [${bak_path}]..."
 
   local move_clauses=""
@@ -87,57 +140,23 @@ restore_database() {
       move_clauses+=", MOVE N'${logical_name}' TO N'${target}'"
       log_idx=$((log_idx + 1))
     fi
-  done < <("${SQLCMD[@]}" -s"|" -W -h -1 -Q "SET NOCOUNT ON; RESTORE FILELISTONLY FROM DISK = N'${bak_path}'")
+  done < <(run_sqlcmd -s"|" -W -h -1 -Q "SET NOCOUNT ON; RESTORE FILELISTONLY FROM DISK = N'${escaped_bak}'")
 
   if [[ -z "$move_clauses" ]]; then
     echo "ERROR: Could not read file list from backup: ${bak_path}"
     exit 1
   fi
 
-  local escaped_bak="${bak_path//\'/\'\'}"
-  "${SQLCMD[@]}" -Q "RESTORE DATABASE [${db_name}] FROM DISK = N'${escaped_bak}' WITH REPLACE${move_clauses}"
+  run_sqlcmd -Q "RESTORE DATABASE [${db_name}] FROM DISK = N'${escaped_bak}' WITH REPLACE, RECOVERY, STATS = 10${move_clauses}"
   echo "Restored [${db_name}]."
+  finalize_database "$db_name"
 }
 
-run_sql_bootstrap() {
-  echo "No .bak files found — applying SQL dev bootstrap from ${SQL_DIR}..."
-  if [[ ! -d "$SQL_DIR" ]]; then
-    echo "ERROR: SQL directory not found: ${SQL_DIR}"
-    exit 1
-  fi
-  local script
-  shopt -s nullglob
-  local scripts=("$SQL_DIR"/*.sql)
-  shopt -u nullglob
-  if [[ ${#scripts[@]} -eq 0 ]]; then
-    echo "ERROR: No SQL scripts in ${SQL_DIR}"
-    exit 1
-  fi
-  IFS=$'\n' scripts=($(printf '%s\n' "${scripts[@]}" | sort))
-  unset IFS
-  for script in "${scripts[@]}"; do
-    echo "Running $(basename "$script")..."
-    "${SQLCMD[@]}" -b -i "$script"
-  done
-  echo "SQL dev bootstrap complete."
-}
-
-has_user_bak=false
-has_queue_bak=false
-[[ -f "$USER_BAK_PATH" ]] && has_user_bak=true
-[[ -f "$QUEUE_BAK_PATH" ]] && has_queue_bak=true
-
+require_both_backups
 wait_for_sql
 
-if $has_user_bak && $has_queue_bak; then
-  echo "Found both backup files — restoring from .bak..."
-  restore_database "$USER_DB_NAME" "$USER_BAK_PATH"
-  restore_database "$QUEUE_DB_NAME" "$QUEUE_BAK_PATH"
-elif $has_user_bak || $has_queue_bak; then
-  echo "ERROR: Found only one backup file. Provide both ${USER_BAK_FILE} and ${QUEUE_BAK_FILE}, or none for SQL bootstrap."
-  exit 1
-else
-  run_sql_bootstrap
-fi
+echo "Restoring databases from backup files..."
+restore_database "$USER_DB_NAME" "$USER_BAK_PATH"
+restore_database "$QUEUE_DB_NAME" "$QUEUE_BAK_PATH"
 
 echo "Database initialization complete."
