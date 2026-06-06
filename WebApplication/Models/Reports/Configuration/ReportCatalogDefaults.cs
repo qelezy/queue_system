@@ -10,7 +10,7 @@ public static class ReportCatalogDefaults
             [ReportIds.LoadAndDowntime] = ReportGeneratorKind.LoadAndDowntime,
             [ReportIds.WaitingBeforeAppointment] = ReportGeneratorKind.WaitingBeforeAppointment,
             [ReportIds.AppointmentDuration] = ReportGeneratorKind.AppointmentDuration,
-            [ReportIds.RouteAndPauses] = ReportGeneratorKind.RouteAndPauses,
+            [ReportIds.StagesAndWaiting] = ReportGeneratorKind.StagesAndWaiting,
             [ReportIds.ServiceRouteOutcomes] = ReportGeneratorKind.ServiceRouteOutcomes,
             [ReportIds.ServiceCategoriesComparison] = ReportGeneratorKind.ServiceCategoriesComparison,
             [ReportIds.ServiceDelays] = ReportGeneratorKind.ServiceDelays
@@ -49,10 +49,10 @@ public static class ReportCatalogDefaults
                 ReportTableLayouts.DateRowspan,
                 ReportPdfOrientations.Portrait,
                 ReportDetailRowKinds.AppointmentDuration),
-            ReportGeneratorKind.RouteAndPauses => new ReportCatalogPresentationDefaults(
+            ReportGeneratorKind.StagesAndWaiting => new ReportCatalogPresentationDefaults(
                 ReportTableLayouts.DateRowspan,
                 ReportPdfOrientations.Landscape,
-                ReportDetailRowKinds.RouteAndPauses),
+                ReportDetailRowKinds.StagesAndWaiting),
             ReportGeneratorKind.ServiceRouteOutcomes => new ReportCatalogPresentationDefaults(
                 ReportTableLayouts.DateRowspan,
                 ReportPdfOrientations.Landscape,

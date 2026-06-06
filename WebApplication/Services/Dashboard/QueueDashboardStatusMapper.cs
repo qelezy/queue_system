@@ -21,11 +21,8 @@ public static class QueueDashboardStatusMapper
     public static bool IsWaitingOrCalledCode(string code) =>
         code is "waiting" or "called";
 
-    public static bool IsInServiceStep(EqListItem li)
-    {
-        var (_, code) = ResolveForCurrentStep(li);
-        return code == "in-service";
-    }
+    public static bool IsInServiceStep(EqListItem li) =>
+        !li.TimeEndServicing.HasValue && li.TimeStartServicing.HasValue;
 
     public static bool IsWaitingQueueStep(EqListItem li)
     {
@@ -51,8 +48,6 @@ public static class QueueDashboardStatusMapper
         var n = statusName.Trim().ToLowerInvariant();
         if (ContainsAny(n, "заверш", "complete", "окончен", "выполн"))
             return ("Завершён", "done");
-        if (ContainsAny(n, "прием", "приём", "обслуж", "servicing"))
-            return ("На приёме", "in-service");
         if (ContainsAny(n, "вызов", "called"))
             return ("Вызван", "called");
         if (ContainsAny(n, "ожид", "wait", "очеред"))

@@ -20,7 +20,7 @@ public static class ReportsServiceCollectionExtensions
         services.AddScoped<IReportGenerator, ServiceRouteOutcomesReportGenerator>();
         services.AddScoped<IReportGenerator, WaitingBeforeAppointmentReportGenerator>();
         services.AddScoped<IReportGenerator, AppointmentDurationReportGenerator>();
-        services.AddScoped<IReportGenerator, RouteAndPausesReportGenerator>();
+        services.AddScoped<IReportGenerator, StagesAndWaitingReportGenerator>();
         services.AddScoped<IReportGenerator, ServiceCategoriesComparisonReportGenerator>();
         services.AddScoped<IReportGenerator, ServiceDelaysReportGenerator>();
         services.AddScoped<ReportGeneratorRegistry>();

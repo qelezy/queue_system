@@ -11,6 +11,7 @@ using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using WebApplication.Models.Reports.Configuration;
 using WebApplication.Models.Reports.Constants;
+using WebApplication.Services.Reports.Catalog;
 
 namespace WebApplication.Services.Reports;
 
@@ -43,6 +44,8 @@ public static partial class ReportTabularExporter
 
     internal static float PdfLandscapeContentWidthPoints() => PdfContentWidth(portrait: false);
 
+    internal static float PdfPortraitContentWidthPoints() => PdfContentWidth(portrait: true);
+
     private static readonly HashSet<string> CsvExcludedDetailFirstCells = new(StringComparer.Ordinal)
     {
         "Итого за период",
@@ -52,20 +55,39 @@ public static partial class ReportTabularExporter
         "Итого по кабинетам"
     };
 
-    private static bool ChartExportUsesFullWidth(string? kind) =>
-        string.Equals(kind?.Trim(), "groupedBar", StringComparison.OrdinalIgnoreCase);
+    private static bool IsHorizontalGroupedBarExportKind(string? kind) =>
+        string.Equals(kind?.Trim(), "horizontalGroupedBar", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsLineChartExportKind(string? kind) =>
+        string.Equals(kind?.Trim(), "line", StringComparison.OrdinalIgnoreCase);
+
+    private static bool ChartExportUsesFullWidth(string? kind)
+    {
+        var k = kind?.Trim();
+        return string.Equals(k, "groupedBar", StringComparison.OrdinalIgnoreCase)
+               || IsHorizontalGroupedBarExportKind(k)
+               || IsLineChartExportKind(k);
+    }
 
     private static float PdfPieChartHeightFor(int chartCount) =>
         chartCount >= 2 ? PdfPieChartHeightWhenPair : PdfPieChartHeight;
 
-    private static float PdfGroupedBarChartHeightFor(int chartCount, int maxGroupedBarSeriesCount = 0)
+    private static float PdfGroupedBarChartHeightFor(
+        int chartCount,
+        int maxGroupedBarSeriesCount = 0,
+        int maxCategoryLabelCount = 0)
     {
         var baseHeight = chartCount >= 2 ? PdfGroupedBarChartHeightWhenPair : PdfGroupedBarChartHeight;
-        if (maxGroupedBarSeriesCount <= 12)
+        if (maxGroupedBarSeriesCount <= 12 && maxCategoryLabelCount <= 8)
             return Math.Min(baseHeight, 400f);
 
-        var scaled = baseHeight + (maxGroupedBarSeriesCount - 12) * 6f;
-        return Math.Min(scaled, 400f);
+        var scaled = baseHeight;
+        if (maxGroupedBarSeriesCount > 12)
+            scaled += (maxGroupedBarSeriesCount - 12) * 6f;
+        if (maxCategoryLabelCount > 8)
+            scaled += (maxCategoryLabelCount - 8) * 28f;
+
+        return Math.Min(scaled, 520f);
     }
 
     private static void AppendPdfPieChart(
@@ -122,7 +144,7 @@ public static partial class ReportTabularExporter
         result.DetailRowKind switch
         {
             ReportDetailRowKinds.LoadDowntime => IsLoadDowntimeDetailDataRow,
-            ReportDetailRowKinds.RouteAndPauses => IsRouteAndPausesDetailDataRow,
+            ReportDetailRowKinds.StagesAndWaiting => IsStagesAndWaitingDetailDataRow,
             ReportDetailRowKinds.ArrivedCompleted => IsDateGroupedDetailDataRow,
             ReportDetailRowKinds.WaitingBeforeAppointment => IsDateGroupedDetailDataRow,
             ReportDetailRowKinds.AppointmentDuration => IsAppointmentDurationDetailDataRow,
@@ -290,5 +312,64 @@ public static partial class ReportTabularExporter
             .BorderColor(Colors.Grey.Medium)
             .PaddingVertical(4)
             .PaddingHorizontal(3);
+
+    internal static bool IsDurationColumnHeader(string? header)
+    {
+        if (string.IsNullOrWhiteSpace(header))
+            return false;
+
+        var h = header.Trim();
+        if (h.Contains('%', StringComparison.Ordinal))
+            return false;
+
+        if (ContainsIgnoreCase(h, "интервал")
+            || ContainsIgnoreCase(h, "этапов")
+            || ContainsIgnoreCase(h, "превышен")
+            || ContainsIgnoreCase(h, "завершённ")
+            || ContainsIgnoreCase(h, "приёмов")
+            || ContainsIgnoreCase(h, "число интервалов"))
+            return false;
+
+        if (ContainsIgnoreCase(h, "длительн")
+            || ContainsIgnoreCase(h, "ожидан")
+            || ContainsIgnoreCase(h, "норматив")
+            || ContainsIgnoreCase(h, "время")
+            || ContainsIgnoreCase(h, "задерж")
+            || ContainsIgnoreCase(h, "быстрее")
+            || ContainsIgnoreCase(h, "медленнее"))
+            return true;
+
+        if ((ContainsIgnoreCase(h, "коротк") || ContainsIgnoreCase(h, "длинн"))
+            && ContainsIgnoreCase(h, "приём"))
+            return true;
+
+        if (ContainsIgnoreCase(h, "наименьш") || ContainsIgnoreCase(h, "наибольш"))
+        {
+            return ContainsIgnoreCase(h, "ожидан")
+                || ContainsIgnoreCase(h, "длительн")
+                || ContainsIgnoreCase(h, "задерж");
+        }
+
+        return false;
+    }
+
+    private static bool ContainsIgnoreCase(string text, string value) =>
+        text.Contains(value, StringComparison.OrdinalIgnoreCase);
+
+    private static string FormatCellForCsv(
+        IReadOnlyList<string> headers,
+        int columnIndex,
+        string? cell)
+    {
+        if (columnIndex >= headers.Count || !IsDurationColumnHeader(headers[columnIndex]))
+            return cell ?? "";
+
+        if (string.IsNullOrWhiteSpace(cell) || cell.Trim() == "—")
+            return "";
+
+        return CatalogReportShared.TryParseFormattedDurationToMinutes(cell, out var minutes)
+            ? CatalogReportShared.FormatMinutesForCsv(minutes)
+            : cell;
+    }
 
 }

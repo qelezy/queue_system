@@ -14,8 +14,8 @@ public sealed class ServiceRouteOutcomesReportBuilderTests
     public void ColumnHeaders_has_five_columns_without_no_shows()
     {
         Assert.Equal(5, ServiceRouteOutcomesReportBuilder.ColumnHeaders.Length);
-        Assert.Equal("Приёмов", ServiceRouteOutcomesReportBuilder.ColumnHeaders[2]);
-        Assert.Equal("С завершённым маршрутом", ServiceRouteOutcomesReportBuilder.ColumnHeaders[3]);
+        Assert.Equal("Обращений", ServiceRouteOutcomesReportBuilder.ColumnHeaders[2]);
+        Assert.Equal("Полностью обслужено", ServiceRouteOutcomesReportBuilder.ColumnHeaders[3]);
         Assert.Equal("С незавершённым обслуживанием", ServiceRouteOutcomesReportBuilder.ColumnHeaders[4]);
     }
 
@@ -66,6 +66,32 @@ public sealed class ServiceRouteOutcomesReportBuilderTests
         Assert.Equal("4", total.Cells[2]);
         Assert.Equal("1", total.Cells[3]);
         Assert.Equal("1", total.Cells[4]);
+    }
+
+    [Fact]
+    public void BuildReport_chart_skips_calendar_days_without_data()
+    {
+        var day1 = new DateOnly(2026, 5, 10);
+        var day3 = new DateOnly(2026, 5, 12);
+        var appointments = new List<CatalogAppointmentObservations.AppointmentObservation>
+        {
+            new(1, day1, 1),
+            new(2, day3, 1)
+        };
+        var listItems = new List<CatalogAppointmentObservations.ListItemObservation>
+        {
+            new(1, new TimeOnly(9, 0), new TimeOnly(9, 5), new TimeOnly(9, 30)),
+            new(2, new TimeOnly(10, 0), new TimeOnly(10, 5), new TimeOnly(10, 30))
+        };
+
+        var model = ServiceRouteOutcomesReportBuilder.BuildReport(
+            appointments, listItems, Categories, ReportGenerationPurpose.ExportOrFull);
+
+        var bar = Assert.Single(model.PreviewCharts!);
+        Assert.Equal("groupedBar", bar.Kind);
+        Assert.Equal("stacked", bar.ChartAxisMode);
+        Assert.Equal(2, bar.Labels.Count);
+        Assert.DoesNotContain(bar.Labels, l => l.Contains("11-05-2026", StringComparison.Ordinal));
     }
 
     [Fact]

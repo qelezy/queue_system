@@ -3,6 +3,8 @@ using WebApplication.Models.ElectronicQueueProf;
 using WebApplication.Models.Reports.Charts;
 using WebApplication.Services.Reports.Charts;
 
+using WebApplication.Services.Reports;
+
 namespace WebApplication.Services.Reports.Catalog;
 
 internal static class WaitingBeforeAppointmentReportBuilder
@@ -12,9 +14,9 @@ internal static class WaitingBeforeAppointmentReportBuilder
         "Дата",
         "Интервал",
         "Завершённых ожиданий",
-        "Среднее ожидание, мин",
-        "Минимум, мин",
-        "Максимум, мин"
+        "Среднее ожидание",
+        "Наименьшее ожидание",
+        "Наибольшее ожидание"
     ];
 
     internal const string DayTotalsHeadingLabel = "Итого за день";
@@ -70,9 +72,9 @@ internal static class WaitingBeforeAppointmentReportBuilder
                 var intervalLabel = slotByHour.TryGetValue(h, out var slot)
                     ? slot.IntervalLabel
                     : FormatHourInterval(h);
-                var hourObs = dayObs.Where(o => o.Hour == h).Select(o => o.WaitMin).ToList();
+                var hourObs = dayObs.Where(o => o.Hour == h).ToList();
                 var metrics = FormatMetrics(hourObs);
-                rows.Add(ReportResultRowViewModel.FromCells(
+                rows.Add(ReportCsvCells.FromDisplayCells(
                 [
                     isFirstHourRow ? dayLabel : "",
                     intervalLabel,
@@ -80,11 +82,17 @@ internal static class WaitingBeforeAppointmentReportBuilder
                     metrics.Average,
                     metrics.Min,
                     metrics.Max
-                ]));
+                ],
+                new Dictionary<int, double?>
+                {
+                    [3] = metrics.AverageExact,
+                    [4] = metrics.MinExact,
+                    [5] = metrics.MaxExact
+                }));
                 isFirstHourRow = false;
             }
 
-            var dayMetrics = FormatMetrics(dayObs.Select(o => o.WaitMin).ToList());
+            var dayMetrics = FormatMetrics(dayObs);
             rows.Add(ReportResultRowViewModel.FromCells(
                 [DayTotalsHeadingLabel, "", "", "", "", ""],
                 rowClass: "report-load-table__row--day-totals-heading",
@@ -116,7 +124,10 @@ internal static class WaitingBeforeAppointmentReportBuilder
 
                 var hourObs = dayObs.Where(o => o.Hour == h).Select(o => o.WaitMin).ToList();
                 hourSeries[seriesIdx].Values.Add(
-                    hourObs.Count == 0 ? 0 : CatalogReportShared.RoundMetric(hourObs.Average()));
+                    hourObs.Count == 0
+                        ? 0
+                        : CatalogReportShared.RoundDurationChartValue(
+                            CatalogReportShared.AverageDurationMinutes(hourObs)));
             }
         }
 
@@ -232,7 +243,7 @@ internal static class WaitingBeforeAppointmentReportBuilder
         IReadOnlyList<WaitingObservation> observations,
         string label)
     {
-        var metrics = FormatMetrics(observations.Select(o => o.WaitMin).ToList());
+        var metrics = FormatMetrics(observations);
         yield return ReportResultRowViewModel.FromCells(
             [label, "", "", "", "", ""],
             rowClass: "report-load-table__row--totals-start",
@@ -266,16 +277,22 @@ internal static class WaitingBeforeAppointmentReportBuilder
     internal static string FormatHourChartLabel(int hour) =>
         hour.ToString("00", CultureInfo.InvariantCulture) + ":00";
 
-    internal static (string Count, string Average, string Min, string Max) FormatMetrics(IReadOnlyList<double> values)
+    internal static (string Count, string Average, string Min, string Max, double? AverageExact, double? MinExact, double? MaxExact) FormatMetrics(
+        IReadOnlyList<WaitingObservation> observations)
     {
-        if (values.Count == 0)
-            return ("0", "—", "—", "—");
+        if (observations.Count == 0)
+            return ("0", "—", "—", "—", null, null, null);
 
+        var values = observations.Select(o => o.WaitMin).ToList();
+        var exact = observations.Select(o => o.WaitMinExact).ToList();
         return (
-            values.Count.ToString(CultureInfo.InvariantCulture),
-            CatalogReportShared.FormatMetric(values.Average()),
-            CatalogReportShared.FormatMetric(values.Min()),
-            CatalogReportShared.FormatMetric(values.Max()));
+            observations.Count.ToString(CultureInfo.InvariantCulture),
+            CatalogReportShared.FormatDuration(CatalogReportShared.AverageDurationMinutes(values)),
+            CatalogReportShared.FormatDuration(CatalogReportShared.MinDurationMinutes(values)),
+            CatalogReportShared.FormatDuration(CatalogReportShared.MaxDurationMinutes(values)),
+            CatalogReportShared.AverageDurationMinutesExact(exact),
+            CatalogReportShared.MinDurationMinutesExact(exact),
+            CatalogReportShared.MaxDurationMinutesExact(exact));
     }
 
     internal static bool IsCallInPeriod(DateOnly dateArrival, TimeOnly timeCall, DateTime periodFrom, DateTime periodTo)
@@ -284,5 +301,5 @@ internal static class WaitingBeforeAppointmentReportBuilder
         return callDt >= periodFrom && callDt <= periodTo;
     }
 
-    internal readonly record struct WaitingObservation(DateOnly Date, int Hour, double WaitMin);
+    internal readonly record struct WaitingObservation(DateOnly Date, int Hour, double WaitMin, double WaitMinExact);
 }

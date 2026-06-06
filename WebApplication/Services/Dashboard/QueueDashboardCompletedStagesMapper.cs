@@ -14,14 +14,10 @@ internal static class QueueDashboardCompletedStagesMapper
     {
         var specialty = li.Specialty?.Definition?.Trim();
         var cabinet = li.Cabinet?.CabinetNumber?.Trim();
-        var (statusLabel, statusCode) = QueueDashboardStatusMapper.ResolveForCurrentStep(li);
-
         return new AppointmentCompletedStageDto
         {
             Specialty = string.IsNullOrWhiteSpace(specialty) ? "—" : specialty,
             Cabinet = string.IsNullOrWhiteSpace(cabinet) ? "—" : cabinet,
-            StatusLabel = statusLabel,
-            StatusCode = statusCode,
             TimeCall = FormatTime(li.TimeCall),
             TimeStart = FormatTime(li.TimeStartServicing),
             TimeEnd = FormatTime(li.TimeEndServicing),

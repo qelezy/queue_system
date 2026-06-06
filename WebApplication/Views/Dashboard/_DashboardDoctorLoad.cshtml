@@ -43,11 +43,20 @@
     </div>
 
     <div class="users-table-wrap doctor-load-table-scroll">
-        <table class="users-table doctor-load-table" aria-label="Состояние врачей">
+        <table class="users-table dashboard-table doctor-load-table" aria-label="Состояние врачей">
+            <colgroup>
+                <col class="doctor-load-table__col-doctor" />
+                <col class="doctor-load-table__col-status" />
+                <col class="doctor-load-table__col-ticket" />
+                <col class="doctor-load-table__col-current" />
+                <col class="doctor-load-table__col-norm" />
+                <col class="doctor-load-table__col-queue" />
+            </colgroup>
             <thead>
                 <tr>
                     <th>Врач</th>
                     <th>Статус</th>
+                    <th>№ талона</th>
                     <th>Текущий приём</th>
                     <th>Норма</th>
                     <th>В очереди</th>
@@ -56,7 +65,7 @@
             <tbody>
             @if (Model.Cards.Count == 0)
             {
-                <tr><td colspan="5">Нет активных врачей</td></tr>
+                <tr class="users-table__empty-row"><td colspan="6">Нет активных врачей</td></tr>
             }
             else
             {
@@ -67,7 +76,14 @@
                     var norm = d.NormServiceMinutes ?? 0;
                     var cur = d.CurrentServiceMinutes ?? 0;
                     var over = hasCurrent && hasNorm && cur > norm;
-                    <tr data-doctor-load-row data-doctor-id="@d.IdDoctor" data-doctor-status="@(d.IsInService ? "in-service" : "free")" data-specialty-id="@d.IdSpecialty">
+                    <tr data-doctor-load-row
+                        data-doctor-id="@d.IdDoctor"
+                        data-doctor-status="@(d.IsInService ? "in-service" : "free")"
+                        data-specialty-id="@d.IdSpecialty"
+                        data-queue-length="@d.QueueLength"
+                        tabindex="0"
+                        role="button"
+                        class="doctor-load-table__row--clickable">
                         <td>
                             <div class="queue-row__doctor-name">@d.FullName</div>
                             <div class="queue-row__doctor-specialty">@d.Specialty@(string.IsNullOrEmpty(d.Cabinet) ? "" : " · " + d.Cabinet)</div>
@@ -82,6 +98,7 @@
                                 <span class="queue-status-badge queue-status-badge--free">Ожидает пациента</span>
                             }
                         </td>
+                        <td>@(d.IsInService && !string.IsNullOrEmpty(d.CurrentTicketNumber) ? d.CurrentTicketNumber : "—")</td>
                         <td class="@(over ? "doctor-load-table__cell--over" : "")">
                             @(hasCurrent ? $"{cur} мин" : "—")
                         </td>
@@ -96,3 +113,5 @@
         </table>
     </div>
 </div>
+
+@await Html.PartialAsync("_DashboardDoctorPatientsModal")

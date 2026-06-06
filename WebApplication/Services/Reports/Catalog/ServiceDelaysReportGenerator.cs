@@ -13,7 +13,6 @@ public sealed class ServiceDelaysReportGenerator : IReportGenerator
         ReportGenerationPurpose purpose)
     {
         var (_, _, fromDo, toDo) = CatalogReportShared.ParsePeriod(request);
-        var analysisMode = ServiceDelaysReportBuilder.ParseAnalysisMode(request.CustomParams);
 
         var stages = (
             from li in queue.ListItems.AsNoTracking()
@@ -32,28 +31,14 @@ public sealed class ServiceDelaysReportGenerator : IReportGenerator
                 sp.TimeServicing,
                 sp.Definition)).ToList();
 
-        var entityLabels = BuildEntityLabels(queue, analysisMode);
-        var metrics = ServiceDelaysQueries.BuildEntityMetrics(stages, entityLabels, analysisMode);
-
-        var model = ServiceDelaysReportBuilder.BuildReport(metrics, analysisMode, purpose);
-        return new ReportGenerateResponse { Success = true, Implemented = true, Result = model };
-    }
-
-    private static Dictionary<int, string> BuildEntityLabels(
-        ElectronicQueueDbContext queue,
-        string analysisMode)
-    {
-        if (string.Equals(analysisMode, ServiceDelaysReportBuilder.ModeCabinet, StringComparison.OrdinalIgnoreCase))
-        {
-            return queue.Cabinets.AsNoTracking()
-                .ToDictionary(
-                    c => c.IdCabinet,
-                    c => ServiceDelaysReportBuilder.FormatCabinetLabel(c.CabinetNumber));
-        }
-
-        return queue.Doctors.AsNoTracking()
+        var entityLabels = queue.Doctors.AsNoTracking()
             .ToDictionary(
                 d => d.IdDoctor,
                 d => AppointmentDurationReportBuilder.NormalizeDimensionLabel(d.FullName));
+
+        var metrics = ServiceDelaysQueries.BuildEntityMetrics(stages, entityLabels);
+
+        var model = ServiceDelaysReportBuilder.BuildReport(metrics, purpose);
+        return new ReportGenerateResponse { Success = true, Implemented = true, Result = model };
     }
 }

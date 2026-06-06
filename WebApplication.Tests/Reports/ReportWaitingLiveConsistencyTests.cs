@@ -21,7 +21,7 @@ public sealed class ReportWaitingLiveConsistencyTests
         (11, 115, 5.1, 0, 51.3),
         (12, 78, 3.3, 0, 24.8),
         (13, 27, 3.4, 0, 24.5),
-        (14, 3, 4.3, 0.7, 11.0),
+        (14, 3, 4.3, 39.0 / 60.0, 11.0),
         (15, 4, 6.8, 1.0, 15.6)
     ];
 
@@ -50,9 +50,9 @@ public sealed class ReportWaitingLiveConsistencyTests
             var row = detailRows.Single(r =>
                 r.Cells![1].StartsWith(expected.Hour.ToString("00", CultureInfo.InvariantCulture) + ":00", StringComparison.Ordinal));
             Assert.Equal(expected.Count.ToString(CultureInfo.InvariantCulture), row.Cells[2]);
-            AssertMetric(expected.Avg, row.Cells[3]);
-            AssertMetric(expected.Min, row.Cells[4]);
-            AssertMetric(expected.Max, row.Cells[5]);
+            ReportsDurationTestHelper.AssertDurationCell(expected.Avg, row.Cells[3]);
+            ReportsDurationTestHelper.AssertDurationCell(expected.Min, row.Cells[4]);
+            ReportsDurationTestHelper.AssertDurationCell(expected.Max, row.Cells[5]);
         }
 
         var dayTotalRow = response.Result.Rows
@@ -111,12 +111,6 @@ public sealed class ReportWaitingLiveConsistencyTests
                     Assert.True(wait.Value < legacyFromArrival);
             }
         }
-    }
-
-    private static void AssertMetric(double expected, string? actualCell)
-    {
-        var actual = double.Parse(actualCell!, CultureInfo.InvariantCulture);
-        Assert.True(Math.Abs(expected - actual) < 0.15, $"expected {expected}, actual {actual}");
     }
 
     private static ReportGenerateRequest BuildDayRequest() =>

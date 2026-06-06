@@ -59,9 +59,12 @@ public sealed class AppointmentDurationReportGenerator : IReportGenerator
                 && !CatalogReportShared.HasAssignedCabinet(x.IdCabinet))
                 continue;
 
-            var svcMin = CatalogReportAnalysisHelper.ComputeSvcMinutes(x.DateArrival, x.Start, x.End);
-            if (svcMin is null)
+            var svcMinExact = CatalogReportAnalysisHelper.ComputeSvcMinutesExact(x.DateArrival, x.Start, x.End);
+            if (svcMinExact is null)
                 continue;
+
+            var svcMin = CatalogReportAnalysisHelper.ComputeSvcMinutes(x.DateArrival, x.Start, x.End)
+                ?? svcMinExact.Value;
 
             var label = analysisMode switch
             {
@@ -79,7 +82,8 @@ public sealed class AppointmentDurationReportGenerator : IReportGenerator
                 x.DateArrival,
                 label,
                 x.IdAppointment,
-                svcMin.Value,
+                svcMin,
+                svcMinExact.Value,
                 x.TimeServicing,
                 x.Definition));
         }

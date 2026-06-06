@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using SkiaSharp;
+using WebApplication.Models.Reports.Charts;
 using WebApplication.Services.Reports.Catalog;
 
 namespace WebApplication.Services.Reports;
@@ -28,7 +29,7 @@ public static class ReportExportChartRenderer
                     Labels = [..pie.Labels],
                     Values = [..pie.Values],
                     ValueUnit = "мин",
-                    AriaLabel = "Соотношение длительности занятости и простоя",
+                    AriaLabel = "Соотношение длительности занятости и простоев",
                     CanvasElementId = "report-preview-chart-0"
                 }
             ];
@@ -58,14 +59,45 @@ public static class ReportExportChartRenderer
                 list.Add(pieSvg);
             else if (IsGroupedBarKind(d.Kind) && TryBuildGroupedBarSvg(d, out var barSvg) && !string.IsNullOrEmpty(barSvg))
                 list.Add(barSvg);
+            else if (IsHorizontalGroupedBarKind(d.Kind) && TryBuildHorizontalGroupedBarSvg(d, out var hBarSvg)
+                     && !string.IsNullOrEmpty(hBarSvg))
+                list.Add(hBarSvg);
+            else if (IsLineChartKind(d.Kind) && TryBuildLineChartSvg(d, out var lineSvg) && !string.IsNullOrEmpty(lineSvg))
+                list.Add(lineSvg);
         }
 
         return list;
     }
 
+    public static float GetLineChartPdfHeight(ReportPreviewChartDescriptor descriptor, float contentWidth)
+    {
+        if (!TryNormalizeLineChartData(descriptor, out var labels, out var values))
+            return 260f;
+
+        var layout = ComputeLineChartLayout(labels.Count);
+        if (layout.CanvasW <= 0)
+            return 260f;
+
+        return (float)(contentWidth * layout.CanvasH / layout.CanvasW);
+    }
+
+    public static float GetHorizontalGroupedBarPdfHeight(
+        ReportPreviewChartDescriptor descriptor,
+        float contentWidth)
+    {
+        if (!TryNormalizeGroupedBarData(descriptor, out var categoryLabels, out var series))
+            return 320f;
+
+        var layout = ComputeHorizontalGroupedBarLayout(categoryLabels, series);
+        if (layout.CanvasW <= 0)
+            return 320f;
+
+        return (float)(contentWidth * layout.CanvasH / layout.CanvasW);
+    }
+
     private static bool DescriptorHasPositiveData(ReportPreviewChartDescriptor d)
     {
-        if (IsGroupedBarKind(d.Kind))
+        if (IsGroupedBarKind(d.Kind) || IsHorizontalGroupedBarKind(d.Kind) || IsLineChartKind(d.Kind))
             return SumGroupedBarValues(d) > 0;
 
         return SumValues(d.Values) > 0;
@@ -109,8 +141,8 @@ public static class ReportExportChartRenderer
         {
             var v = values[i];
             var pct = sum > 0 ? 100.0 * v / sum : 0;
-            var valStr = FormatChartMetricWithUnit(v, unit);
-            var line = $"{labels[i]}: {valStr} ({FormatChartMetric(pct)}%)";
+            var valStr = FormatChartValueWithUnit(v, unit);
+            var line = $"{labels[i]}: {valStr} ({FormatChartPercent(pct)}%)";
             maxLegendChars = Math.Max(maxLegendChars, line.Length);
         }
 
@@ -159,8 +191,8 @@ public static class ReportExportChartRenderer
             var fill = SvgSegmentFill(i);
             var v = values[i];
             var pct = sum > 0 ? 100.0 * v / sum : 0;
-            var valStr = FormatChartMetricWithUnit(v, unit);
-            var line = $"{labels[i]}: {valStr} ({FormatChartMetric(pct)}%)";
+            var valStr = FormatChartValueWithUnit(v, unit);
+            var line = $"{labels[i]}: {valStr} ({FormatChartPercent(pct)}%)";
             sb.Append(CultureInfo.InvariantCulture, $"<rect x=\"{legendLeft:0.##}\" y=\"{y - 12:0.##}\" width=\"{legendIconW:0.##}\" height=\"{legendIconW:0.##}\" fill=\"{fill}\" rx=\"1\"/>");
             sb.Append("<text xml:space=\"preserve\" x=\"")
                 .Append((legendLeft + legendIconW + legendGap).ToString("0.##", CultureInfo.InvariantCulture))
@@ -237,8 +269,8 @@ public static class ReportExportChartRenderer
         {
             var v = values[i];
             var pct = sum > 0 ? 100.0 * v / sum : 0;
-            var valStr = FormatChartMetricWithUnit(v, unit);
-            var line = $"{labels[i]}: {valStr} ({FormatChartMetric(pct)}%)";
+            var valStr = FormatChartValueWithUnit(v, unit);
+            var line = $"{labels[i]}: {valStr} ({FormatChartPercent(pct)}%)";
             maxLegendChars = Math.Max(maxLegendChars, line.Length);
         }
 
@@ -323,8 +355,8 @@ public static class ReportExportChartRenderer
 
             var v = values[i];
             var pct = sum > 0 ? 100.0 * v / sum : 0;
-            var valStr = FormatChartMetricWithUnit(v, unit);
-            var line = $"{labels[i]}: {valStr} ({FormatChartMetric(pct)}%)";
+            var valStr = FormatChartValueWithUnit(v, unit);
+            var line = $"{labels[i]}: {valStr} ({FormatChartPercent(pct)}%)";
             var clippedLine = ClipText(line, legendFont, legendPaint, canvasW - padX * 2 - 20f);
             canvas.DrawText(clippedLine, padX + 20f, y, SKTextAlign.Left, legendFont, legendPaint);
         }
@@ -413,23 +445,258 @@ public static class ReportExportChartRenderer
     private static bool IsGroupedBarKind(string? kind) =>
         string.Equals(kind?.Trim(), "groupedBar", StringComparison.OrdinalIgnoreCase);
 
+    private static bool IsHorizontalGroupedBarKind(string? kind) =>
+        string.Equals(kind?.Trim(), "horizontalGroupedBar", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsLineChartKind(string? kind) =>
+        string.Equals(kind?.Trim(), "line", StringComparison.OrdinalIgnoreCase);
+
+    private static bool TryBuildLineChartSvg(ReportPreviewChartDescriptor d, out string? svg)
+    {
+        svg = null;
+        if (!TryNormalizeLineChartData(d, out var labels, out var values))
+            return false;
+
+        var finite = values.Where(static v => double.IsFinite(v) && v >= 0).ToList();
+        if (finite.Count == 0)
+            return false;
+
+        var maxVal = finite.Max();
+        if (maxVal <= 0)
+            return false;
+
+        var layout = ComputeLineChartLayout(labels.Count);
+        var unit = string.IsNullOrWhiteSpace(d.ValueUnit) ? "" : d.ValueUnit.Trim();
+        var seriesLabel = d.Datasets?.FirstOrDefault()?.Label ?? "Среднее ожидание";
+
+        var sb = new StringBuilder(8192);
+        sb.Append(CultureInfo.InvariantCulture,
+            $"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {layout.CanvasW:0.##} {layout.CanvasH:0.##}\" width=\"{layout.CanvasW:0.##}\" height=\"{layout.CanvasH:0.##}\" shape-rendering=\"geometricPrecision\">");
+
+        AppendLineChartPlotFrame(sb, layout, maxVal, unit);
+        AppendLineChartSeries(sb, layout, labels, values, maxVal, unit, seriesLabel);
+        AppendLineChartXLabels(sb, layout, labels);
+
+        sb.Append("</svg>");
+        svg = sb.ToString();
+        return true;
+    }
+
+    private sealed record LineChartLayout(
+        double PadL,
+        double PadR,
+        double PadT,
+        double PadB,
+        double PlotW,
+        double PlotH,
+        double CanvasW,
+        double CanvasH,
+        double OriginX,
+        double OriginY,
+        double PointStep);
+
+    private static LineChartLayout ComputeLineChartLayout(int pointCount)
+    {
+        const double padL = 48;
+        const double padR = 16;
+        const double padT = 16;
+        const double padB = 48;
+        var numPoints = Math.Max(1, pointCount);
+        var portraitW = ReportTabularExporter.PdfPortraitContentWidthPoints();
+        var canvasW = Math.Min(1100, Math.Max(portraitW, numPoints * 14));
+        var plotW = canvasW - padL - padR;
+        const double plotH = 200;
+        var canvasH = padT + plotH + padB;
+        var originX = padL;
+        var originY = padT + plotH;
+        var pointStep = plotW / numPoints;
+
+        return new LineChartLayout(
+            padL, padR, padT, padB, plotW, plotH, canvasW, canvasH, originX, originY, pointStep);
+    }
+
+    private static void AppendLineChartPlotFrame(
+        StringBuilder sb,
+        LineChartLayout layout,
+        double maxVal,
+        string unit)
+    {
+        sb.Append("<line x1=\"").Append(F(layout.OriginX))
+            .Append("\" y1=\"").Append(F(layout.OriginY))
+            .Append("\" x2=\"").Append(F(layout.OriginX))
+            .Append("\" y2=\"").Append(F(layout.PadT))
+            .Append("\" stroke=\"#cbd5e1\" stroke-width=\"1\"/>");
+        sb.Append("<line x1=\"").Append(F(layout.OriginX))
+            .Append("\" y1=\"").Append(F(layout.OriginY))
+            .Append("\" x2=\"").Append(F(layout.OriginX + layout.PlotW))
+            .Append("\" y2=\"").Append(F(layout.OriginY))
+            .Append("\" stroke=\"#cbd5e1\" stroke-width=\"1\"/>");
+
+        for (var tick = 0; tick <= 4; tick++)
+        {
+            var frac = tick / 4.0;
+            var yVal = maxVal * frac;
+            var y = layout.OriginY - frac * layout.PlotH;
+            sb.Append("<line x1=\"").Append(F(layout.OriginX))
+                .Append("\" y1=\"").Append(F(y))
+                .Append("\" x2=\"").Append(F(layout.OriginX + layout.PlotW))
+                .Append("\" y2=\"").Append(F(y))
+                .Append("\" stroke=\"#e2e8f0\" stroke-width=\"1\"/>");
+            var tickLabel = FormatChartValueWithUnit(yVal, unit);
+            sb.Append("<text x=\"").Append(F(layout.OriginX - 6))
+                .Append("\" y=\"").Append(F(y + 4))
+                .Append("\" text-anchor=\"end\" font-family=\"system-ui,Segoe UI,sans-serif\" font-size=\"9\" fill=\"#64748b\">")
+                .Append(EscapeSvgText(tickLabel))
+                .Append("</text>");
+        }
+    }
+
+    private static void AppendLineChartXLabels(
+        StringBuilder sb,
+        LineChartLayout layout,
+        IReadOnlyList<string> labels)
+    {
+        var fontSize = labels.Count > 24 ? 8 : 9;
+        for (var i = 0; i < labels.Count; i++)
+        {
+            var x = layout.OriginX + (i + 0.5) * layout.PointStep;
+            sb.Append("<text x=\"").Append(F(x))
+                .Append("\" y=\"").Append(F(layout.OriginY + 16))
+                .Append("\" text-anchor=\"middle\" font-family=\"system-ui,Segoe UI,sans-serif\" font-size=\"")
+                .Append(fontSize)
+                .Append("\" fill=\"#334155\">")
+                .Append(EscapeSvgText(labels[i]))
+                .Append("</text>");
+        }
+    }
+
+    private static void AppendLineChartSeries(
+        StringBuilder sb,
+        LineChartLayout layout,
+        IReadOnlyList<string> labels,
+        IReadOnlyList<double> values,
+        double maxVal,
+        string unit,
+        string seriesLabel)
+    {
+        var points = new List<(double X, double Y, double Val, string Label)>();
+        for (var i = 0; i < labels.Count; i++)
+        {
+            var val = i < values.Count ? values[i] : ChartDatasetValues.Missing;
+            if (!double.IsFinite(val) || val < 0)
+                continue;
+
+            var x = layout.OriginX + (i + 0.5) * layout.PointStep;
+            var y = layout.OriginY - val / maxVal * layout.PlotH;
+            points.Add((x, y, val, labels[i]));
+        }
+
+        if (points.Count == 0)
+            return;
+
+        var baselineY = F(layout.OriginY);
+        sb.Append("<polygon fill=\"").Append(SvgSegmentFill(0))
+            .Append("\" fill-opacity=\"0.18\" stroke=\"none\" points=\"");
+        sb.Append(F(points[0].X)).Append(',').Append(baselineY).Append(' ');
+        foreach (var p in points)
+            sb.Append(F(p.X)).Append(',').Append(F(p.Y)).Append(' ');
+        sb.Append(F(points[^1].X)).Append(',').Append(baselineY);
+        sb.Append("\"/>");
+
+        sb.Append("<polyline fill=\"none\" stroke=\"").Append(SvgSegmentFill(0))
+            .Append("\" stroke-width=\"2\" points=\"");
+        foreach (var p in points)
+            sb.Append(F(p.X)).Append(',').Append(F(p.Y)).Append(' ');
+        sb.Append("\"/>");
+
+        foreach (var p in points)
+        {
+            sb.Append("<circle cx=\"").Append(F(p.X))
+                .Append("\" cy=\"").Append(F(p.Y))
+                .Append("\" r=\"3\" fill=\"").Append(SvgSegmentFill(0))
+                .Append("\">");
+            sb.Append("<title>")
+                .Append(EscapeSvgText($"{seriesLabel}, {p.Label}: {FormatChartValueWithUnit(p.Val, unit)}"))
+                .Append("</title>");
+            sb.Append("</circle>");
+        }
+    }
+
+    private static bool TryNormalizeLineChartData(
+        ReportPreviewChartDescriptor d,
+        out List<string> labels,
+        out List<double> values)
+    {
+        labels = (d.Labels ?? []).Select(static x => x?.Trim() ?? "").ToList();
+        values = [];
+        if (labels.Count == 0 || d.Datasets is not { Count: > 0 } sets)
+            return false;
+
+        var ds = sets[0];
+        values = (ds.Values ?? []).Select(static v =>
+            double.IsFinite(v) ? Math.Max(0, v) : ChartDatasetValues.Missing).ToList();
+        while (values.Count < labels.Count)
+            values.Add(ChartDatasetValues.Missing);
+        if (values.Count > labels.Count)
+            values = values.Take(labels.Count).ToList();
+
+        return values.Any(static v => double.IsFinite(v) && v >= 0);
+    }
+
+    private static bool IsStackedGroupedBar(ReportPreviewChartDescriptor d) =>
+        string.Equals(d.ChartAxisMode?.Trim(), "stacked", StringComparison.OrdinalIgnoreCase);
+
+    private static double ComputeGroupedBarMaxValue(
+        IReadOnlyList<GroupedBarSeries> series,
+        bool isStacked,
+        int dayCount)
+    {
+        if (!isStacked)
+        {
+            return series
+                .SelectMany(s => s.NormValues is not null
+                    ? s.Values.Concat(s.NormValues)
+                    : s.Values)
+                .Where(static v => double.IsFinite(v))
+                .DefaultIfEmpty(0)
+                .Max();
+        }
+
+        var max = 0.0;
+        for (var di = 0; di < dayCount; di++)
+        {
+            var daySum = 0.0;
+            foreach (var bar in series)
+            {
+                if (di < bar.Values.Count
+                    && double.IsFinite(bar.Values[di])
+                    && bar.Values[di] > 0)
+                    daySum += bar.Values[di];
+            }
+
+            if (daySum > max)
+                max = daySum;
+        }
+
+        return max;
+    }
+
     private static bool TryBuildGroupedBarSvg(ReportPreviewChartDescriptor d, out string? svg)
     {
         svg = null;
         if (!TryNormalizeGroupedBarData(d, out var dayLabels, out var series))
             return false;
 
-        var maxVal = series
-            .SelectMany(s => s.NormValues is not null
-                ? s.Values.Concat(s.NormValues)
-                : s.Values)
-            .Where(static v => double.IsFinite(v))
-            .DefaultIfEmpty(0)
-            .Max();
+        var isStacked = IsStackedGroupedBar(d) && series.All(static s => s.NormValues is null);
+        var maxVal = ComputeGroupedBarMaxValue(series, isStacked, dayLabels.Count);
         if (maxVal <= 0)
             return false;
 
-        var layout = ComputeGroupedBarLayout(dayLabels.Count, series.Count);
+        var layout = ComputeGroupedBarLayout(
+            dayLabels.Count,
+            series.Count,
+            isStacked,
+            series.Select(static s => s.Label).ToList());
         var unit = string.IsNullOrWhiteSpace(d.ValueUnit) ? "" : d.ValueUnit.Trim();
 
         var sb = new StringBuilder(8192);
@@ -437,12 +704,245 @@ public static class ReportExportChartRenderer
             $"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {layout.CanvasW:0.##} {layout.CanvasH:0.##}\" width=\"{layout.CanvasW:0.##}\" height=\"{layout.CanvasH:0.##}\" shape-rendering=\"geometricPrecision\">");
 
         AppendGroupedBarPlotFrame(sb, layout, maxVal, unit);
-        AppendGroupedBarBars(sb, layout, dayLabels, series, maxVal, unit);
+        AppendGroupedBarBars(sb, layout, dayLabels, series, maxVal, unit, isStacked);
         AppendGroupedBarLegend(sb, layout, series);
 
         sb.Append("</svg>");
         svg = sb.ToString();
         return true;
+    }
+
+    private static bool TryBuildHorizontalGroupedBarSvg(ReportPreviewChartDescriptor d, out string? svg)
+    {
+        svg = null;
+        if (!TryNormalizeGroupedBarData(d, out var categoryLabels, out var series))
+            return false;
+
+        var symmetric = HorizontalGroupedBarChartMetrics.IsSymmetricAxisMode(d.ChartAxisMode);
+        double axisMin;
+        double axisMax;
+        if (symmetric)
+        {
+            (axisMin, axisMax) = HorizontalGroupedBarChartMetrics.ResolveSplitAxisBounds(
+                series.SelectMany(static s => s.Values));
+            if (axisMax <= 0 && axisMin >= 0)
+                return false;
+        }
+        else
+        {
+            axisMax = series
+                .SelectMany(s => s.Values)
+                .Where(static v => double.IsFinite(v) && v > 0)
+                .DefaultIfEmpty(0)
+                .Max();
+            if (axisMax <= 0)
+                return false;
+
+            axisMin = 0;
+        }
+
+        var layout = ComputeHorizontalGroupedBarLayout(categoryLabels, series);
+        var unit = string.IsNullOrWhiteSpace(d.ValueUnit) ? "" : d.ValueUnit.Trim();
+
+        var sb = new StringBuilder(8192);
+        sb.Append(CultureInfo.InvariantCulture,
+            $"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {layout.CanvasW:0.##} {layout.CanvasH:0.##}\" width=\"{layout.CanvasW:0.##}\" height=\"{layout.CanvasH:0.##}\" shape-rendering=\"geometricPrecision\">");
+
+        AppendHorizontalGroupedBarPlotFrame(sb, layout, axisMin, axisMax, unit);
+        AppendHorizontalGroupedBarBars(sb, layout, categoryLabels, series, axisMin, axisMax, unit);
+        AppendGroupedBarLegend(sb, layout.ToVerticalLegendLayout(), series);
+
+        sb.Append("</svg>");
+        svg = sb.ToString();
+        return true;
+    }
+
+    private sealed record HorizontalGroupedBarLayout(
+        double PadL,
+        double PadR,
+        double PadT,
+        double PadB,
+        double PlotW,
+        double PlotH,
+        double CanvasW,
+        double CanvasH,
+        double OriginX,
+        double OriginY,
+        double GroupH,
+        double BarGap,
+        double BarH,
+        int LegendCols,
+        double LegendColWidth,
+        double LegendRowHeight,
+        int LegendFontSize,
+        double LegendY,
+        double LegendOffsetX)
+    {
+        public GroupedBarLayout ToVerticalLegendLayout() =>
+            new(PadL, PadR, PadT, PadB, PlotH, CanvasW, CanvasH, PlotW, OriginY + PlotH, GroupH, BarGap, BarH,
+                LegendCols, LegendColWidth, LegendRowHeight, LegendFontSize, LegendY, LegendOffsetX);
+    }
+
+    private static HorizontalGroupedBarLayout ComputeHorizontalGroupedBarLayout(
+        IReadOnlyList<string> categoryLabels,
+        IReadOnlyList<GroupedBarSeries> series)
+    {
+        var numCategories = Math.Max(1, categoryLabels.Count);
+        var numSeries = Math.Max(1, series.Count);
+        var maxLabelLen = categoryLabels.Count == 0
+            ? 0
+            : categoryLabels.Max(static l => (l ?? "").Length);
+        var padL = Math.Clamp(72 + maxLabelLen * 6.5, 100, 220);
+        const double padR = 24;
+        const double padT = 14;
+        const double padB = 40;
+        var canvasW = ReportTabularExporter.PdfLandscapeContentWidthPoints();
+        var plotW = canvasW - padL - padR;
+        var groupH = HorizontalGroupedBarChartMetrics.ExportCategorySlotHeight;
+        var plotH = HorizontalGroupedBarChartMetrics.ExportPlotHeight(categoryLabels.Count);
+        var compactLegend = numSeries > 12;
+        var legendColWidth = compactLegend ? 120.0 : 180.0;
+        var legendCols = Math.Max(1, (int)Math.Floor(plotW / legendColWidth));
+        var legendBlockW = legendCols * legendColWidth;
+        var legendOffsetX = padL + (plotW - legendBlockW) / 2;
+        var legendRowHeight = compactLegend ? 12.0 : 14.0;
+        var legendFontSize = compactLegend ? 8 : 9;
+        var legendRows = (int)Math.Ceiling(numSeries / (double)legendCols);
+        var legendH = Math.Max(20, legendRows * legendRowHeight + 6);
+        var canvasH = padT + plotH + padB + legendH;
+        var originX = padL;
+        var originY = padT;
+        const double barGap = 0;
+        var barH = groupH / numSeries;
+        var legendY = padT + plotH + padB;
+
+        return new HorizontalGroupedBarLayout(
+            padL, padR, padT, padB, plotW, plotH, canvasW, canvasH, originX, originY, groupH, barGap, barH,
+            legendCols, legendColWidth, legendRowHeight, legendFontSize, legendY, legendOffsetX);
+    }
+
+    private static void AppendHorizontalGroupedBarPlotFrame(
+        StringBuilder sb,
+        HorizontalGroupedBarLayout layout,
+        double axisMin,
+        double axisMax,
+        string unit)
+    {
+        var plotRight = layout.OriginX + layout.PlotW;
+        var plotBottom = layout.OriginY + layout.PlotH;
+        var axisRange = axisMax - axisMin;
+        if (axisRange <= 0)
+            axisRange = 1;
+
+        sb.Append("<line x1=\"").Append(F(layout.OriginX))
+            .Append("\" y1=\"").Append(F(layout.OriginY))
+            .Append("\" x2=\"").Append(F(layout.OriginX))
+            .Append("\" y2=\"").Append(F(plotBottom))
+            .Append("\" stroke=\"#cbd5e1\" stroke-width=\"1\"/>");
+        sb.Append("<line x1=\"").Append(F(layout.OriginX))
+            .Append("\" y1=\"").Append(F(plotBottom))
+            .Append("\" x2=\"").Append(F(plotRight))
+            .Append("\" y2=\"").Append(F(plotBottom))
+            .Append("\" stroke=\"#cbd5e1\" stroke-width=\"1\"/>");
+
+        if (axisMin < 0 && axisMax > 0)
+        {
+            var zeroX = layout.OriginX + (0 - axisMin) / axisRange * layout.PlotW;
+            sb.Append("<line x1=\"").Append(F(zeroX))
+                .Append("\" y1=\"").Append(F(layout.OriginY))
+                .Append("\" x2=\"").Append(F(zeroX))
+                .Append("\" y2=\"").Append(F(plotBottom))
+                .Append("\" stroke=\"#94a3b8\" stroke-width=\"1\"/>");
+        }
+
+        var axisTicks = axisMin < 0 && axisMax > 0
+            ? HorizontalGroupedBarChartMetrics.BuildBidirectionalAxisTickValues(axisMin, axisMax)
+            : HorizontalGroupedBarChartMetrics.BuildAxisTickValues(axisMax);
+
+        foreach (var xVal in axisTicks)
+        {
+            var x = layout.OriginX + (xVal - axisMin) / axisRange * layout.PlotW;
+            sb.Append("<line x1=\"").Append(F(x))
+                .Append("\" y1=\"").Append(F(layout.OriginY))
+                .Append("\" x2=\"").Append(F(x))
+                .Append("\" y2=\"").Append(F(plotBottom))
+                .Append("\" stroke=\"#e2e8f0\" stroke-width=\"1\"/>");
+            var tickLabel = FormatChartValueWithUnit(xVal, unit);
+            sb.Append("<text x=\"").Append(F(x))
+                .Append("\" y=\"").Append(F(plotBottom + 16))
+                .Append("\" text-anchor=\"middle\" font-family=\"system-ui,Segoe UI,sans-serif\" font-size=\"")
+                .Append(HorizontalGroupedBarChartMetrics.ExportAxisTickFontSize)
+                .Append("\" fill=\"#64748b\">")
+                .Append(EscapeSvgText(tickLabel))
+                .Append("</text>");
+        }
+    }
+
+    private static void AppendHorizontalGroupedBarCategoryLabels(
+        StringBuilder sb,
+        HorizontalGroupedBarLayout layout,
+        IReadOnlyList<string> categoryLabels)
+    {
+        for (var ci = 0; ci < categoryLabels.Count; ci++)
+        {
+            var groupY = HorizontalGroupedBarChartMetrics.ExportCategoryGroupY(layout.OriginY, ci);
+            var labelY = groupY + layout.GroupH / 2 + 4;
+            sb.Append("<text x=\"").Append(F(layout.OriginX - 6))
+                .Append("\" y=\"").Append(F(labelY))
+                .Append("\" text-anchor=\"end\" font-family=\"system-ui,Segoe UI,sans-serif\" font-size=\"")
+                .Append(HorizontalGroupedBarChartMetrics.ExportCategoryLabelFontSize)
+                .Append("\" fill=\"").Append(HorizontalGroupedBarChartMetrics.CategoryLabelColor)
+                .Append("\">")
+                .Append(EscapeSvgText(categoryLabels[ci]))
+                .Append("</text>");
+        }
+    }
+
+    private static void AppendHorizontalGroupedBarBars(
+        StringBuilder sb,
+        HorizontalGroupedBarLayout layout,
+        IReadOnlyList<string> categoryLabels,
+        IReadOnlyList<GroupedBarSeries> barSeries,
+        double axisMin,
+        double axisMax,
+        string unit)
+    {
+        AppendHorizontalGroupedBarCategoryLabels(sb, layout, categoryLabels);
+
+        var innerPad = (layout.GroupH - barSeries.Count * layout.BarH) / 2;
+        var axisRange = axisMax - axisMin;
+        if (axisRange <= 0)
+            axisRange = 1;
+
+        var zeroX = layout.OriginX + (0 - axisMin) / axisRange * layout.PlotW;
+
+        for (var ci = 0; ci < categoryLabels.Count; ci++)
+        {
+            var groupY = HorizontalGroupedBarChartMetrics.ExportCategoryGroupY(layout.OriginY, ci);
+            var categoryLabel = categoryLabels[ci];
+            foreach (var bar in barSeries)
+            {
+                var val = bar.Values[ci];
+                if (!double.IsFinite(val) || val == 0)
+                    continue;
+
+                var endX = layout.OriginX + (val - axisMin) / axisRange * layout.PlotW;
+                var barX = val >= 0 ? zeroX : endX;
+                var barW = Math.Abs(endX - zeroX);
+                if (barW <= 0)
+                    continue;
+
+                var slotY = groupY + innerPad + bar.BarGroupIndex * layout.BarH;
+                sb.Append("<rect x=\"").Append(F(barX))
+                    .Append("\" y=\"").Append(F(slotY))
+                    .Append("\" width=\"").Append(F(barW))
+                    .Append("\" height=\"").Append(F(layout.BarH))
+                    .Append("\" fill=\"").Append(SvgSegmentFill(bar.ColorIndex))
+                    .Append("\" rx=\"1\">");
+                AppendGroupedBarRectTitle(sb, bar.Label, categoryLabel, val, unit);
+                sb.Append("</rect>");
+            }
+        }
     }
 
     private sealed record GroupedBarLayout(
@@ -465,7 +965,17 @@ public static class ReportExportChartRenderer
         double LegendY,
         double LegendOffsetX);
 
-    private static GroupedBarLayout ComputeGroupedBarLayout(int numDays, int numSeries)
+    private static double CalcGroupedBarMinWidthPx(int dayCount, int seriesCount)
+    {
+        var perDay = Math.Max(28, (seriesCount + 1) * 1.5 + seriesCount * 2);
+        return Math.Min(1100, Math.Max(560, 72 + dayCount * perDay));
+    }
+
+    private static GroupedBarLayout ComputeGroupedBarLayout(
+        int numDays,
+        int numSeries,
+        bool isStacked = false,
+        IReadOnlyList<string>? legendLabels = null)
     {
         const double padL = 52;
         const double padR = 20;
@@ -478,7 +988,14 @@ public static class ReportExportChartRenderer
         var plotW = canvasW - padL - padR;
         var compactLegend = numSeries > 12;
         var legendColWidth = compactLegend ? 120.0 : 140.0;
-        var legendCols = Math.Max(1, (int)Math.Floor(plotW / legendColWidth));
+        if (legendLabels is { Count: > 0 })
+        {
+            var maxLabelLen = legendLabels.Max(static l => (l ?? "").Length);
+            legendColWidth = Math.Max(legendColWidth, 16 + 10 + maxLabelLen * 6.5);
+        }
+
+        var legendCols = Math.Max(1, (int)Math.Floor(Math.Max(CalcGroupedBarMinWidthPx(numDays, numSeries), 640) / legendColWidth));
+        legendCols = Math.Min(legendCols, Math.Max(1, numSeries));
         var legendBlockW = legendCols * legendColWidth;
         var legendOffsetX = padL + (plotW - legendBlockW) / 2;
         var legendRowHeight = compactLegend ? 16.0 : 20.0;
@@ -487,7 +1004,7 @@ public static class ReportExportChartRenderer
         var legendH = Math.Max(28, legendRows * legendRowHeight + 12);
         var canvasH = Math.Min(420, padT + plotH + padB + legendH);
         var originY = padT + plotH;
-        var numBarSeries = Math.Max(1, numSeries);
+        var numBarSeries = isStacked ? 1 : Math.Max(1, numSeries);
         var groupW = plotW / Math.Max(1, numDays);
         const double barGap = 1.5;
         var barW = Math.Max(1.5, (groupW - barGap * (numBarSeries + 1)) / numBarSeries);
@@ -525,7 +1042,7 @@ public static class ReportExportChartRenderer
                 .Append("\" x2=\"").Append(F(layout.PadL + layout.PlotW))
                 .Append("\" y2=\"").Append(F(y))
                 .Append("\" stroke=\"#e2e8f0\" stroke-width=\"1\"/>");
-            var tickLabel = FormatChartMetricWithUnit(yVal, unit);
+            var tickLabel = FormatChartValueWithUnit(yVal, unit);
             sb.Append("<text x=\"").Append(F(layout.PadL - 6))
                 .Append("\" y=\"").Append(F(y + 4))
                 .Append("\" text-anchor=\"end\" font-family=\"system-ui,Segoe UI,sans-serif\" font-size=\"11\" fill=\"#64748b\">")
@@ -557,7 +1074,8 @@ public static class ReportExportChartRenderer
         IReadOnlyList<string> dayLabels,
         IReadOnlyList<GroupedBarSeries> barSeries,
         double maxVal,
-        string unit)
+        string unit,
+        bool isStacked = false)
     {
         AppendGroupedBarDayLabels(sb, layout, dayLabels);
 
@@ -565,6 +1083,32 @@ public static class ReportExportChartRenderer
         {
             var groupX = layout.PadL + di * layout.GroupW;
             var dayLabel = dayLabels[di];
+
+            if (isStacked)
+            {
+                var slotX = groupX + layout.BarGap;
+                var stackTopY = layout.OriginY;
+                foreach (var bar in barSeries)
+                {
+                    var val = bar.Values[di];
+                    if (!double.IsFinite(val) || val <= 0)
+                        continue;
+
+                    var barH = val / maxVal * layout.PlotH;
+                    stackTopY -= barH;
+                    sb.Append("<rect x=\"").Append(F(slotX))
+                        .Append("\" y=\"").Append(F(stackTopY))
+                        .Append("\" width=\"").Append(F(layout.BarW))
+                        .Append("\" height=\"").Append(F(barH))
+                        .Append("\" fill=\"").Append(SvgSegmentFill(bar.ColorIndex))
+                        .Append("\" rx=\"1\">");
+                    AppendGroupedBarRectTitle(sb, bar.Label, dayLabel, val, unit);
+                    sb.Append("</rect>");
+                }
+
+                continue;
+            }
+
             foreach (var bar in barSeries)
             {
                 var slotX = groupX + layout.BarGap + bar.BarGroupIndex * (layout.BarW + layout.BarGap);
@@ -613,7 +1157,7 @@ public static class ReportExportChartRenderer
         double value,
         string unit)
     {
-        var valStr = FormatChartMetricWithUnit(value, unit);
+        var valStr = FormatChartValueWithUnit(value, unit);
         sb.Append("<title>")
             .Append(EscapeSvgText($"{seriesLabel}, {dayLabel}: {valStr}"))
             .Append("</title>");
@@ -667,13 +1211,19 @@ public static class ReportExportChartRenderer
 
     private static string F(double value) => value.ToString("0.##", CultureInfo.InvariantCulture);
 
-    private static string FormatChartMetric(double value) =>
-        CatalogReportShared.FormatMetric(value);
+    private static string FormatChartPercent(double value) =>
+        CatalogReportShared.FormatPercent(value);
 
-    private static string FormatChartMetricWithUnit(double value, string unit) =>
-        unit.Length > 0
-            ? $"{FormatChartMetric(value)} {unit}"
-            : FormatChartMetric(value);
+    private static string FormatChartValueWithUnit(double value, string unit)
+    {
+        if (string.Equals(unit, "мин", StringComparison.OrdinalIgnoreCase))
+            return CatalogReportShared.FormatDuration(value);
+
+        var n = CatalogReportShared.RoundDurationMinutes(value);
+        return unit.Length > 0
+            ? $"{n.ToString(CultureInfo.InvariantCulture)} {unit}"
+            : n.ToString(CultureInfo.InvariantCulture);
+    }
 
     private static bool TryNormalizeGroupedBarData(
         ReportPreviewChartDescriptor d,
@@ -685,14 +1235,18 @@ public static class ReportExportChartRenderer
         if (dayLabels.Count == 0 || d.Datasets is not { Count: > 0 } sets)
             return false;
 
+        var preserveSignedValues = HorizontalGroupedBarChartMetrics.IsSymmetricAxisMode(d.ChartAxisMode);
+
         for (var si = 0; si < sets.Count; si++)
         {
             var ds = sets[si];
             if (string.Equals(ds.ChartSeriesType, "norm", StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            var vals = (ds.Values ?? []).Select(static v =>
-                double.IsFinite(v) ? Math.Max(0, v) : ChartDatasetValues.Missing).ToList();
+            var vals = (ds.Values ?? []).Select(v =>
+                double.IsFinite(v)
+                    ? preserveSignedValues ? v : Math.Max(0, v)
+                    : ChartDatasetValues.Missing).ToList();
             while (vals.Count < dayLabels.Count)
                 vals.Add(ChartDatasetValues.Missing);
             if (vals.Count > dayLabels.Count)

@@ -15,7 +15,6 @@ public static class DashboardServiceCollectionExtensions
         services.AddSingleton<IDashboardHubConnectionTracker, DashboardHubConnectionTracker>();
         services.AddSingleton<IQueueDashboardClock, QueueDashboardClock>();
         services.AddScoped<IElectronicQueueAvailability, ElectronicQueueAvailabilityService>();
-        services.AddScoped<QueueDashboardService>();
         services.AddScoped<IQueueDashboardService, QueueDashboardService>();
         services.AddHostedService<DashboardRefreshHostedService>();
 

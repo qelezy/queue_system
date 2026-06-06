@@ -51,8 +51,14 @@ public static partial class ReportTabularExporter
                         lastDetailDate = d0;
                 }
 
-                foreach (var cell in cells)
-                    csv.WriteField(cell);
+                var csvCells = row.CsvCells;
+                for (var c = 0; c < cells.Count; c++)
+                {
+                    var field = csvCells is not null && c < csvCells.Count
+                        ? csvCells[c] ?? ""
+                        : FormatCellForCsv(result.ColumnHeaders, c, cells[c]);
+                    csv.WriteField(field);
+                }
                 csv.NextRecord();
             }
 

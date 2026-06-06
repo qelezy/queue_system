@@ -22,24 +22,25 @@ internal static class ServiceDelaysQueries
         int EntityId,
         string EntityName,
         string SpecialtyLabels,
-        int QueueIncidents,
         double TotalDelayMin,
         double? AvgDelayMin,
         double MinDelayMin,
         double MaxDelayMin,
-        int OverNormCount);
+        int OverNormCount,
+        double TotalDelayMinExact,
+        double? AvgDelayMinExact,
+        double MinDelayMinExact,
+        double MaxDelayMinExact);
 
     internal static List<EntityMetrics> BuildEntityMetrics(
         IReadOnlyList<StageObservation> stages,
-        IReadOnlyDictionary<int, string> entityLabels,
-        string analysisMode)
+        IReadOnlyDictionary<int, string> entityLabels)
     {
-        var byCabinet = IsCabinetMode(analysisMode);
-        var incidentByEntity = AggregateIncidents(stages, byCabinet);
-        var specialtyByEntity = BuildSpecialtyLabelsByEntity(stages, byCabinet);
+        var incidentByEntity = AggregateOverNorm(stages);
+        var specialtyByEntity = BuildSpecialtyLabelsByEntity(stages);
 
         var entityIds = incidentByEntity
-            .Where(kv => kv.Value.Incidents > 0 || kv.Value.TotalDelayMin > 0)
+            .Where(kv => kv.Value.OverNormCount > 0)
             .Select(kv => kv.Key)
             .ToHashSet();
 
@@ -54,35 +55,47 @@ internal static class ServiceDelaysQueries
             var specialties = specialtyByEntity.TryGetValue(entityId, out var spec)
                 ? spec
                 : "—";
-            var avg = agg.Incidents > 0 ? agg.TotalDelayMin / agg.Incidents : (double?)null;
-            var minDelay = agg.Incidents > 0 && agg.MinDelayMin < double.MaxValue
+            var avg = agg.OverNormCount > 0 ? agg.TotalDelayMin / agg.OverNormCount : (double?)null;
+            var minDelay = agg.OverNormCount > 0 && agg.MinDelayMin < double.MaxValue
                 ? agg.MinDelayMin
+                : 0;
+            var avgExact = agg.OverNormCount > 0
+                ? agg.TotalDelayMinExact / agg.OverNormCount
+                : (double?)null;
+            var minDelayExact = agg.OverNormCount > 0 && agg.MinDelayMinExact < double.MaxValue
+                ? agg.MinDelayMinExact
                 : 0;
 
             metrics.Add(new EntityMetrics(
                 entityId,
                 name,
                 specialties,
-                agg.Incidents,
                 agg.TotalDelayMin,
                 avg,
                 minDelay,
                 agg.MaxDelayMin,
-                agg.OverNormCount));
+                agg.OverNormCount,
+                agg.TotalDelayMinExact,
+                avgExact,
+                minDelayExact,
+                agg.MaxDelayMinExact));
         }
 
         return metrics;
     }
 
     internal static double ComputeStageDelayMinutes(StageObservation stage) =>
-        ComputeStageDelayBreakdown(stage).StageDelayMin;
+        TryComputeOverNormMinutes(stage) ?? 0;
 
-    internal static bool IsOverNorm(StageObservation stage)
+    internal static bool IsOverNorm(StageObservation stage) =>
+        TryComputeOverNormMinutes(stage) is not null;
+
+    internal static double? TryComputeOverNormMinutes(StageObservation stage)
     {
         if (!stage.TimeStartServicing.HasValue
             || !stage.TimeEndServicing.HasValue
             || stage.TimeServicing <= 0)
-            return false;
+            return null;
 
         var startDt = EqDateTimeExtensions.CombineOnArrivalDate(
             stage.DateArrival,
@@ -90,116 +103,103 @@ internal static class ServiceDelaysQueries
         var endDt = EqDateTimeExtensions.CombineOnArrivalDate(
             stage.DateArrival,
             stage.TimeEndServicing.Value);
-        var serviceMin = (endDt - startDt).TotalMinutes;
-        return IsValidStageMinutes(serviceMin) && serviceMin > stage.TimeServicing;
+        var serviceSeconds = CatalogReportShared.ComputeDurationSeconds(startDt, endDt);
+        if (serviceSeconds is null)
+            return null;
+
+        var serviceMinutesRounded = CatalogReportShared.RoundDurationMinutes(
+            CatalogReportShared.MinutesFromSeconds(serviceSeconds.Value));
+        var overNormMinutes = serviceMinutesRounded - stage.TimeServicing;
+        if (overNormMinutes <= 0 || overNormMinutes >= MaxStageMinutes)
+            return null;
+
+        return overNormMinutes;
     }
 
-    private static StageDelayBreakdown ComputeStageDelayBreakdown(StageObservation stage)
+    internal static double? TryComputeOverNormMinutesExact(StageObservation stage)
     {
-        var delayCallMin = 0.0;
-        var overNormMin = 0.0;
+        if (!stage.TimeStartServicing.HasValue
+            || !stage.TimeEndServicing.HasValue
+            || stage.TimeServicing <= 0)
+            return null;
 
-        if (stage.TimeCall.HasValue && stage.TimeStartServicing.HasValue)
-        {
-            var callDt = EqDateTimeExtensions.CombineOnArrivalDate(stage.DateArrival, stage.TimeCall.Value);
-            var startDt = EqDateTimeExtensions.CombineOnArrivalDate(
-                stage.DateArrival,
-                stage.TimeStartServicing.Value);
-            var callDelay = (startDt - callDt).TotalMinutes;
-            if (IsValidStageMinutes(callDelay) && callDelay > 0)
-                delayCallMin = callDelay;
-        }
+        var startDt = EqDateTimeExtensions.CombineOnArrivalDate(
+            stage.DateArrival,
+            stage.TimeStartServicing.Value);
+        var endDt = EqDateTimeExtensions.CombineOnArrivalDate(
+            stage.DateArrival,
+            stage.TimeEndServicing.Value);
+        var serviceMinutesExact = CatalogReportShared.ComputeDurationMinutesExact(startDt, endDt);
+        if (serviceMinutesExact is null)
+            return null;
 
-        if (stage.TimeStartServicing.HasValue
-            && stage.TimeEndServicing.HasValue
-            && stage.TimeServicing > 0)
-        {
-            var startDt = EqDateTimeExtensions.CombineOnArrivalDate(
-                stage.DateArrival,
-                stage.TimeStartServicing.Value);
-            var endDt = EqDateTimeExtensions.CombineOnArrivalDate(
-                stage.DateArrival,
-                stage.TimeEndServicing.Value);
-            var serviceMin = (endDt - startDt).TotalMinutes;
-            if (IsValidStageMinutes(serviceMin))
-            {
-                var overNorm = serviceMin - stage.TimeServicing;
-                if (overNorm > 0 && IsValidStageMinutes(overNorm))
-                    overNormMin = overNorm;
-            }
-        }
+        var overNormMinutes = serviceMinutesExact.Value - stage.TimeServicing;
+        if (overNormMinutes <= 0 || overNormMinutes >= MaxStageMinutes)
+            return null;
 
-        return new StageDelayBreakdown(delayCallMin + overNormMin);
+        return overNormMinutes;
     }
 
-    private readonly record struct StageDelayBreakdown(double StageDelayMin);
+    private static int ResolveDoctorId(StageObservation stage) =>
+        stage.IdDoctor is > 0 ? stage.IdDoctor.Value : 0;
 
-    private static bool IsValidStageMinutes(double minutes) =>
-        minutes >= 0 && minutes < MaxStageMinutes;
-
-    private static bool IsCabinetMode(string analysisMode) =>
-        string.Equals(analysisMode, ServiceDelaysReportBuilder.ModeCabinet, StringComparison.OrdinalIgnoreCase);
-
-    private static int ResolveEntityId(StageObservation stage, bool byCabinet)
+    private sealed class OverNormAggregate
     {
-        var id = byCabinet ? stage.IdCabinet : stage.IdDoctor;
-        return id is > 0 ? id.Value : 0;
-    }
-
-    private sealed class IncidentAggregate
-    {
-        public int Incidents;
         public double TotalDelayMin;
         public double MinDelayMin = double.MaxValue;
         public double MaxDelayMin;
         public int OverNormCount;
+        public double TotalDelayMinExact;
+        public double MinDelayMinExact = double.MaxValue;
+        public double MaxDelayMinExact;
     }
 
-    private static Dictionary<int, IncidentAggregate> AggregateIncidents(
-        IReadOnlyList<StageObservation> stages,
-        bool byCabinet)
+    private static Dictionary<int, OverNormAggregate> AggregateOverNorm(
+        IReadOnlyList<StageObservation> stages)
     {
-        var map = new Dictionary<int, IncidentAggregate>();
+        var map = new Dictionary<int, OverNormAggregate>();
 
         foreach (var stage in stages)
         {
-            var entityId = ResolveEntityId(stage, byCabinet);
+            var entityId = ResolveDoctorId(stage);
             if (entityId == 0)
+                continue;
+
+            var overNorm = TryComputeOverNormMinutes(stage);
+            var overNormExact = TryComputeOverNormMinutesExact(stage);
+            if (overNorm is null or <= 0 || overNormExact is null or <= 0)
                 continue;
 
             if (!map.TryGetValue(entityId, out var agg))
             {
-                agg = new IncidentAggregate();
+                agg = new OverNormAggregate();
                 map[entityId] = agg;
             }
 
-            if (IsOverNorm(stage))
-                agg.OverNormCount++;
-
-            var delay = ComputeStageDelayBreakdown(stage).StageDelayMin;
-            if (delay <= 0)
-                continue;
-
-            agg.Incidents++;
-            agg.TotalDelayMin += delay;
-            if (delay < agg.MinDelayMin)
-                agg.MinDelayMin = delay;
-            if (delay > agg.MaxDelayMin)
-                agg.MaxDelayMin = delay;
+            agg.OverNormCount++;
+            agg.TotalDelayMin += overNorm.Value;
+            if (overNorm.Value < agg.MinDelayMin)
+                agg.MinDelayMin = overNorm.Value;
+            if (overNorm.Value > agg.MaxDelayMin)
+                agg.MaxDelayMin = overNorm.Value;
+            agg.TotalDelayMinExact += overNormExact.Value;
+            if (overNormExact.Value < agg.MinDelayMinExact)
+                agg.MinDelayMinExact = overNormExact.Value;
+            if (overNormExact.Value > agg.MaxDelayMinExact)
+                agg.MaxDelayMinExact = overNormExact.Value;
         }
 
         return map;
     }
 
     private static Dictionary<int, string> BuildSpecialtyLabelsByEntity(
-        IReadOnlyList<StageObservation> stages,
-        bool byCabinet)
+        IReadOnlyList<StageObservation> stages)
     {
         var map = new Dictionary<int, HashSet<string>>();
 
         foreach (var stage in stages)
         {
-            var entityId = ResolveEntityId(stage, byCabinet);
+            var entityId = ResolveDoctorId(stage);
             if (entityId == 0)
                 continue;
 

@@ -69,8 +69,8 @@ public sealed class LoadAndDowntimeReportBuilderTests
 
         var metrics = GetDetailMetrics(logs, items);
 
-        Assert.Equal(0, metrics.Busy, 1);
-        Assert.Equal(240, metrics.Idle, 1);
+        Assert.Equal(62, metrics.Busy, 1);
+        Assert.Equal(178, metrics.Idle, 1);
         AssertMetricsInvariant(metrics);
     }
 
@@ -202,13 +202,12 @@ public sealed class LoadAndDowntimeReportBuilderTests
     {
         var detail = model.Rows.First(r =>
             string.IsNullOrWhiteSpace(r.RowClass)
-            && r.Cells.Count >= 8
-            && double.TryParse(r.Cells[5], NumberStyles.Any, CultureInfo.InvariantCulture, out _));
+            && r.Cells.Count >= 8);
 
         return (
-            double.Parse(detail.Cells[5], CultureInfo.InvariantCulture),
-            double.Parse(detail.Cells[6], CultureInfo.InvariantCulture),
-            double.Parse(detail.Cells[7], CultureInfo.InvariantCulture));
+            ReportsDurationTestHelper.ParseDurationCell(detail.Cells[5]),
+            ReportsDurationTestHelper.ParseDurationCell(detail.Cells[6]),
+            ReportsDurationTestHelper.ParseDurationCell(detail.Cells[7]));
     }
 
     private static void AssertMetricsInvariant((double Window, double Busy, double Idle) metrics)
@@ -274,15 +273,22 @@ public sealed class LoadAndDowntimeReportLiveTests
                 continue;
             if (!string.IsNullOrWhiteSpace(row.RowClass))
                 continue;
-            if (!double.TryParse(row.Cells[5], NumberStyles.Any, CultureInfo.InvariantCulture, out var window))
+            double window;
+            double busy;
+            double idle;
+            try
+            {
+                window = ReportsDurationTestHelper.ParseDurationCell(row.Cells[5]);
+                busy = ReportsDurationTestHelper.ParseDurationCell(row.Cells[6]);
+                idle = ReportsDurationTestHelper.ParseDurationCell(row.Cells[7]);
+            }
+            catch (FormatException)
+            {
                 continue;
-            if (!double.TryParse(row.Cells[6], NumberStyles.Any, CultureInfo.InvariantCulture, out var busy))
-                continue;
-            if (!double.TryParse(row.Cells[7], NumberStyles.Any, CultureInfo.InvariantCulture, out var idle))
-                continue;
+            }
 
             Assert.True(
-                Math.Abs(window - (busy + idle)) < 0.2,
+                Math.Abs(window - (busy + idle)) <= 1,
                 $"Row window={window}, busy={busy}, idle={idle}, doctor={row.Cells.ElementAtOrDefault(2)}");
         }
     }

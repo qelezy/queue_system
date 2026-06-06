@@ -1,15 +1,17 @@
--- Test data: clone 8 tickets from 2026-05-06 to today (Configurator + /dashboard).
--- Marker: info = N'-', id_client 99990001..99990008. Rollback: dashboard-test-rollback.sql
+-- Test data: clone 20 tickets from multiple dates to today (Configurator + /dashboard).
+-- Marker: info = N'-', id_client 99990001..99990020. Rollback: dashboard-test-rollback.sql
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
 
-DECLARE @sourceDate date = '2026-05-06';
 DECLARE @nowMsk datetime2 = SYSDATETIME();
 DECLARE @todayMsk date = CAST(@nowMsk AS date);
+DECLARE @ticketCount int = 20;
+DECLARE @clientIdMin int = 99990001;
+DECLARE @clientIdMax int = 99990020;
 
 IF EXISTS (
     SELECT 1 FROM Appointment
-    WHERE id_client BETWEEN 99990001 AND 99990008
+    WHERE id_client BETWEEN @clientIdMin AND @clientIdMax
        OR info LIKE N'%DASHBOARD_TEST%'
        OR number LIKE N'D-T%'
 )
@@ -25,24 +27,37 @@ BEGIN
 END;
 
 DECLARE @st_wait int = 1, @st_called int = 2, @st_service int = 3, @st_done int = 4, @st_results int = 5;
-DECLARE @sa_wait int = 1, @sa_called int = 2, @sa_service int = 3, @sa_done int = 4;
+DECLARE @sa_wait int = 1, @sa_called int = 2, @sa_service int = 3, @sa_done int = 4, @sa_pause int = 5;
 
 DECLARE @sources TABLE (
     ticket_rn int NOT NULL PRIMARY KEY,
     source_id int NOT NULL,
+    source_date date NOT NULL,
     id_status_app int NOT NULL,
     scenario nvarchar(20) NOT NULL
 );
 
-INSERT INTO @sources (ticket_rn, source_id, id_status_app, scenario) VALUES
-    (1, 239062, @sa_wait, N'wait'),
-    (2, 239064, @sa_wait, N'wait'),
-    (3, 239065, @sa_called, N'called'),
-    (4, 239068, @sa_called, N'called'),
-    (5, 239070, @sa_service, N'service'),
-    (6, 239082, @sa_service, N'service'),
-    (7, 239084, @sa_done, N'done'),
-    (8, 239086, @sa_wait, N'results');
+INSERT INTO @sources (ticket_rn, source_id, source_date, id_status_app, scenario) VALUES
+    (1, 239062, '2026-05-06', @sa_wait, N'wait'),
+    (2, 239064, '2026-05-06', @sa_wait, N'wait'),
+    (3, 239065, '2026-05-06', @sa_called, N'called'),
+    (4, 239068, '2026-05-06', @sa_called, N'called'),
+    (5, 239070, '2026-05-06', @sa_service, N'service'),
+    (6, 239082, '2026-05-06', @sa_service, N'service'),
+    (7, 239084, '2026-05-06', @sa_done, N'done'),
+    (8, 239086, '2026-05-06', @sa_wait, N'results'),
+    (9, 238835, '2026-05-04', @sa_wait, N'edge_single'),
+    (10, 238926, '2026-05-05', @sa_pause, N'edge_pause'),
+    (11, 238815, '2026-05-04', @sa_wait, N'wait'),
+    (12, 238945, '2026-05-05', @sa_wait, N'wait'),
+    (13, 239305, '2026-05-08', @sa_wait, N'wait'),
+    (14, 238961, '2026-05-05', @sa_service, N'service'),
+    (15, 239213, '2026-05-07', @sa_service, N'service'),
+    (16, 239088, '2026-05-06', @sa_service, N'service'),
+    (17, 239220, '2026-05-07', @sa_service, N'service'),
+    (18, 238817, '2026-05-04', @sa_done, N'done'),
+    (19, 239096, '2026-05-06', @sa_done, N'done'),
+    (20, 239235, '2026-05-07', @sa_wait, N'results');
 
 DECLARE @ticketTiming TABLE (
     ticket_rn int NOT NULL PRIMARY KEY,
@@ -54,11 +69,23 @@ INSERT INTO @ticketTiming (ticket_rn, arrival_min, complete_min) VALUES
     (1, 18, NULL),
     (2, 12, NULL),
     (3, 20, NULL),
-    (4, 18, NULL),
+    (4, 17, NULL),
     (5, 22, NULL),
-    (6, 20, NULL),
+    (6, 19, NULL),
     (7, 24, 3),
-    (8, 16, NULL);
+    (8, 16, NULL),
+    (9, 14, NULL),
+    (10, 13, NULL),
+    (11, 15, NULL),
+    (12, 18, NULL),
+    (13, 12, NULL),
+    (14, 19, NULL),
+    (15, 16, NULL),
+    (16, 21, NULL),
+    (17, 14, NULL),
+    (18, 20, 3),
+    (19, 17, 5),
+    (20, 18, NULL);
 
 DECLARE @stepTiming TABLE (
     ticket_rn int NOT NULL,
@@ -81,30 +108,62 @@ INSERT INTO @stepTiming (ticket_rn, step_rn, call_min, start_min, end_min, id_st
     (3, 1, 18, 16, 9, @st_done, 1),
     (3, 2, 12, 10, 3, @st_done, 1),
     (3, 3, 9, NULL, NULL, @st_called, 0),
-    (4, 1, 16, 14, 7, @st_done, 1),
-    (4, 2, 10, 8, 1, @st_done, 1),
-    (4, 3, 4, NULL, NULL, @st_called, 0),
+    (4, 1, 15, 13, 8, @st_done, 1),
+    (4, 2, 11, 9, 4, @st_done, 1),
+    (4, 3, 6, NULL, NULL, @st_called, 0),
     (5, 1, 20, 18, 11, @st_done, 1),
     (5, 2, 14, 12, 5, @st_done, 1),
     (5, 3, 14, 11, NULL, @st_service, 0),
-    (6, 1, 18, 16, 9, @st_done, 1),
-    (6, 2, 12, 10, 3, @st_done, 1),
-    (6, 3, 8, 5, NULL, @st_service, 0),
+    (6, 1, 17, 15, 10, @st_done, 1),
+    (6, 2, 11, 9, 4, @st_done, 1),
+    (6, 3, 7, 4, NULL, @st_service, 0),
     (7, 1, 20, 18, 11, @st_done, 1),
     (7, 2, 14, 12, 5, @st_done, 1),
     (7, 3, 10, 8, 1, @st_done, 1),
     (8, 1, 14, 12, 5, @st_done, 1),
     (8, 2, 8, 6, 1, @st_done, 1),
-    (8, 3, NULL, NULL, NULL, @st_results, 0);
+    (8, 3, NULL, NULL, NULL, @st_results, 0),
+    (9, 1, NULL, NULL, NULL, @st_wait, 0),
+    (10, 1, 11, 9, 4, @st_done, 1),
+    (10, 2, NULL, NULL, NULL, @st_wait, 0),
+    (11, 1, NULL, NULL, NULL, @st_wait, 0),
+    (11, 2, NULL, NULL, NULL, @st_wait, 0),
+    (11, 3, NULL, NULL, NULL, @st_wait, 0),
+    (12, 1, NULL, NULL, NULL, @st_wait, 0),
+    (12, 2, NULL, NULL, NULL, @st_wait, 0),
+    (12, 3, NULL, NULL, NULL, @st_wait, 0),
+    (13, 1, NULL, NULL, NULL, @st_wait, 0),
+    (13, 2, NULL, NULL, NULL, @st_wait, 0),
+    (14, 1, 17, 15, 10, @st_done, 1),
+    (14, 2, 11, 9, 4, @st_done, 1),
+    (14, 3, 9, 6, NULL, @st_service, 0),
+    (15, 1, 14, 12, 8, @st_done, 1),
+    (15, 2, 9, 7, 3, @st_done, 1),
+    (15, 3, 5, 3, NULL, @st_service, 0),
+    (16, 1, 19, 17, 12, @st_done, 1),
+    (16, 2, 13, 11, 6, @st_done, 1),
+    (16, 3, 13, 10, NULL, @st_service, 0),
+    (17, 1, 12, 10, 6, @st_done, 1),
+    (17, 2, 8, 6, 2, @st_done, 1),
+    (17, 3, 5, 2, NULL, @st_service, 0),
+    (18, 1, 18, 16, 10, @st_done, 1),
+    (18, 2, 12, 10, 5, @st_done, 1),
+    (18, 3, 8, 6, 2, @st_done, 1),
+    (19, 1, 15, 13, 9, @st_done, 1),
+    (19, 2, 10, 8, 4, @st_done, 1),
+    (19, 3, 7, 5, 1, @st_done, 1),
+    (20, 1, 16, 14, 9, @st_done, 1),
+    (20, 2, 10, 8, 3, @st_done, 1),
+    (20, 3, NULL, NULL, NULL, @st_results, 0);
 
 IF EXISTS (
     SELECT s.ticket_rn
     FROM @sources s
-    LEFT JOIN Appointment a ON a.id_appointment = s.source_id AND a.date_arrival = @sourceDate
+    LEFT JOIN Appointment a ON a.id_appointment = s.source_id AND a.date_arrival = s.source_date
     WHERE a.id_appointment IS NULL
 )
 BEGIN
-    RAISERROR('Source appointments for 2026-05-06 not found. Check ids 239062..239086.', 16, 1);
+    RAISERROR('One or more source appointments not found. Check @sources ids and dates in dashboard-test-seed.sql.', 16, 1);
     RETURN;
 END;
 
@@ -131,7 +190,7 @@ SELECT
     x.id_cabinet,
     x.id_doctor
 FROM @sources s
-INNER JOIN Appointment a ON a.id_appointment = s.source_id
+INNER JOIN Appointment a ON a.id_appointment = s.source_id AND a.date_arrival = s.source_date
 INNER JOIN Category cat ON cat.id_category = a.id_category
 CROSS APPLY (
     SELECT
@@ -144,9 +203,9 @@ CROSS APPLY (
 ) x
 WHERE x.step_rn <= 3;
 
-IF (SELECT COUNT(DISTINCT ticket_rn) FROM @cloneRoute) < 8
+IF (SELECT COUNT(DISTINCT ticket_rn) FROM @cloneRoute) < @ticketCount
 BEGIN
-    RAISERROR('Could not load 3-step routes for all 8 source tickets.', 16, 1);
+    RAISERROR('Could not load routes for all 20 source tickets.', 16, 1);
     RETURN;
 END;
 
@@ -172,9 +231,83 @@ CROSS APPLY (
     ) li
     WHERE li.step_rn = 3
 ) alt
-WHERE cr.ticket_rn = 5
+WHERE cr.ticket_rn = 16
   AND cr.step_rn = 3
   AND cr.id_specialty = @spec_procedural;
+
+UPDATE cr
+SET cr.id_doctor = ref.id_doctor,
+    cr.id_specialty = ref.id_specialty,
+    cr.id_cabinet = ref.id_cabinet
+FROM @cloneRoute cr
+CROSS JOIN (
+    SELECT id_doctor, id_specialty, id_cabinet
+    FROM @cloneRoute
+    WHERE ticket_rn = 6 AND step_rn = 1
+) ref
+WHERE cr.ticket_rn = 16
+  AND cr.step_rn = 3;
+
+UPDATE cr
+SET cr.id_doctor = ref.id_doctor,
+    cr.id_specialty = ref.id_specialty,
+    cr.id_cabinet = ref.id_cabinet
+FROM @cloneRoute cr
+CROSS JOIN (
+    SELECT id_doctor, id_specialty, id_cabinet
+    FROM @cloneRoute
+    WHERE ticket_rn = 3 AND step_rn = 3
+) ref
+WHERE cr.ticket_rn = 14
+  AND cr.step_rn = 3;
+
+UPDATE cr
+SET cr.id_doctor = ref.id_doctor,
+    cr.id_specialty = ref.id_specialty,
+    cr.id_cabinet = ref.id_cabinet
+FROM @cloneRoute cr
+CROSS JOIN (
+    SELECT id_doctor, id_specialty, id_cabinet
+    FROM @cloneRoute
+    WHERE ticket_rn = 4 AND step_rn = 3
+) ref
+WHERE cr.ticket_rn = 15
+  AND cr.step_rn = 3;
+
+UPDATE cr
+SET cr.id_doctor = ref.id_doctor,
+    cr.id_specialty = ref.id_specialty,
+    cr.id_cabinet = ref.id_cabinet
+FROM @cloneRoute cr
+CROSS JOIN (
+    SELECT id_doctor, id_specialty, id_cabinet
+    FROM @cloneRoute
+    WHERE ticket_rn = 12 AND step_rn = 2
+) ref
+WHERE cr.ticket_rn = 17
+  AND cr.step_rn = 3;
+
+UPDATE cr
+SET cr.priority = v.priority
+FROM @cloneRoute cr
+INNER JOIN (VALUES
+    (1, 2), (2, 0), (3, 1), (4, 0), (8, 1), (9, 2), (10, 0),
+    (11, 3), (12, 1), (13, 0), (20, 1)
+) v(ticket_rn, priority) ON v.ticket_rn = cr.ticket_rn
+WHERE cr.step_rn = 1;
+
+UPDATE cr
+SET cr.id_doctor = ref.id_doctor,
+    cr.id_specialty = ref.id_specialty,
+    cr.id_cabinet = ref.id_cabinet
+FROM @cloneRoute cr
+CROSS JOIN (
+    SELECT id_doctor, id_specialty, id_cabinet
+    FROM @cloneRoute
+    WHERE ticket_rn = 1 AND step_rn = 1
+) ref
+WHERE cr.ticket_rn = 2
+  AND cr.step_rn = 1;
 
 DECLARE @num_base int = (SELECT ISNULL(MAX(Number), 0) FROM Numbers);
 DECLARE @id_client_test int = 99990000;
@@ -200,12 +333,18 @@ SELECT ticket_num FROM @nums;
 SET IDENTITY_INSERT Numbers OFF;
 
 INSERT INTO Log_work (id_cabinet, id_doctor, date_work, time_begin, time_end, last_refresh)
-SELECT cr.id_cabinet, cr.id_doctor, @todayMsk, CAST('08:00' AS time), NULL, GETDATE()
+SELECT DISTINCT cr.id_cabinet, cr.id_doctor, @todayMsk, CAST('08:00' AS time), NULL, GETDATE()
 FROM @cloneRoute cr
-WHERE cr.step_rn = 1 AND cr.ticket_rn <= 3 AND cr.id_doctor IS NOT NULL AND cr.id_cabinet IS NOT NULL
+INNER JOIN @sources s ON s.ticket_rn = cr.ticket_rn
+WHERE cr.id_doctor IS NOT NULL
+  AND cr.id_cabinet IS NOT NULL
+  AND s.scenario IN (N'wait', N'called', N'service', N'results', N'edge_single', N'edge_pause')
   AND NOT EXISTS (
       SELECT 1 FROM Log_work lw
-      WHERE lw.id_doctor = cr.id_doctor AND lw.date_work = @todayMsk
+      WHERE lw.id_doctor = cr.id_doctor
+        AND lw.date_work = @todayMsk
+        AND lw.time_begin IS NOT NULL
+        AND lw.time_end IS NULL
   );
 
 DECLARE @tr int = 1;
@@ -213,7 +352,7 @@ DECLARE @aid int, @num nvarchar(32), @cat int, @pri int, @sap int;
 DECLARE @arrivalMin int, @completeMin int;
 DECLARE @tarrival time, @tcomplete time;
 
-WHILE @tr <= 8
+WHILE @tr <= @ticketCount
 BEGIN
     SELECT
         @cat = cr.id_category,
@@ -267,12 +406,11 @@ END
 
 COMMIT;
 
-PRINT 'Seed complete (clone from ' + CONVERT(varchar(10), @sourceDate, 120) + ').';
+PRINT 'Seed complete: 20 tickets cloned from multiple source dates.';
 PRINT 'Appointment date_arrival (dashboard, MSK): ' + CONVERT(varchar(10), @todayMsk, 120);
 PRINT 'Now (MSK): ' + CONVERT(varchar(30), @nowMsk, 120);
-PRINT 'Times spread by ticket (minutes before now) — see @ticketTiming / @stepTiming in script.';
 
-SELECT s.ticket_rn, a.number, a.id_status_app, s.scenario,
+SELECT s.ticket_rn, s.source_id, s.source_date, a.number, a.id_status_app, s.scenario,
        tt.arrival_min AS arrival_min_ago,
        tt.complete_min AS complete_min_ago,
        COUNT(li.id_list_item) AS route_steps,
@@ -282,5 +420,5 @@ INNER JOIN @newAppt na ON na.id_appointment = a.id_appointment
 INNER JOIN @sources s ON s.ticket_rn = na.ticket_rn
 INNER JOIN @ticketTiming tt ON tt.ticket_rn = s.ticket_rn
 JOIN List_item li ON li.id_appointment = a.id_appointment
-GROUP BY s.ticket_rn, a.number, a.id_status_app, s.scenario, tt.arrival_min, tt.complete_min
+GROUP BY s.ticket_rn, s.source_id, s.source_date, a.number, a.id_status_app, s.scenario, tt.arrival_min, tt.complete_min
 ORDER BY s.ticket_rn;

@@ -8,4 +8,8 @@ public interface IQueueDashboardService
     Task<AppointmentCompletedStagesResponse?> GetRouteStagesAsync(
         int idAppointment,
         CancellationToken cancellationToken = default);
+
+    Task<DoctorPotentialPatientsResponse?> GetDoctorPotentialPatientsAsync(
+        int idDoctor,
+        CancellationToken cancellationToken = default);
 }

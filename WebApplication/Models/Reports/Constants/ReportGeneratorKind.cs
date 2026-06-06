@@ -5,7 +5,7 @@ public enum ReportGeneratorKind
     LoadAndDowntime,
     WaitingBeforeAppointment,
     AppointmentDuration,
-    RouteAndPauses,
+    StagesAndWaiting,
     ServiceRouteOutcomes,
     ServiceCategoriesComparison,
     ServiceDelays

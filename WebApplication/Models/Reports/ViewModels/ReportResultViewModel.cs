@@ -25,6 +25,8 @@ public sealed class ReportResultRowViewModel
 {
     public List<string> Cells { get; set; } = new();
 
+    public List<string>? CsvCells { get; set; }
+
     public List<int>? CellColSpans { get; set; }
 
     public string? RowClass { get; set; }
@@ -32,11 +34,16 @@ public sealed class ReportResultRowViewModel
     public static ReportResultRowViewModel FromCells(
         IEnumerable<string> cells,
         string? rowClass = null,
-        IReadOnlyList<int>? cellColSpans = null) =>
-        new()
+        IReadOnlyList<int>? cellColSpans = null,
+        IEnumerable<string>? csvCells = null)
+    {
+        var display = cells.ToList();
+        return new()
         {
-            Cells = cells.ToList(),
+            Cells = display,
+            CsvCells = csvCells?.ToList(),
             RowClass = rowClass,
             CellColSpans = cellColSpans?.ToList()
         };
+    }
 }

@@ -29,8 +29,6 @@ public sealed class ReportGeneratorRegistry
         }
     }
 
-    public IReadOnlyCollection<string> RegisteredReportIds => _generators.Keys;
-
     public bool TryGenerate(
         string reportId,
         ReportGenerateRequest request,

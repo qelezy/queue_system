@@ -44,9 +44,14 @@ public static partial class ReportTabularExporter
             var kind = ci < chartDescriptors.Count ? chartDescriptors[ci].Kind : null;
             var wrapClass = ChartExportUsesFullWidth(kind)
                 ? "report-preview-modal__chart-wrap report-preview-modal__chart-wrap--grouped-bar"
+                  + (string.Equals(kind?.Trim(), "horizontalGroupedBar", StringComparison.OrdinalIgnoreCase)
+                      ? " report-preview-modal__chart-wrap--horizontal-grouped-bar"
+                      : string.Equals(kind?.Trim(), "line", StringComparison.OrdinalIgnoreCase)
+                          ? " report-preview-modal__chart-wrap--line-chart"
+                          : "")
                 : "report-preview-modal__chart-wrap";
             sb.Append("<div class=\"").Append(wrapClass).Append("\" role=\"presentation\">")
-                .Append(chartSvgs[ci])
+                .Append(ChartExportUsesFullWidth(kind) ? MakeHtmlExportSvgResponsive(chartSvgs[ci]) : chartSvgs[ci])
                 .Append("</div>\n");
         }
 
@@ -67,9 +72,36 @@ public static partial class ReportTabularExporter
 
         var shell = LoadEmbeddedTextResource(HtmlShellCssResourceSuffix);
         var shared = LoadEmbeddedTextResource(SharedCssResourceSuffix);
-        _cachedHtmlExportCss = shell + "\n" + shared;
+        _cachedHtmlExportCss = shared + "\n" + shell;
         return _cachedHtmlExportCss;
     }
+
+    private static string MakeHtmlExportSvgResponsive(string svg)
+    {
+        var svgTagEnd = svg.IndexOf('>', StringComparison.Ordinal);
+        if (svgTagEnd < 0)
+            return svg;
+
+        var opening = svg[..(svgTagEnd + 1)];
+        var rest = svg[(svgTagEnd + 1)..];
+        opening = HtmlExportSvgWidthRegex.Replace(opening, " width=\"100%\"", 1);
+        opening = HtmlExportSvgHeightRegex.Replace(opening, " height=\"auto\"", 1);
+        opening = HtmlExportSvgPreserveAspectRegex.Replace(opening, "");
+
+        return opening + rest;
+    }
+
+    private static readonly Regex HtmlExportSvgPreserveAspectRegex = new(
+        @"\spreserveAspectRatio=""[^""]*""",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    private static readonly Regex HtmlExportSvgWidthRegex = new(
+        @"\swidth=""[\d.]+""",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    private static readonly Regex HtmlExportSvgHeightRegex = new(
+        @"\sheight=""[\d.]+""",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private static string LoadEmbeddedTextResource(string nameSuffix)
     {
@@ -84,7 +116,9 @@ public static partial class ReportTabularExporter
         return reader.ReadToEnd();
     }
 
-    private static void AppendHtmlTableBody(StringBuilder sb, ReportResultViewModel result)
+    private static void AppendHtmlTableBody(
+        StringBuilder sb,
+        ReportResultViewModel result)
     {
         if (HasNoReportRows(result))
         {
@@ -158,15 +192,12 @@ public static partial class ReportTabularExporter
             out _);
     }
 
-    private static bool IsRouteAndPausesDetailDataRow(ReportResultRowViewModel row)
+    private static bool IsStagesAndWaitingDetailDataRow(ReportResultRowViewModel row)
     {
         if (!string.IsNullOrWhiteSpace(row.RowClass))
             return false;
         var cells = row.Cells;
         if (cells is not { Count: >= 5 })
-            return false;
-        var c0 = cells[0]?.Trim() ?? "";
-        if (c0 is "Итого за период")
             return false;
         return int.TryParse(
             cells[2]?.Trim(),
@@ -201,7 +232,9 @@ public static partial class ReportTabularExporter
             out _);
     }
 
-    private static void AppendHtmlTableRowStandard(StringBuilder sb, ReportResultRowViewModel row)
+    private static void AppendHtmlTableRowStandard(
+        StringBuilder sb,
+        ReportResultRowViewModel row)
     {
         var rc = row.RowClass;
         var classAttr = rc is not null && SafeHtmlRowClassRegex.IsMatch(rc)
@@ -216,7 +249,9 @@ public static partial class ReportTabularExporter
             if (span == 0)
                 continue;
             var attr = span > 1 ? " colspan=\"" + span.ToString(CultureInfo.InvariantCulture) + "\"" : "";
-            sb.Append("<td").Append(attr).Append(">")
+            sb.Append("<td")
+                .Append(attr)
+                .Append(">")
                 .Append(WebUtility.HtmlEncode(cells[ci] ?? ""))
                 .Append("</td>\n");
         }
@@ -237,7 +272,9 @@ public static partial class ReportTabularExporter
 
         if (!skipFirstCell && dateRowspan > 0)
         {
-            sb.Append("<td rowspan=\"").Append(dateRowspan.ToString(CultureInfo.InvariantCulture)).Append("\">")
+            sb.Append("<td rowspan=\"")
+                .Append(dateRowspan.ToString(CultureInfo.InvariantCulture))
+                .Append("\">")
                 .Append(WebUtility.HtmlEncode(cells.Count > 0 ? cells[0] ?? "" : ""))
                 .Append("</td>\n");
         }
@@ -249,7 +286,9 @@ public static partial class ReportTabularExporter
             if (span == 0)
                 continue;
             var attr = span > 1 ? " colspan=\"" + span.ToString(CultureInfo.InvariantCulture) + "\"" : "";
-            sb.Append("<td").Append(attr).Append(">")
+            sb.Append("<td")
+                .Append(attr)
+                .Append(">")
                 .Append(WebUtility.HtmlEncode(cells[ci] ?? ""))
                 .Append("</td>\n");
         }

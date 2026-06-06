@@ -10,8 +10,6 @@ public class ReportGenerateRequest
     public string? DateFrom { get; set; }
     public string? DateTo { get; set; }
     public string? WeekStart { get; set; }
-    public long? CabinetId { get; set; }
-    public long? DoctorId { get; set; }
     [JsonConverter(typeof(OrdinalIgnoreCaseStringDictionaryJsonConverter))]
     public Dictionary<string, string?> CustomParams { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }

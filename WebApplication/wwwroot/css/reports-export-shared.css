@@ -1,8 +1,7 @@
-
-
 .report-preview-modal__chart-scroll,
 .report-export-html .report-preview-modal__chart-scroll {
     overflow-x: auto;
+    overflow-y: visible;
     width: 100%;
     max-width: 100%;
 }
@@ -13,8 +12,37 @@
     min-height: 0;
 }
 
-.report-preview-modal__chart-wrap,
-.report-export-html .report-preview-modal__chart-wrap {
+.report-preview-modal__chart-wrap--horizontal-grouped-bar {
+    height: auto;
+    min-height: 0;
+    max-height: none;
+}
+
+.report-export-html .report-preview-modal__chart-wrap--horizontal-grouped-bar {
+    height: auto;
+    min-height: 0;
+    max-height: none;
+}
+
+.report-export-html .report-preview-modal__chart-wrap--line-chart {
+    height: auto;
+    min-height: clamp(200px, 26vh, 320px);
+}
+
+.report-export-html .report-preview-modal__chart-wrap--line-chart svg {
+    width: 100%;
+    height: auto;
+    max-height: none;
+}
+
+.report-export-html .report-preview-modal__chart-wrap--horizontal-grouped-bar svg {
+    max-height: none;
+    width: 100%;
+    height: auto;
+}
+
+.report-preview-modal__chart-wrap:not(.report-preview-modal__chart-wrap--horizontal-grouped-bar),
+.report-export-html .report-preview-modal__chart-wrap:not(.report-preview-modal__chart-wrap--horizontal-grouped-bar) {
     flex-shrink: 0;
     width: 100%;
     max-width: 100%;
@@ -22,6 +50,16 @@
     padding: 8px 12px 4px;
     box-sizing: border-box;
     min-height: clamp(260px, 32vh, 400px);
+}
+
+.report-preview-modal__chart-wrap--horizontal-grouped-bar,
+.report-export-html .report-preview-modal__chart-wrap--horizontal-grouped-bar {
+    flex-shrink: 0;
+    width: 100%;
+    max-width: 100%;
+    margin: 0 auto 16px;
+    padding: 8px 12px 4px;
+    box-sizing: border-box;
 }
 
 .report-preview-modal__chart-wrap svg,

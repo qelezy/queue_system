@@ -25,13 +25,17 @@ public static partial class ReportTabularExporter
         var chartDescriptors = ReportExportChartRenderer.GetDescriptors(result);
         var chartSvgs = ReportExportChartRenderer.RenderChartSvgs(result);
         var chartCount = chartSvgs.Count;
-        var maxGroupedBarSeries = chartDescriptors
-            .Where(d => ChartExportUsesFullWidth(d.Kind))
+        var fullWidthCharts = chartDescriptors.Where(d => ChartExportUsesFullWidth(d.Kind)).ToList();
+        var maxGroupedBarSeries = fullWidthCharts
             .Select(d => d.Datasets?.Count ?? 0)
             .DefaultIfEmpty(0)
             .Max();
+        var maxCategoryLabelCount = fullWidthCharts
+            .Select(d => d.Labels?.Count ?? 0)
+            .DefaultIfEmpty(0)
+            .Max();
         var pieHeight = PdfPieChartHeightFor(chartCount);
-        var groupedBarHeight = PdfGroupedBarChartHeightFor(chartCount, maxGroupedBarSeries);
+        var groupedBarHeight = PdfGroupedBarChartHeightFor(chartCount, maxGroupedBarSeries, maxCategoryLabelCount);
         var portrait = PdfUsesPortraitOrientation(result);
         var pdfContentWidth = PdfContentWidth(portrait);
 
@@ -56,8 +60,23 @@ public static partial class ReportTabularExporter
                     for (var ci = 0; ci < chartSvgs.Count; ci++)
                     {
                         var svg = chartSvgs[ci];
-                        var kind = ci < chartDescriptors.Count ? chartDescriptors[ci].Kind : null;
-                        if (ChartExportUsesFullWidth(kind))
+                        var descriptor = ci < chartDescriptors.Count ? chartDescriptors[ci] : null;
+                        var kind = descriptor?.Kind;
+                        if (IsHorizontalGroupedBarExportKind(kind) && descriptor is not null)
+                        {
+                            var chartHeight = ReportExportChartRenderer.GetHorizontalGroupedBarPdfHeight(
+                                descriptor,
+                                pdfContentWidth);
+                            AppendPdfCenteredChart(col, pdfContentWidth, pdfContentWidth, chartHeight, svg);
+                        }
+                        else if (IsLineChartExportKind(kind) && descriptor is not null)
+                        {
+                            var chartHeight = ReportExportChartRenderer.GetLineChartPdfHeight(
+                                descriptor,
+                                pdfContentWidth);
+                            AppendPdfCenteredChart(col, pdfContentWidth, pdfContentWidth, chartHeight, svg);
+                        }
+                        else if (ChartExportUsesFullWidth(kind))
                         {
                             AppendPdfCenteredChart(col, pdfContentWidth, pdfContentWidth, groupedBarHeight, svg);
                         }
@@ -78,9 +97,7 @@ public static partial class ReportTabularExporter
                         table.Header(header =>
                         {
                             foreach (var h in headers)
-                            {
                                 header.Cell().Element(HeaderCell).Text(h).SemiBold();
-                            }
                         });
 
                         if (HasNoReportRows(result))
@@ -143,7 +160,6 @@ public static partial class ReportTabularExporter
                 AppendPdfLoadDowntimeDetailRow(
                     table,
                     rows[rowIndex],
-                    colCount,
                     k == 0 ? spanCount : 0,
                     k > 0,
                     nextRow);
@@ -156,7 +172,6 @@ public static partial class ReportTabularExporter
     private static void AppendPdfLoadDowntimeDetailRow(
         TableDescriptor table,
         ReportResultRowViewModel row,
-        int colCount,
         int dateRowSpan,
         bool skipFirstCell,
         ReportResultRowViewModel? nextRow)
@@ -182,7 +197,12 @@ public static partial class ReportTabularExporter
             var cell = table.Cell();
             if (span > 1)
                 cell = cell.ColumnSpan((uint)span);
-            PdfEmitTableBodyText(cell, row, semiBoldLabel: false, cells[ci] ?? "", nextRow);
+            PdfEmitTableBodyText(
+                cell,
+                row,
+                semiBoldLabel: false,
+                cells[ci] ?? "",
+                nextRow);
         }
     }
 
@@ -236,7 +256,12 @@ public static partial class ReportTabularExporter
                 cell = cell.ColumnSpan((uint)span);
             var semi = IsPdfTotalsLabelHeadingRow(row) && firstEmitted;
             firstEmitted = false;
-            PdfEmitTableBodyText(cell, row, semi, cells[ci] ?? "", nextRow);
+            PdfEmitTableBodyText(
+                cell,
+                row,
+                semi,
+                cells[ci] ?? "",
+                nextRow);
         }
     }
 

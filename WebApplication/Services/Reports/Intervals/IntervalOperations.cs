@@ -1,3 +1,5 @@
+using WebApplication.Services.Reports.Catalog;
+
 namespace WebApplication.Services.Reports.Intervals;
 
 public static class IntervalOperations
@@ -102,7 +104,13 @@ public static class IntervalOperations
     }
 
     public static double TotalMinutes(IEnumerable<DateTimeInterval> intervals) =>
-        intervals.Sum(i => i.Duration.TotalMinutes);
+        intervals.Sum(i =>
+        {
+            if (i.IsEmptyOrInverted)
+                return 0;
+
+            return CatalogReportShared.ComputeDurationMinutes(i.Start, i.End) ?? 0;
+        });
 
     public static int CountNonEmpty(IEnumerable<DateTimeInterval> intervals) =>
         intervals.Count(i => !i.IsEmptyOrInverted);

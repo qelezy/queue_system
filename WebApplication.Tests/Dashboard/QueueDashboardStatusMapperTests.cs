@@ -29,6 +29,19 @@ public sealed class QueueDashboardStatusMapperTests
     }
 
     [Fact]
+    public void IsWaitingListStep_true_when_called()
+    {
+        var li = new EqListItem
+        {
+            TimeCall = new TimeOnly(10, 0),
+            TimeStartServicing = null,
+            StatusItem = new EqStatusItemList { Name = "Вызван" }
+        };
+        Assert.False(QueueDashboardStatusMapper.IsWaitingQueueStep(li));
+        Assert.True(QueueDashboardStatusMapper.IsWaitingListStep(li));
+    }
+
+    [Fact]
     public void IsInServiceStep_true_when_servicing_started_not_ended()
     {
         var li = new EqListItem
@@ -38,6 +51,21 @@ public sealed class QueueDashboardStatusMapperTests
             StatusItem = new EqStatusItemList { Name = "Обслуживается" }
         };
         Assert.True(QueueDashboardStatusMapper.IsInServiceStep(li));
+    }
+
+    [Fact]
+    public void IsInServiceStep_false_when_db_status_servicing_without_time_start()
+    {
+        var li = new EqListItem
+        {
+            TimeStartServicing = null,
+            TimeEndServicing = null,
+            StatusItem = new EqStatusItemList { Name = "Обслуживается" }
+        };
+        Assert.False(QueueDashboardStatusMapper.IsInServiceStep(li));
+        var (label, code) = QueueDashboardStatusMapper.ResolveForCurrentStep(li);
+        Assert.Equal("waiting", code);
+        Assert.Equal("Ожидает", label);
     }
 
     [Fact]

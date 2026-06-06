@@ -153,6 +153,105 @@
         closeModal("register");
     }
 
+    function getFullName(lastName, firstName, patronymic) {
+        const parts = [lastName, firstName, patronymic].filter(Boolean);
+        return parts.join(" ").trim();
+    }
+
+    const roleTextByValue = {
+        Admin: "Администратор",
+        Manager: "Менеджер",
+        Dispatcher: "Диспетчер"
+    };
+
+    function removeEmptyPlaceholderRows() {
+        if (!tableBody) return;
+        tableBody.querySelectorAll("tr:not([data-user-id])").forEach((row) => {
+            if (!row.querySelector(".actions-cell")) {
+                row.remove();
+            }
+        });
+    }
+
+    function createUserRow({ id, firstName, lastName, patronymic, email, role }) {
+        const row = document.createElement("tr");
+        row.setAttribute("data-user-id", id);
+        row.dataset.firstName = firstName;
+        row.dataset.lastName = lastName;
+        row.dataset.patronymic = patronymic ?? "";
+        row.dataset.email = email;
+        row.dataset.role = role;
+
+        const fullName = getFullName(lastName, firstName, patronymic);
+        const roleName = roleTextByValue[role] || role;
+
+        row.innerHTML = `
+            <td></td>
+            <td></td>
+            <td></td>
+            <td class="actions-cell">
+                <button class="icon-btn edit-btn"
+                        title="Редактировать"
+                        onclick="UsersUI.openEdit('${id.replace(/'/g, "\\'")}')">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <button type="button"
+                        class="icon-btn delete-btn"
+                        title="Удалить"
+                        aria-label="Удалить пользователя">
+                    <i class="bi bi-trash" aria-hidden="true"></i>
+                </button>
+            </td>`;
+        row.children[0].textContent = fullName;
+        row.children[1].textContent = email;
+        row.children[2].textContent = roleName;
+        return row;
+    }
+
+    function reorderDataRows() {
+        if (!tableBody || !sortField) return;
+        const rows = getDataRows();
+        rows.sort((a, b) => {
+            const aValue = getSortValue(a, sortField);
+            const bValue = getSortValue(b, sortField);
+            const comparison = aValue.localeCompare(bValue, "ru", { sensitivity: "base" });
+            return sortDirection === "asc" ? comparison : -comparison;
+        });
+        rows.forEach((row) => tableBody.appendChild(row));
+    }
+
+    function addRegisteredUser(user) {
+        if (!tableBody || !user?.id) return;
+
+        removeEmptyPlaceholderRows();
+        const row = createUserRow(user);
+        tableBody.appendChild(row);
+        reorderDataRows();
+
+        const normalizedSearch = searchQuery.trim().toLowerCase();
+        const normalizedRole = selectedRole.trim().toLowerCase();
+        const roleName = roleTextByValue[user.role] || user.role;
+        const text = row.textContent?.toLowerCase() ?? "";
+        const matchesSearch = !normalizedSearch || text.includes(normalizedSearch);
+        const matchesRole = !normalizedRole || roleName.trim().toLowerCase() === normalizedRole;
+
+        if (matchesSearch && matchesRole) {
+            const matchedRows = getDataRows().filter((dataRow) => {
+                const rowText = dataRow.textContent?.toLowerCase() ?? "";
+                const roleCellText = dataRow.children[2]?.textContent?.trim().toLowerCase() ?? "";
+                const rowMatchesSearch = !normalizedSearch || rowText.includes(normalizedSearch);
+                const rowMatchesRole = !normalizedRole || roleCellText === normalizedRole;
+                return rowMatchesSearch && rowMatchesRole;
+            });
+            const index = matchedRows.findIndex((dataRow) => dataRow.getAttribute("data-user-id") === user.id);
+            if (index >= 0) {
+                currentPage = Math.floor(index / pageSize) + 1;
+            }
+        }
+
+        applyFilters();
+    }
+
     function getDataRows() {
         return Array.from(document.querySelectorAll(tableSelector)).filter((row) =>
             row.querySelector(".actions-cell") !== null
@@ -398,7 +497,8 @@
         filterByRole,
         goToPage,
         sortBy,
-        openEdit
+        openEdit,
+        addRegisteredUser
     };
 
     setModalHiddenState("register", true);

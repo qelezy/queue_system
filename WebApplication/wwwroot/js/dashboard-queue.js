@@ -10,7 +10,7 @@
     const colspan = table.tHead?.rows[0]?.cells.length ?? 6;
 
     let searchQuery = "";
-    let specialty = "";
+    let category = "";
     let statusCode = "";
     let waitMinThreshold = null;
 
@@ -32,16 +32,16 @@
         let visibleCount = 0;
         for (const row of dataRows) {
             const text = row.textContent?.toLowerCase() ?? "";
-            const rowSpecialtyId = row.dataset.specialtyId ?? "";
+            const rowCategoryId = row.dataset.categoryId ?? "";
             const rowStatusCode = row.dataset.statusCode ?? "";
             const rowWait = Number(row.dataset.wait ?? "0");
 
             const matchesSearch = !searchQuery || text.includes(searchQuery);
-            const matchesSpecialty = !specialty || rowSpecialtyId === specialty;
+            const matchesCategory = !category || rowCategoryId === category;
             const matchesStatus = !statusCode || rowStatusCode === statusCode;
             const matchesWait = waitMinThreshold === null || rowWait > waitMinThreshold;
 
-            const show = matchesSearch && matchesSpecialty && matchesStatus && matchesWait;
+            const show = matchesSearch && matchesCategory && matchesStatus && matchesWait;
             row.style.display = show ? "" : "none";
             if (show) visibleCount++;
         }
@@ -53,8 +53,8 @@
         apply();
     }
 
-    function filterSpecialty(value) {
-        specialty = value ?? "";
+    function filterCategory(value) {
+        category = value ?? "";
         apply();
     }
 
@@ -80,5 +80,5 @@
         apply();
     }
 
-    window.QueueTable = { search, filterSpecialty, filterStatus, filterWait, rebind };
+    window.QueueTable = { search, filterCategory, filterStatus, filterWait, rebind };
 })();

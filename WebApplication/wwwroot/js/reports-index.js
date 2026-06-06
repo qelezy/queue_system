@@ -6,7 +6,9 @@
         doughnut: mountDoughnutOrPie,
         pie: mountDoughnutOrPie,
         bar: mountBarChart,
-        groupedbar: mountGroupedBarChart
+        groupedbar: mountGroupedBarChart,
+        horizontalgroupedbar: mountHorizontalGroupedBarChart,
+        line: mountLineChart
     };
 
     
@@ -54,6 +56,12 @@
         };
     })();
 
+    var REPORT_PREVIEW_LEGEND_LABELS = {
+        boxWidth: 12,
+        padding: 12,
+        font: { size: 12 }
+    };
+
     function escapeHtml(text) {
         if (text == null) return '';
         var s = String(text);
@@ -63,6 +71,29 @@
 
     function escapeHtmlAttribute(text) {
         return escapeHtml(text).replace(/`/g, '&#96;');
+    }
+
+    function formatDurationMinutes(n) {
+        var minutes = Number(n);
+        if (!isFinite(minutes)) return '0 с';
+        var totalSeconds = Math.round(minutes * 60);
+        var sign = totalSeconds < 0 ? '-' : '';
+        var abs = Math.abs(totalSeconds);
+        if (abs < 60) return sign + abs + ' с';
+        var totalMinutes = Math.round(abs / 60);
+        if (totalMinutes < 60) return sign + totalMinutes + ' мин';
+        var hours = Math.floor(totalMinutes / 60);
+        var remMin = totalMinutes % 60;
+        if (remMin === 0) return sign + hours + ' ч';
+        return sign + hours + ' ч ' + remMin + ' мин';
+    }
+
+    function formatChartValue(val, unit) {
+        var u = unit != null ? String(unit).trim() : '';
+        if (u === 'мин') return formatDurationMinutes(val);
+        var n = Math.round(Number(val));
+        if (!isFinite(n)) return '0';
+        return u ? (n + ' ' + u) : String(n);
     }
 
     function sumNumericValues(arr) {
@@ -115,27 +146,81 @@
                 labels: pie.labels,
                 values: pie.values,
                 valueUnit: 'мин',
-                ariaLabel: 'Соотношение длительности занятости и простоя',
+                ariaLabel: 'Соотношение длительности занятости и простоев',
                 canvasElementId: 'report-preview-chart-0'
             }];
         }
         return [];
     }
 
+    function calcHorizontalGroupedBarHeightPx(descriptor) {
+        var categoryCount = (descriptor.labels || []).length;
+        var seriesCount = (descriptor.datasets || []).length || 1;
+        var slotH = 36;
+        var categoryGap = slotH * (1 / 0.88 - 1);
+        var plotH = categoryCount <= 0
+            ? 0
+            : categoryCount * slotH + (categoryCount - 1) * categoryGap;
+        var legendCols = Math.max(1, Math.floor(640 / 180));
+        var legendRows = Math.ceil(seriesCount / legendCols);
+        var legendH = Math.max(20, legendRows * 14 + 6);
+        return Math.max(200, Math.ceil(14 + plotH + 40 + legendH));
+    }
+
     function calcChartLayoutMetrics(descriptor) {
         var kind = (descriptor.kind || '').toLowerCase();
+        if (kind === 'horizontalgroupedbar') {
+            var categoryCount = (descriptor.labels || []).length;
+            return {
+                minWidthPx: 640,
+                minHeightPx: calcHorizontalGroupedBarHeightPx(descriptor),
+                dayCount: categoryCount,
+                horizontalGrouped: true
+            };
+        }
+        if (kind === 'line') {
+            var pointCount = (descriptor.labels || []).length;
+            return {
+                minWidthPx: 0,
+                minHeightPx: Math.min(360, Math.max(240, 180 + Math.min(pointCount, 31) * 4)),
+                isLine: true
+            };
+        }
         if (kind !== 'groupedbar') return null;
         var dayCount = (descriptor.labels || []).length;
         var seriesCount = (descriptor.datasets || []).length || 1;
-        var groupSlot = Math.min(64, 24 + seriesCount * 3);
-        var minWidthPx = Math.min(2200, Math.max(560, dayCount * groupSlot + 64));
-        var legendRows = Math.ceil(seriesCount / Math.max(1, Math.floor(640 / 140)));
-        var minHeightPx = Math.min(420, 280 + legendRows * 16);
+        var isStacked = String(descriptor.chartAxisMode || '').toLowerCase() === 'stacked';
+        var minWidthPx = calcGroupedBarMinWidthPx(dayCount, seriesCount);
+        if (isStacked) {
+            var legendWidth = (descriptor.datasets || []).reduce(function (sum, ds) {
+                return sum + 26 + (String(ds.label || '').length * 7);
+            }, 24);
+            minWidthPx = Math.max(minWidthPx, Math.min(1100, legendWidth));
+        }
+        var legendItemWidth = isStacked
+            ? Math.max(140, 26 + Math.max.apply(null, (descriptor.datasets || []).map(function (ds) {
+                return String(ds.label || '').length;
+            }).concat([0])) * 7)
+            : 140;
+        var legendCols = Math.max(1, Math.floor(Math.max(minWidthPx, 640) / legendItemWidth));
+        var legendRows = Math.ceil(seriesCount / legendCols);
+        var minHeightPx = Math.min(420, 280 + legendRows * 22);
         return { minWidthPx: minWidthPx, minHeightPx: minHeightPx, dayCount: dayCount };
+    }
+
+    function calcGroupedBarMinWidthPx(dayCount, seriesCount) {
+        var perDay = Math.max(28, (seriesCount + 1) * 1.5 + seriesCount * 2);
+        return Math.min(1100, Math.max(560, 72 + dayCount * perDay));
     }
 
     function applyGroupedChartLayout(root) {
         if (!root) return;
+        root.querySelectorAll('.report-preview-modal__chart-wrap--line-chart').forEach(function (el) {
+            var height = el.getAttribute('data-chart-height');
+            if (height) {
+                el.style.setProperty('--report-chart-height', height + 'px');
+            }
+        });
         root.querySelectorAll('.report-preview-modal__chart-wrap--grouped-bar').forEach(function (el) {
             var minWidth = el.getAttribute('data-chart-min-width');
             var height = el.getAttribute('data-chart-height');
@@ -144,6 +229,23 @@
             }
             if (height) {
                 el.style.setProperty('--report-chart-height', height + 'px');
+            }
+        });
+        root.querySelectorAll('.report-preview-modal__chart-wrap--horizontal-grouped-bar').forEach(function (el) {
+            var minWidth = el.getAttribute('data-chart-min-width');
+            var height = el.getAttribute('data-chart-height');
+            if (minWidth) {
+                el.style.setProperty('--report-chart-min-width', minWidth + 'px');
+            }
+            if (height) {
+                el.style.setProperty('--report-chart-height', height + 'px');
+                el.style.height = height + 'px';
+                el.style.minHeight = height + 'px';
+                var canvas = el.querySelector('canvas');
+                if (canvas) {
+                    canvas.style.height = height + 'px';
+                    canvas.style.maxHeight = 'none';
+                }
             }
         });
     }
@@ -155,16 +257,28 @@
             if (!descriptorHasRenderableChartData(d)) return;
             var aria = d.ariaLabel ? escapeHtmlAttribute(d.ariaLabel) : '';
             var metrics = calcChartLayoutMetrics(d);
-            var isGrouped = metrics !== null;
-            var wrapClass = 'report-preview-modal__chart-wrap' + (isGrouped ? ' report-preview-modal__chart-wrap--grouped-bar' : '');
-            var dataAttrs = isGrouped
-                ? ' data-chart-min-width="' + metrics.minWidthPx + '" data-chart-height="' + metrics.minHeightPx + '"'
+            var isLayout = metrics !== null;
+            var wrapClass = 'report-preview-modal__chart-wrap';
+            if (isLayout && metrics.isLine) {
+                wrapClass += ' report-preview-modal__chart-wrap--line-chart';
+            } else if (isLayout && metrics.horizontalGrouped) {
+                wrapClass += ' report-preview-modal__chart-wrap--horizontal-grouped-bar';
+            } else if (isLayout) {
+                wrapClass += ' report-preview-modal__chart-wrap--grouped-bar';
+            }
+            var dataAttrs = isLayout
+                ? (metrics.minWidthPx > 0 ? ' data-chart-min-width="' + metrics.minWidthPx + '"' : '') +
+                    ' data-chart-height="' + metrics.minHeightPx + '"'
                 : '';
             var canvasTag = '<canvas id="' + escapeHtmlAttribute(id) + '"' +
                 (aria ? ' aria-label="' + aria + '"' : '') + '></canvas>';
-            if (isGrouped) {
+            if (isLayout && metrics.isLine) {
+                html += '<div class="' + wrapClass + '"' + dataAttrs + ' role="presentation">' + canvasTag + '</div>';
+            } else if (isLayout && !metrics.horizontalGrouped) {
                 html += '<div class="report-preview-modal__chart-scroll" role="presentation">' +
                     '<div class="' + wrapClass + '"' + dataAttrs + '>' + canvasTag + '</div></div>';
+            } else if (isLayout) {
+                html += '<div class="' + wrapClass + '"' + dataAttrs + ' role="presentation">' + canvasTag + '</div>';
             } else {
                 html += '<div class="' + wrapClass + '" role="presentation">' + canvasTag + '</div>';
             }
@@ -214,9 +328,9 @@
                         position: 'bottom',
                         align: 'center',
                         labels: {
-                            boxWidth: 14,
-                            padding: 12,
-                            font: { size: 12 },
+                            boxWidth: REPORT_PREVIEW_LEGEND_LABELS.boxWidth,
+                            padding: REPORT_PREVIEW_LEGEND_LABELS.padding,
+                            font: REPORT_PREVIEW_LEGEND_LABELS.font,
                             maxWidth: 900
                         }
                     },
@@ -226,7 +340,7 @@
                                 var val = ctx.raw != null ? Number(ctx.raw) : 0;
                                 var pct = sum > 0 ? (100 * val / sum).toFixed(1) : '0';
                                 var lab = ctx.label || '';
-                                var mid = unit ? (val.toFixed(1) + ' ' + unit) : val.toFixed(1);
+                                var mid = formatChartValue(val, unit);
                                 return lab + ': ' + mid + ' (' + pct + '%)';
                             }
                         }
@@ -282,7 +396,7 @@
                             label: function (ctx) {
                                 var val = ctx.raw != null ? Number(ctx.raw) : 0;
                                 var lab = ctx.label || '';
-                                var mid = unit ? (val.toFixed(1) + ' ' + unit) : val.toFixed(1);
+                                var mid = formatChartValue(val, unit);
                                 return lab + ': ' + mid;
                             }
                         }
@@ -302,6 +416,7 @@
         var paletteBorder = REPORT_CHART_PALETTE.border;
         var paletteNorm = REPORT_CHART_PALETTE.norm;
         var unit = descriptor.valueUnit != null ? String(descriptor.valueUnit).trim() : '';
+        var isStacked = String(descriptor.chartAxisMode || '').toLowerCase() === 'stacked';
         var datasets = [];
         var hasChartData = false;
         var hasOverlayNorm = series.some(function (ds) {
@@ -337,8 +452,7 @@
                     backgroundColor: normBg(colorIdx),
                     borderColor: paletteBorder[colorIdx],
                     borderWidth: 1,
-                    order: 2,
-                    maxBarThickness: 18
+                    order: 2
                 });
                 datasets.push({
                     type: 'bar',
@@ -348,45 +462,49 @@
                     backgroundColor: paletteBg[colorIdx],
                     borderColor: paletteBorder[colorIdx],
                     borderWidth: 1,
-                    order: 1,
-                    maxBarThickness: 12
+                    order: 1
                 });
             } else {
-                datasets.push({
+                var barDataset = {
                     type: 'bar',
                     label: sliceLabel,
                     data: factVals,
                     backgroundColor: paletteBg[colorIdx],
                     borderColor: paletteBorder[colorIdx],
                     borderWidth: 1
-                });
+                };
+                if (isStacked) {
+                    barDataset.stack = 'outcomes';
+                }
+                datasets.push(barDataset);
             }
         });
         if (!hasChartData) return;
-        var slotCount = hasOverlayNorm ? series.length : datasets.length;
         var dayCount = dayLabels.length;
+        var useStacked = isStacked && !hasOverlayNorm;
         var chart = new Chart(canvas, {
             type: 'bar',
             data: { labels: dayLabels, datasets: datasets },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                layout: { padding: { top: 4, bottom: 4, left: 4, right: 4 } },
+                layout: { padding: { top: 4, bottom: 4, left: 8, right: 8 } },
                 datasets: {
                     bar: {
-                        categoryPercentage: 0.82,
-                        barPercentage: 0.92,
-                        maxBarThickness: slotCount > 12 ? 10 : 14
+                        categoryPercentage: 0.9,
+                        barPercentage: 0.95,
+                        barThickness: 'flex'
                     }
                 },
                 scales: {
                     y: {
                         beginAtZero: true,
-                        stacked: false,
+                        stacked: useStacked,
                         title: { display: !!unit, text: unit || undefined }
                     },
                     x: {
-                        stacked: !!hasOverlayNorm,
+                        offset: true,
+                        stacked: useStacked || !!hasOverlayNorm,
                         ticks: {
                             autoSkip: true,
                             maxTicksLimit: dayCount > 14 ? 14 : dayCount,
@@ -400,9 +518,9 @@
                         position: 'bottom',
                         align: 'center',
                         labels: {
-                            boxWidth: 10,
-                            padding: 6,
-                            font: { size: 10 },
+                            boxWidth: REPORT_PREVIEW_LEGEND_LABELS.boxWidth,
+                            padding: useStacked ? 18 : REPORT_PREVIEW_LEGEND_LABELS.padding,
+                            font: REPORT_PREVIEW_LEGEND_LABELS.font,
                             filter: function () {
                                 return true;
                             }
@@ -416,7 +534,7 @@
                                 if (isNaN(val)) return null;
                                 var seriesLabel = ctx.dataset && ctx.dataset.label ? ctx.dataset.label : '';
                                 var day = ctx.label || '';
-                                var mid = unit ? (val.toFixed(1) + ' ' + unit) : val.toFixed(1);
+                                var mid = formatChartValue(val, unit);
                                 return seriesLabel + ', ' + day + ': ' + mid;
                             }
                         }
@@ -424,6 +542,223 @@
                 }
             }
         });
+        if (chartsOut) chartsOut.push(chart);
+    }
+
+    function mountLineChart(descriptor, canvas, chartsOut) {
+        if (typeof Chart === 'undefined' || !canvas) return;
+        var labels = (descriptor.labels || []).map(function (x) { return String(x); });
+        var series = descriptor.datasets || [];
+        if (!labels.length || !series.length) return;
+        var ds = series[0];
+        var unit = descriptor.valueUnit != null ? String(descriptor.valueUnit).trim() : '';
+        var vals = (ds.values || []).map(function (v) {
+            if (v == null) return null;
+            var n = Number(v);
+            return isNaN(n) ? null : n;
+        });
+        while (vals.length < labels.length) vals.push(null);
+        if (vals.length > labels.length) vals = vals.slice(0, labels.length);
+        var hasChartData = vals.some(function (v) { return v != null; });
+        if (!hasChartData) return;
+        var paletteBg = REPORT_CHART_PALETTE.bg;
+        var paletteBorder = REPORT_CHART_PALETTE.border;
+        var lineFillColor = 'rgba(0, 179, 184, 0.18)';
+        var chart = new Chart(canvas, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: ds.label || 'Среднее ожидание',
+                    data: vals,
+                    borderColor: paletteBorder[0],
+                    backgroundColor: lineFillColor,
+                    borderWidth: 2,
+                    pointRadius: 3,
+                    pointHoverRadius: 5,
+                    pointBackgroundColor: paletteBg[0],
+                    pointBorderColor: paletteBorder[0],
+                    tension: 0.15,
+                    spanGaps: false,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                layout: { padding: { top: 4, bottom: 4, left: 8, right: 4 } },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: { display: !!unit, text: unit || undefined }
+                    },
+                    x: {
+                        ticks: {
+                            autoSkip: true,
+                            maxTicksLimit: labels.length > 20 ? 20 : labels.length,
+                            maxRotation: 45,
+                            minRotation: 0
+                        }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function (ctx) {
+                                if (ctx.raw == null || ctx.parsed == null || ctx.parsed.y == null) return null;
+                                var val = Number(ctx.raw);
+                                if (isNaN(val)) return null;
+                                var mid = formatChartValue(val, unit);
+                                return (ctx.dataset.label || '') + ', ' + (ctx.label || '') + ': ' + mid;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        if (chartsOut) chartsOut.push(chart);
+    }
+
+    function mountHorizontalGroupedBarChart(descriptor, canvas, chartsOut) {
+        if (typeof Chart === 'undefined' || !canvas) return;
+        var categoryLabels = (descriptor.labels || []).map(function (x) { return String(x); });
+        var series = descriptor.datasets || [];
+        if (!categoryLabels.length || !series.length) return;
+        var paletteBg = REPORT_CHART_PALETTE.bg;
+        var paletteBorder = REPORT_CHART_PALETTE.border;
+        var unit = descriptor.valueUnit != null ? String(descriptor.valueUnit).trim() : '';
+        var symmetric = String(descriptor.chartAxisMode || '').toLowerCase() === 'symmetric';
+        var datasets = [];
+        var hasChartData = false;
+        function normalizeVals(raw) {
+            var vals = (raw || []).map(function (v) {
+                if (v == null) return null;
+                var n = Number(v);
+                return isNaN(n) ? null : n;
+            });
+            while (vals.length < categoryLabels.length) vals.push(null);
+            if (vals.length > categoryLabels.length) vals = vals.slice(0, categoryLabels.length);
+            vals.forEach(function (v) { if (v != null) hasChartData = true; });
+            return vals;
+        }
+        series.forEach(function (ds, si) {
+            var factVals = normalizeVals(ds.values);
+            var colorIdx = si % paletteBg.length;
+            datasets.push({
+                type: 'bar',
+                label: ds.label || ('Серия ' + si),
+                data: factVals,
+                backgroundColor: paletteBg[colorIdx],
+                borderColor: paletteBorder[colorIdx],
+                borderWidth: 0
+            });
+        });
+        if (!hasChartData) return;
+        var wrap = canvas.closest('.report-preview-modal__chart-wrap--horizontal-grouped-bar');
+        var layoutHeightPx = wrap && wrap.getAttribute('data-chart-height');
+        if (layoutHeightPx) {
+            var hPx = parseInt(layoutHeightPx, 10);
+            if (!isNaN(hPx) && hPx > 0) {
+                wrap.style.height = hPx + 'px';
+                wrap.style.minHeight = hPx + 'px';
+                canvas.style.height = hPx + 'px';
+                canvas.style.maxHeight = 'none';
+            }
+        }
+        function displayMinutesExtentBound(extentMinutes) {
+            if (!(extentMinutes > 0)) return 0;
+            var totalSeconds = Math.round(extentMinutes * 60);
+            var abs = Math.abs(totalSeconds);
+            if (abs < 60) return abs / 60;
+            return Math.round(abs / 60);
+        }
+        function axisTickUpperBound(extent) {
+            if (!(extent > 0)) return 0;
+            var step = Math.max(1, Math.ceil(extent / 4));
+            var ticks = [];
+            for (var t = 0; t < extent; t += step) ticks.push(t);
+            ticks.push(extent);
+            return ticks[ticks.length - 1];
+        }
+        var splitAxisMin = 0;
+        var splitAxisMax = 1;
+        if (symmetric) {
+            var posMax = 0;
+            var negMax = 0;
+            datasets.forEach(function (ds) {
+                (ds.data || []).forEach(function (v) {
+                    if (v == null || isNaN(v)) return;
+                    if (v > posMax) posMax = v;
+                    if (v < 0) negMax = Math.max(negMax, -v);
+                });
+            });
+            var posExtent = posMax > 0 ? Math.max(posMax, displayMinutesExtentBound(posMax)) : 0;
+            var negExtent = negMax > 0 ? Math.max(negMax, displayMinutesExtentBound(negMax)) : 0;
+            splitAxisMax = posExtent > 0 ? axisTickUpperBound(posExtent) : 0;
+            splitAxisMin = negExtent > 0 ? -axisTickUpperBound(negExtent) : 0;
+            if (splitAxisMax <= 0 && splitAxisMin >= 0) {
+                splitAxisMax = 1;
+            }
+        }
+        var chart = new Chart(canvas, {
+            type: 'bar',
+            data: { labels: categoryLabels, datasets: datasets },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                layout: { padding: { top: 4, bottom: 4, left: 8, right: 4 } },
+                datasets: {
+                    bar: {
+                        categoryPercentage: 0.88,
+                        barPercentage: 1,
+                        barThickness: 'flex',
+                        inflateAmount: 0
+                    }
+                },
+                scales: {
+                    x: symmetric ? {
+                        min: splitAxisMin,
+                        max: splitAxisMax,
+                        title: { display: !!unit, text: unit || undefined }
+                    } : {
+                        beginAtZero: true,
+                        title: { display: !!unit, text: unit || undefined }
+                    },
+                    y: {
+                        ticks: {
+                            autoSkip: false,
+                            color: '#1e293b',
+                            font: { size: 13 }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        align: 'center',
+                        labels: REPORT_PREVIEW_LEGEND_LABELS
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function (ctx) {
+                                if (ctx.raw == null || ctx.parsed == null || ctx.parsed.x == null) return null;
+                                var val = Number(ctx.raw);
+                                if (isNaN(val)) return null;
+                                var seriesLabel = ctx.dataset && ctx.dataset.label ? ctx.dataset.label : '';
+                                var cat = ctx.label || '';
+                                var mid = formatChartValue(val, unit);
+                                return seriesLabel + ', ' + cat + ': ' + mid;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        if (layoutHeightPx && typeof chart.resize === 'function') {
+            chart.resize();
+        }
         if (chartsOut) chartsOut.push(chart);
     }
 
@@ -451,7 +786,7 @@
         return !isNaN(n);
     }
 
-    function isRouteAndPausesDetailPreviewRow(row) {
+    function isStagesAndWaitingDetailPreviewRow(row) {
         if (!row || row.rowClass) return false;
         var cells = row.cells || [];
         if (cells.length < 5) return false;
@@ -464,7 +799,7 @@
     function isAppointmentDurationDetailPreviewRow(row) {
         if (!row || row.rowClass) return false;
         var cells = row.cells || [];
-        if (cells.length < 8) return false;
+        if (cells.length < 9) return false;
         var c0 = (cells[0] || '').trim();
         if (c0 === 'Итого за период' || c0 === 'Итого за день') return false;
         var countIdx = cells.length >= 9 ? 3 : 2;
@@ -531,7 +866,7 @@
     function isDateGroupedDetailPreviewRow(row, reportId, detailRowKindFromResult) {
         var kind = resolveDetailRowKind(reportId, detailRowKindFromResult);
         if (kind === 'loadDowntime') return isLoadDowntimeDetailPreviewRow(row);
-        if (kind === 'routeAndPauses') return isRouteAndPausesDetailPreviewRow(row);
+        if (kind === 'stagesAndWaiting') return isStagesAndWaitingDetailPreviewRow(row);
         if (kind === 'arrivedCompleted') return isArrivedCompletedDetailPreviewRow(row);
         if (kind === 'waitingBeforeAppointment') return isArrivedCompletedDetailPreviewRow(row);
         if (kind === 'appointmentDuration') return isAppointmentDurationDetailPreviewRow(row);
@@ -553,7 +888,13 @@
             var cSpan = (colSpans && colSpans.length > ci) ? colSpans[ci] : 1;
             if (cSpan === 0) continue;
             var attr = cSpan > 1 ? ' colspan="' + cSpan + '"' : '';
-            parts.push('<td' + attr + '>' + escapeHtml(cells[ci]) + '</td>');
+            parts.push(
+                '<td' +
+                    attr +
+                    '>' +
+                    escapeHtml(cells[ci]) +
+                    '</td>'
+            );
         }
         parts.push('</tr>');
     }
@@ -568,13 +909,25 @@
             var safeClass = typeof rc === 'string' && /^[a-zA-Z0-9 _-]+$/.test(rc) ? rc : '';
             parts.push(safeClass ? '<tr class="' + escapeHtmlAttribute(safeClass) + '">' : '<tr>');
             if (k === 0) {
-                parts.push('<td rowspan="' + rowSpan + '">' + escapeHtml(cells[0] || '') + '</td>');
+                parts.push(
+                    '<td rowspan="' +
+                        rowSpan +
+                        '">' +
+                        escapeHtml(cells[0] || '') +
+                        '</td>'
+                );
             }
             for (var ci = 1; ci < cells.length; ci++) {
                 var cSpan = (colSpans && colSpans.length > ci) ? colSpans[ci] : 1;
                 if (cSpan === 0) continue;
                 var attr = cSpan > 1 ? ' colspan="' + cSpan + '"' : '';
-                parts.push('<td' + attr + '>' + escapeHtml(cells[ci]) + '</td>');
+                parts.push(
+                    '<td' +
+                        attr +
+                        '>' +
+                        escapeHtml(cells[ci]) +
+                        '</td>'
+                );
             }
             parts.push('</tr>');
         }
@@ -701,8 +1054,6 @@
             dateFrom: formatDateForReportApi(state.filters && state.filters.periodFrom),
             dateTo: formatDateForReportApi(state.filters && state.filters.periodTo),
             weekStart: custom.weekStart || null,
-            cabinetId: custom.cabinetId ? Number(custom.cabinetId) : null,
-            doctorId: custom.doctorId ? Number(custom.doctorId) : null,
             customParams: buildWhitelistedCustomParams(sel, custom, reportCustomConfig)
         };
     }
@@ -1153,7 +1504,7 @@
         var core = window.ReportPreviewCore;
         var payload = core && typeof core.buildReportRequestPayload === 'function'
             ? core.buildReportRequestPayload(state, { reportCustomConfig: reportCustomConfig })
-            : { reportId: state.selectedReportId, dateFrom: null, dateTo: null, weekStart: null, cabinetId: null, doctorId: null, customParams: {} };
+            : { reportId: state.selectedReportId, dateFrom: null, dateTo: null, weekStart: null, customParams: {} };
         try {
             var response = await fetch('/Reports/Generate', {
                 method: 'POST',
@@ -1206,7 +1557,7 @@
         var core = window.ReportPreviewCore;
         var base = core && typeof core.buildReportRequestPayload === 'function'
             ? core.buildReportRequestPayload(state, { reportCustomConfig: reportCustomConfig })
-            : { reportId: state.selectedReportId, dateFrom: null, dateTo: null, weekStart: null, cabinetId: null, doctorId: null, customParams: {} };
+            : { reportId: state.selectedReportId, dateFrom: null, dateTo: null, weekStart: null, customParams: {} };
         base.format = format;
         return base;
     }

@@ -1,5 +1,6 @@
 using System.Globalization;
 using WebApplication.Models.ElectronicQueueProf;
+using WebApplication.Services.Reports;
 using WebApplication.Services.Reports.Catalog;
 using WebApplication.Services.Reports.Intervals;
 
@@ -67,7 +68,7 @@ internal static class LoadAndDowntimeReportBuilder
                         .Where(x => x.HasValue)
                         .Select(x => x!.Value));
 
-                windowMin += w.Duration.TotalMinutes;
+                windowMin += CatalogReportShared.ComputeDurationMinutes(w.Start, w.End) ?? 0;
                 busyMin += IntervalOperations.TotalMinutes(busyInW);
                 var idleParts = IntervalOperations.SubtractUnionFromWindow(w, busyInW);
                 idleMin += IntervalOperations.TotalMinutes(idleParts);
@@ -364,10 +365,10 @@ internal static class LoadAndDowntimeReportBuilder
     {
         var metricTail = new[]
         {
-            "Длительность рабочего времени, мин",
-            "Общая длительность занятости, мин",
-            "Общая длительность простоя, мин",
-            "Средняя длительность простоя, мин",
+            "Длительность рабочего времени",
+            "Общая длительность занятости",
+            "Общая длительность простоев",
+            "Средняя длительность простоя",
             "Число интервалов простоя",
             "Загрузка рабочего времени, %",
             "Число завершённых приёмов"
@@ -411,16 +412,16 @@ internal static class LoadAndDowntimeReportBuilder
         var cab = string.IsNullOrEmpty(cabinetCell) ? "—" : cabinetCell;
         var loadPct = windowMin <= 0
             ? "—"
-            : CatalogReportShared.FormatMetric(busyMin * 100.0 / windowMin);
+            : CatalogReportShared.FormatPercent(busyMin * 100.0 / windowMin);
         var idleAvg = idleSegments <= 0
             ? "—"
-            : CatalogReportShared.FormatMetric(idleMin / idleSegments);
+            : CatalogReportShared.FormatDuration(idleMin / idleSegments);
 
         var tail = new[]
         {
-            CatalogReportShared.FormatMetric(windowMin),
-            CatalogReportShared.FormatMetric(busyMin),
-            CatalogReportShared.FormatMetric(idleMin),
+            CatalogReportShared.FormatDuration(windowMin),
+            CatalogReportShared.FormatDuration(busyMin),
+            CatalogReportShared.FormatDuration(idleMin),
             idleAvg,
             idleSegments.ToString(CultureInfo.InvariantCulture),
             loadPct,
@@ -459,22 +460,19 @@ internal static class LoadAndDowntimeReportBuilder
         var docCell = byCabinet ? "—" : "Все врачи";
         var cabCell = byCabinet ? "Все кабинеты" : "—";
 
-        return new ReportResultRowViewModel
-        {
-            Cells = BuildLoadDowntimeDetailCells(
-                byCabinet,
-                "",
-                "—",
-                docCell,
-                specCell,
-                cabCell,
-                w,
-                b,
-                i,
-                seg,
-                apptCount),
-            RowClass = "report-load-table__row--period-total"
-        };
+        return CreateLoadDowntimeDetailRow(
+            byCabinet,
+            "",
+            "—",
+            docCell,
+            specCell,
+            cabCell,
+            w,
+            b,
+            i,
+            seg,
+            apptCount,
+            rowClass: "report-load-table__row--period-total");
     }
 
     private static ReportPreviewPieChart? BuildLoadDowntimePreviewPieChart(IReadOnlyList<ShiftMetrics> shifts)
@@ -487,8 +485,12 @@ internal static class LoadAndDowntimeReportBuilder
             return null;
         return new ReportPreviewPieChart
         {
-            Labels = ["Занятость (мин)", "Простой (мин)"],
-            Values = [busy, idle]
+            Labels = ["Занятость", "Простои"],
+            Values =
+            [
+                CatalogReportShared.RoundDurationMinutesAsDouble(busy),
+                CatalogReportShared.RoundDurationMinutesAsDouble(idle)
+            ]
         };
     }
 
@@ -576,21 +578,18 @@ internal static class LoadAndDowntimeReportBuilder
                             : g.Key.DateWork.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
                         prevDate = g.Key.DateWork;
                         var key = new[] { (s.IdDoctor, s.IdCabinet, s.DateWork) };
-                        yield return new ReportResultRowViewModel
-                        {
-                            Cells = BuildLoadDowntimeDetailCells(
-                                true,
-                                dateCell,
-                                FormatDaySpan(s.DaySpanStart, s.DaySpanEnd),
-                                doctors.GetValueOrDefault(s.IdDoctor, "?"),
-                                FormatSpecialtyListForKeys(listRows, key, periodFrom, periodTo),
-                                CatalogReportAnalysisHelper.FormatCabinetLabel(cabinets.GetValueOrDefault(g.Key.IdCabinet)),
-                                s.WindowMinutes,
-                                s.BusyMinutes,
-                                s.IdleMinutes,
-                                s.IdleSegments,
-                                s.CompletedAppointments)
-                        };
+                        yield return CreateLoadDowntimeDetailRow(
+                            true,
+                            dateCell,
+                            FormatDaySpan(s.DaySpanStart, s.DaySpanEnd),
+                            doctors.GetValueOrDefault(s.IdDoctor, "?"),
+                            FormatSpecialtyListForKeys(listRows, key, periodFrom, periodTo),
+                            CatalogReportAnalysisHelper.FormatCabinetLabel(cabinets.GetValueOrDefault(g.Key.IdCabinet)),
+                            s.WindowMinutes,
+                            s.BusyMinutes,
+                            s.IdleMinutes,
+                            s.IdleSegments,
+                            s.CompletedAppointments);
                     }
                 }
             }
@@ -608,21 +607,59 @@ internal static class LoadAndDowntimeReportBuilder
         double idleMin,
         int idleSegments,
         int completedAppointments) =>
-        new ReportResultRowViewModel
-        {
-            Cells = BuildLoadDowntimeDetailCells(
-                false,
-                dateCell,
-                timeCell,
-                doctorCell,
-                specialtiesCell,
-                cabinetCell,
-                windowMin,
-                busyMin,
-                idleMin,
-                idleSegments,
-                completedAppointments)
-        };
+        CreateLoadDowntimeDetailRow(
+            false,
+            dateCell,
+            timeCell,
+            doctorCell,
+            specialtiesCell,
+            cabinetCell,
+            windowMin,
+            busyMin,
+            idleMin,
+            idleSegments,
+            completedAppointments);
+
+    private static ReportResultRowViewModel CreateLoadDowntimeDetailRow(
+        bool cabinetColumnOrder,
+        string dateCell,
+        string timeCell,
+        string doctorCell,
+        string specialtiesCell,
+        string cabinetCell,
+        double windowMin,
+        double busyMin,
+        double idleMin,
+        int idleSegments,
+        int completedAppointments,
+        string? rowClass = null)
+    {
+        var display = BuildLoadDowntimeDetailCells(
+            cabinetColumnOrder,
+            dateCell,
+            timeCell,
+            doctorCell,
+            specialtiesCell,
+            cabinetCell,
+            windowMin,
+            busyMin,
+            idleMin,
+            idleSegments,
+            completedAppointments);
+        var idleAvgExact = idleSegments <= 0 ? (double?)null : idleMin / idleSegments;
+        var row = ReportCsvCells.FromDisplayCells(
+            display,
+            new Dictionary<int, double?>
+            {
+                [5] = windowMin,
+                [6] = busyMin,
+                [7] = idleMin,
+                [8] = idleAvgExact
+            });
+        if (rowClass is not null)
+            row.RowClass = rowClass;
+        return row;
+    }
 
     private static ReportResultRowViewModel AggregateToRow(
         IGrouping<int, ShiftMetrics> grp,
@@ -660,22 +697,19 @@ internal static class LoadAndDowntimeReportBuilder
             cabCell = "—";
         }
 
-        return new ReportResultRowViewModel
-        {
-            Cells = BuildLoadDowntimeDetailCells(
-                byCabinet,
-                dateCell,
-                timeCell,
-                docCell,
-                specCell,
-                cabCell,
-                w,
-                b,
-                i,
-                seg,
-                apptCount),
-            RowClass = "report-load-table__row--period-total"
-        };
+        return CreateLoadDowntimeDetailRow(
+            byCabinet,
+            dateCell,
+            timeCell,
+            docCell,
+            specCell,
+            cabCell,
+            w,
+            b,
+            i,
+            seg,
+            apptCount,
+            rowClass: "report-load-table__row--period-total");
     }
 
     internal sealed record LogWorkLite(int IdDoctor, int IdCabinet, DateOnly DateWork, TimeOnly TimeBegin, TimeOnly TimeEnd);

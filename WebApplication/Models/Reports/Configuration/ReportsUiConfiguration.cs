@@ -37,20 +37,7 @@ public static class ReportsUiConfiguration
                     ]
                 }
             ],
-            [ReportGeneratorKind.ServiceDelays] =
-            [
-                new ReportCustomFieldDefinition
-                {
-                    Key = "analysisMode",
-                    Label = "Срез",
-                    Type = "select",
-                    Options =
-                    [
-                        new ReportCustomFieldOption { Value = "doctor", Label = "По врачам" },
-                        new ReportCustomFieldOption { Value = "cabinet", Label = "По кабинетам" }
-                    ]
-                }
-            ],
+            [ReportGeneratorKind.ServiceDelays] = [],
             [ReportGeneratorKind.ServiceCategoriesComparison] = []
         };
 
@@ -69,27 +56,6 @@ public static class ReportsUiConfiguration
         return dict;
     }
 
-    public static IReadOnlyList<string> FormatAppliedParameterLines(
-        ReportGeneratorKind kind,
-        IReadOnlyDictionary<string, string?>? customParams)
-    {
-        if (!FieldsByGeneratorKind.TryGetValue(kind, out var fields) || fields.Count == 0)
-            return [];
-
-        var lines = new List<string>();
-        foreach (var field in fields)
-        {
-            if (string.IsNullOrWhiteSpace(field.Key))
-                continue;
-
-            var display = ResolveFieldDisplayValue(field, customParams);
-            if (!string.IsNullOrWhiteSpace(display))
-                lines.Add($"{field.Label}: {display}");
-        }
-
-        return lines;
-    }
-
     public static IReadOnlyList<string> FormatExportHeaderLines(ReportGeneratorKind kind, ReportGenerateRequest request)
     {
         var lines = new List<string>();
@@ -98,32 +64,6 @@ public static class ReportsUiConfiguration
             lines.Add(periodLine);
 
         return lines;
-    }
-
-    private static string ResolveFieldDisplayValue(
-        ReportCustomFieldDefinition field,
-        IReadOnlyDictionary<string, string?>? customParams)
-    {
-        var raw = customParams is not null && customParams.TryGetValue(field.Key, out var v) ? v : null;
-        var value = raw?.Trim() ?? "";
-
-        if (string.IsNullOrEmpty(value)
-            && string.Equals(field.Type, "select", StringComparison.OrdinalIgnoreCase)
-            && field.Options.Count > 0)
-            value = field.Options[0].Value;
-
-        if (string.IsNullOrEmpty(value))
-            return "";
-
-        if (string.Equals(field.Type, "select", StringComparison.OrdinalIgnoreCase))
-        {
-            var opt = field.Options.FirstOrDefault(o =>
-                string.Equals(o.Value, value, StringComparison.OrdinalIgnoreCase));
-            if (!string.IsNullOrWhiteSpace(opt?.Label))
-                return opt.Label;
-        }
-
-        return value;
     }
 
     private static string? FormatPeriodLine(ReportGenerateRequest r)

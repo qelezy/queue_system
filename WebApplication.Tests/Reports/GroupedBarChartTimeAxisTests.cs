@@ -77,8 +77,8 @@ public sealed class GroupedBarChartTimeAxisTests
         var axis = GroupedBarChartTimeAxis.Prepare(days, datasets, GroupedBarBucketAggregation.Average);
 
         Assert.Equal(axis.Labels.Count, axis.Datasets[0].NormValues!.Count);
-        Assert.Equal(3.3333, axis.Datasets[0].Values[0]);
-        Assert.Equal(6.6667, axis.Datasets[0].NormValues![0]);
+        Assert.Equal(10.0 / 3, axis.Datasets[0].Values[0], precision: 3);
+        Assert.Equal(20.0 / 3, axis.Datasets[0].NormValues![0], precision: 3);
     }
 
     [Fact]

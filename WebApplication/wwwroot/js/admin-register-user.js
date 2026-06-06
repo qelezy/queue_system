@@ -28,6 +28,14 @@
 
             const result = await response.json().catch(() => ({}));
             if (response.ok && result.success) {
+                window.UsersUI?.addRegisteredUser?.({
+                    id: result.data?.userId ?? "",
+                    firstName,
+                    lastName,
+                    patronymic,
+                    email,
+                    role
+                });
                 toastManager?.show("Пользователь успешно создан.", "success");
                 form.reset();
                 window.UsersUI?.closeCreate();

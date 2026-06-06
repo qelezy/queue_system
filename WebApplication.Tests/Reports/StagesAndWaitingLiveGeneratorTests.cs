@@ -1,10 +1,10 @@
-﻿using WebApplication.Models.ElectronicQueueProf;
+using WebApplication.Models.ElectronicQueueProf;
 using WebApplication.Services.Reports.Catalog;
 using Xunit;
 
 namespace WebApplication.Tests.Reports;
 
-public sealed class RouteAndPausesLiveGeneratorTests
+public sealed class StagesAndWaitingLiveGeneratorTests
 {
     [Fact]
     public void LoadStages_and_BuildReport_compute_pause_and_route_duration()
@@ -48,16 +48,16 @@ public sealed class RouteAndPausesLiveGeneratorTests
             }
         };
 
-        var stages = RouteAndPausesQueries.LoadStages(listItems, appointments, day, day);
+        var stages = StagesAndWaitingQueries.LoadStages(listItems, appointments, day, day);
         var periodFrom = new DateTime(2026, 5, 12, 0, 0, 0);
         var periodTo = new DateTime(2026, 5, 12, 23, 59, 59);
-        var model = RouteAndPausesReportBuilder.BuildReport(
+        var model = StagesAndWaitingReportBuilder.BuildReport(
             stages, periodFrom, periodTo, ReportGenerationPurpose.ExportOrFull);
 
-        Assert.Equal(3, model.Rows.Count);
+        Assert.Equal(1, model.Rows.Count);
         Assert.Equal("08:00–10:20", model.Rows[0].Cells[1]);
-        Assert.Equal("50", model.Rows[0].Cells[3]);
-        Assert.Equal("5", model.Rows[0].Cells[4]);
+        Assert.Equal("50 мин", model.Rows[0].Cells[3]);
+        Assert.Equal("5 мин", model.Rows[0].Cells[4]);
         Assert.NotNull(model.PreviewCharts);
     }
 }

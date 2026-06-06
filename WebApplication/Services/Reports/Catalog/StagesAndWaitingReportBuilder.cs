@@ -1,11 +1,13 @@
-﻿using System.Globalization;
+using System.Globalization;
 using WebApplication.Models.ElectronicQueueProf;
 using WebApplication.Services.Reports.Charts;
 using WebApplication.Services.Reports.Intervals;
 
+using WebApplication.Services.Reports;
+
 namespace WebApplication.Services.Reports.Catalog;
 
-internal static class RouteAndPausesReportBuilder
+internal static class StagesAndWaitingReportBuilder
 {
     private const double MaxMinuteContribution = 10080;
 
@@ -14,11 +16,9 @@ internal static class RouteAndPausesReportBuilder
         "Дата",
         "Интервал полного обслуживания",
         "Этапов",
-        "Суммарное время обслуживания, мин",
-        "Сумма пауз до начала приёма, мин"
+        "Суммарное время обслуживания",
+        "Суммарное ожидание после вызова"
     ];
-
-    private static readonly int[] TotalsLabelColSpans = [2, 0, 1, 1, 1];
 
     internal static ReportResultViewModel BuildReport(
         IReadOnlyList<RouteStageObservation> stages,
@@ -40,6 +40,8 @@ internal static class RouteAndPausesReportBuilder
 
             var routeDuration = SumRouteDurationMinutes(first.DateArrival, ordered, periodFrom, periodTo);
             var pauseSum = SumPauseMinutes(first.DateArrival, ordered, periodFrom, periodTo);
+            var routeDurationExact = SumRouteDurationMinutesExact(first.DateArrival, ordered, periodFrom, periodTo);
+            var pauseSumExact = SumPauseMinutesExact(first.DateArrival, ordered, periodFrom, periodTo);
             var interval = FormatFullServiceInterval(first.DateArrival, ordered, periodFrom, periodTo);
 
             detailData.Add(new RowAgg(
@@ -47,7 +49,9 @@ internal static class RouteAndPausesReportBuilder
                 interval,
                 ordered.Count,
                 routeDuration,
-                pauseSum));
+                pauseSum,
+                routeDurationExact,
+                pauseSumExact));
         }
 
         detailData = detailData
@@ -65,14 +69,19 @@ internal static class RouteAndPausesReportBuilder
                 : d.DateArrival.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
             prevDate = d.DateArrival;
 
-            detailRows.Add(ReportResultRowViewModel.FromCells(
+            detailRows.Add(ReportCsvCells.FromDisplayCells(
             [
                 dateCell,
                 d.ServiceInterval,
                 d.StageCount.ToString(CultureInfo.InvariantCulture),
-                CatalogReportShared.FormatMetric(d.RouteDuration),
-                CatalogReportShared.FormatMetric(d.PauseSum)
-            ]));
+                CatalogReportShared.FormatDuration(d.RouteDuration),
+                CatalogReportShared.FormatDuration(d.PauseSum)
+            ],
+            new Dictionary<int, double?>
+            {
+                [3] = d.RouteDurationExact,
+                [4] = d.PauseSumExact
+            }));
         }
 
         var model = new ReportResultViewModel
@@ -92,36 +101,7 @@ internal static class RouteAndPausesReportBuilder
         List<ReportResultRowViewModel> detailRows,
         ReportGenerationPurpose purpose)
     {
-        CatalogReportPreviewHelper.ApplyDetailPreviewAndTotals(
-            model,
-            detailRows,
-            detailData,
-            purpose,
-            (rows, data) => AppendTotalsBlock(rows, data, CatalogReportPreviewHelper.PeriodTotalsLabel),
-            BuildTotalsBlockRows);
-    }
-
-    private static void AppendTotalsBlock(List<ReportResultRowViewModel> rows, List<RowAgg> detailData, string label)
-    {
-        foreach (var r in BuildTotalsBlockRows(detailData, label))
-            rows.Add(r);
-    }
-
-    private static IEnumerable<ReportResultRowViewModel> BuildTotalsBlockRows(List<RowAgg> detailData, string label)
-    {
-        yield return ReportResultRowViewModel.FromCells(
-            [label, "", "", "", ""],
-            rowClass: "report-load-table__row--totals-start",
-            cellColSpans: TotalsLabelColSpans);
-        yield return ReportResultRowViewModel.FromCells(
-        [
-            "",
-            "—",
-            detailData.Sum(d => d.StageCount).ToString(CultureInfo.InvariantCulture),
-            CatalogReportShared.FormatMetric(detailData.Sum(d => d.RouteDuration)),
-            CatalogReportShared.FormatMetric(detailData.Sum(d => d.PauseSum))
-        ],
-            rowClass: "report-load-table__row--period-total");
+        CatalogReportShared.ApplyPreviewRowCap(model, purpose);
     }
 
     private static List<ReportPreviewChartDescriptor>? BuildPreviewCharts(IReadOnlyList<RowAgg> detailData)
@@ -135,17 +115,17 @@ internal static class RouteAndPausesReportBuilder
         {
             new()
             {
-                Label = "Обслуживание, мин",
-                Values = byDay.Select(g => g.Sum(x => x.RouteDuration)).ToList()
+                Label = "Среднее время обслуживания",
+                Values = byDay.Select(g => CatalogReportShared.RoundDurationMinutesAsDouble(g.Average(x => x.RouteDurationExact))).ToList()
             },
             new()
             {
-                Label = "Паузы, мин",
-                Values = byDay.Select(g => g.Sum(x => x.PauseSum)).ToList()
+                Label = "Среднее ожидание после вызова",
+                Values = byDay.Select(g => CatalogReportShared.RoundDurationMinutesAsDouble(g.Average(x => x.PauseSumExact))).ToList()
             }
         };
-        var axis = GroupedBarChartTimeAxis.Prepare(chartDays, datasets, GroupedBarBucketAggregation.Sum);
-        var previewCharts = ReportPreviewChartDescriptors.ForRouteAndPausesDailyGroupedBar(
+        var axis = GroupedBarChartTimeAxis.Prepare(chartDays, datasets, GroupedBarBucketAggregation.Average);
+        var previewCharts = ReportPreviewChartDescriptors.ForStagesAndWaitingDailyGroupedBar(
             axis.Labels.ToList(),
             axis.Datasets.ToList());
         return previewCharts;
@@ -203,13 +183,30 @@ internal static class RouteAndPausesReportBuilder
         DateTime periodFrom,
         DateTime periodTo)
     {
+        if (ordered.Count == 0)
+            return "—";
+
+        var first = ordered[0];
+        var start = EqDateTimeExtensions.CombineOnArrivalDate(dateArrival, first.TimeArrival);
+
         var full = TryGetFullServiceInterval(dateArrival, ordered);
-        if (!full.HasValue)
-            return "—";
-        var clipped = IntervalOperations.ClipToRange(full.Value, periodFrom, periodTo);
-        if (!clipped.HasValue)
-            return "—";
-        return FormatTimeSpan(clipped.Value.Start, clipped.Value.End);
+        if (full.HasValue)
+        {
+            var clipped = IntervalOperations.ClipToRange(full.Value, periodFrom, periodTo);
+            if (clipped.HasValue)
+                return FormatTimeSpan(clipped.Value.Start, clipped.Value.End);
+        }
+
+        var last = ordered[^1];
+        var endTime = last.TimeEndServicing ?? last.TimeComplete;
+        if (endTime.HasValue)
+        {
+            var end = EqDateTimeExtensions.CombineOnArrivalDate(dateArrival, endTime.Value);
+            if (start >= end)
+                return "—";
+        }
+
+        return FormatOpenServiceStart(start);
     }
 
     internal static double SumRouteDurationMinutes(
@@ -230,6 +227,24 @@ internal static class RouteAndPausesReportBuilder
         return sum;
     }
 
+    internal static double SumRouteDurationMinutesExact(
+        DateOnly dateArrival,
+        IReadOnlyList<RouteStageObservation> ordered,
+        DateTime periodFrom,
+        DateTime periodTo)
+    {
+        double sum = 0;
+        foreach (var stage in ordered)
+        {
+            var servicing = TryGetServicingInterval(dateArrival, stage);
+            if (!servicing.HasValue)
+                continue;
+            sum += ClippedMinutesContributionExact(servicing.Value, periodFrom, periodTo);
+        }
+
+        return sum;
+    }
+
     internal static double SumPauseMinutes(
         DateOnly dateArrival,
         IReadOnlyList<RouteStageObservation> ordered,
@@ -243,6 +258,24 @@ internal static class RouteAndPausesReportBuilder
             if (!pause.HasValue)
                 continue;
             pauseSum += ClippedMinutesContribution(pause.Value, periodFrom, periodTo);
+        }
+
+        return pauseSum;
+    }
+
+    internal static double SumPauseMinutesExact(
+        DateOnly dateArrival,
+        IReadOnlyList<RouteStageObservation> ordered,
+        DateTime periodFrom,
+        DateTime periodTo)
+    {
+        double pauseSum = 0;
+        foreach (var stage in ordered)
+        {
+            var pause = TryGetCallToStartPauseInterval(dateArrival, stage);
+            if (!pause.HasValue)
+                continue;
+            pauseSum += ClippedMinutesContributionExact(pause.Value, periodFrom, periodTo);
         }
 
         return pauseSum;
@@ -278,6 +311,9 @@ internal static class RouteAndPausesReportBuilder
     private static string FormatTimeSpan(DateTime start, DateTime end) =>
         $"{start.ToString("HH:mm", CultureInfo.InvariantCulture)}–{end.ToString("HH:mm", CultureInfo.InvariantCulture)}";
 
+    private static string FormatOpenServiceStart(DateTime start) =>
+        $"{start.ToString("HH:mm", CultureInfo.InvariantCulture)}–";
+
     private static double ClippedMinutesContribution(
         DateTimeInterval interval,
         DateTime periodFrom,
@@ -286,10 +322,28 @@ internal static class RouteAndPausesReportBuilder
         var clipped = IntervalOperations.ClipToRange(interval, periodFrom, periodTo);
         if (!clipped.HasValue)
             return 0;
-        var minutes = clipped.Value.Duration.TotalMinutes;
-        if (minutes < 0 || minutes >= MaxMinuteContribution)
+        var minutes = CatalogReportShared.ComputeDurationMinutes(
+            clipped.Value.Start,
+            clipped.Value.End);
+        if (minutes is null || minutes >= MaxMinuteContribution)
             return 0;
-        return minutes;
+        return minutes.Value;
+    }
+
+    private static double ClippedMinutesContributionExact(
+        DateTimeInterval interval,
+        DateTime periodFrom,
+        DateTime periodTo)
+    {
+        var clipped = IntervalOperations.ClipToRange(interval, periodFrom, periodTo);
+        if (!clipped.HasValue)
+            return 0;
+        var minutes = CatalogReportShared.ComputeDurationMinutesExact(
+            clipped.Value.Start,
+            clipped.Value.End);
+        if (minutes is null || minutes >= MaxMinuteContribution)
+            return 0;
+        return minutes.Value;
     }
 
     private sealed record RowAgg(
@@ -297,7 +351,9 @@ internal static class RouteAndPausesReportBuilder
         string ServiceInterval,
         int StageCount,
         double RouteDuration,
-        double PauseSum);
+        double PauseSum,
+        double RouteDurationExact,
+        double PauseSumExact);
 
     internal readonly record struct RouteStageObservation(
         int IdAppointment,

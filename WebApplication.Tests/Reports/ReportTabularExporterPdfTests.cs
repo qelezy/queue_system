@@ -123,8 +123,8 @@ public sealed class ReportTabularExporterPdfTests
             [
                 "Дата",
                 "Категория обслуживания",
-                "Приёмов",
-                "С завершённым маршрутом",
+                "Обращений",
+                "Полностью обслужено",
                 "С незавершённым обслуживанием"
             ],
             Rows =
@@ -136,22 +136,61 @@ public sealed class ReportTabularExporterPdfTests
             [
                 new ReportPreviewChartDescriptor
                 {
-                    Kind = "doughnut",
-                    Labels = ["С завершённым маршрутом", "С незавершённым обслуживанием"],
-                    Values = [2, 1]
-                },
-                new ReportPreviewChartDescriptor
-                {
                     Kind = "groupedBar",
+                    ChartAxisMode = "stacked",
                     Labels = ["10-05-2026"],
                     Datasets =
                     [
-                        new ReportPreviewChartDataset { Label = "С завершённым маршрутом", Values = [2] },
+                        new ReportPreviewChartDataset { Label = "Полностью обслужено", Values = [2] },
                         new ReportPreviewChartDataset
                         {
                             Label = "С незавершённым обслуживанием",
                             Values = [1]
                         }
+                    ],
+                    ValueUnit = "шт."
+                }
+            ]
+        };
+
+        AssertPdf(ReportTabularExporter.WritePdfBytes(result));
+    }
+
+    [Fact]
+    public void WritePdfBytes_service_categories_comparison_horizontal_chart_succeeds()
+    {
+        var result = new ReportResultViewModel
+        {
+            Title = "Сравнение категорий обслуживания",
+            GeneratedForReportId = ReportIds.ServiceCategoriesComparison,
+            PdfOrientation = ReportPdfOrientations.Landscape,
+            ColumnHeaders =
+            [
+                "Категория",
+                "Приёмов",
+                "Среднее ожидание до вызова",
+                "Наименьшее ожидание до вызова",
+                "Наибольшее ожидание до вызова",
+                "Средняя длительность приёма",
+                "Наименьшая длительность приёма",
+                "Наибольшая длительность приёма"
+            ],
+            Rows =
+            [
+                ReportResultRowViewModel.FromCells(
+                    ["ОМС", "2", "4 мин", "3 мин", "5 мин", "9 мин", "8 мин", "10 мин"])
+            ],
+            PreviewCharts =
+            [
+                new ReportPreviewChartDescriptor
+                {
+                    Kind = "horizontalGroupedBar",
+                    Labels = ["ОМС", "Платные"],
+                    ValueUnit = "мин",
+                    Datasets =
+                    [
+                        new ReportPreviewChartDataset { Label = "Среднее ожидание до вызова", Values = [4, 2] },
+                        new ReportPreviewChartDataset { Label = "Средняя длительность приёма", Values = [9, 5] }
                     ]
                 }
             ]
@@ -169,16 +208,16 @@ public sealed class ReportTabularExporterPdfTests
     }
 
     [Fact]
-    public void WritePdfBytes_route_and_pauses_same_date_rows_succeeds()
+    public void WritePdfBytes_stages_and_waiting_same_date_rows_succeeds()
     {
-        var result = CreateRouteAndPausesResultWithGroupedDateRows();
+        var result = CreateStagesAndWaitingResultWithGroupedDateRows();
         AssertPdf(ReportTabularExporter.WritePdfBytes(result));
     }
 
     [Fact]
-    public void WriteHtmlBytes_route_and_pauses_emits_date_rowspan()
+    public void WriteHtmlBytes_stages_and_waiting_emits_date_rowspan()
     {
-        var result = CreateRouteAndPausesResultWithGroupedDateRows();
+        var result = CreateStagesAndWaitingResultWithGroupedDateRows();
         var html = Encoding.UTF8.GetString(ReportTabularExporter.WriteHtmlBytes(result));
         Assert.Contains("rowspan=\"2\"", html, StringComparison.Ordinal);
     }
@@ -194,8 +233,8 @@ public sealed class ReportTabularExporterPdfTests
             [
                 "Дата",
                 "Категория обслуживания",
-                "Приёмов",
-                "С завершённым маршрутом",
+                "Обращений",
+                "Полностью обслужено",
                 "С незавершённым обслуживанием"
             ],
             Rows =
@@ -207,20 +246,20 @@ public sealed class ReportTabularExporterPdfTests
             ]
         };
 
-    private static ReportResultViewModel CreateRouteAndPausesResultWithGroupedDateRows() =>
+    private static ReportResultViewModel CreateStagesAndWaitingResultWithGroupedDateRows() =>
         new()
         {
-            Title = "Этапы и паузы",
-            GeneratedForReportId = ReportIds.RouteAndPauses,
+            Title = "Этапы и ожидание после вызова",
+            GeneratedForReportId = ReportIds.StagesAndWaiting,
             TableLayout = ReportTableLayouts.DateRowspan,
-            DetailRowKind = ReportDetailRowKinds.RouteAndPauses,
+            DetailRowKind = ReportDetailRowKinds.StagesAndWaiting,
             ColumnHeaders =
             [
                 "Дата",
                 "Интервал полного обслуживания",
                 "Этапов",
                 "Суммарное время обслуживания, мин",
-                "Сумма пауз до начала приёма, мин"
+                "Суммарное ожидание после вызова, мин"
             ],
             Rows =
             [

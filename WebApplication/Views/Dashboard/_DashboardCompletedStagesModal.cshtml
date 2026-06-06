@@ -14,7 +14,7 @@
         <div class="app-modal__body">
             <section class="register-panel queue-route-stages-panel">
                 <header class="register-panel-head">
-                    <h2 class="register-panel-title" id="queue-completed-stages-title">Этапы маршрута</h2>
+                    <h2 class="register-panel-title" id="queue-completed-stages-title">Этапы обслуживания</h2>
                     <button type="button"
                             class="register-panel-close"
                             aria-label="Закрыть"
@@ -24,19 +24,25 @@
                 </header>
 
                 <div class="users-table-wrap queue-completed-stages-table-scroll">
-                    <table class="users-table queue-completed-stages-table" aria-label="Этапы маршрута">
+                    <table class="users-table queue-completed-stages-table" aria-label="Этапы обслуживания">
+                        <colgroup>
+                            <col class="queue-completed-stages-table__col-specialty" />
+                            <col class="queue-completed-stages-table__col-cabinet" />
+                            <col class="queue-completed-stages-table__col-time-call" />
+                            <col class="queue-completed-stages-table__col-time-start" />
+                            <col class="queue-completed-stages-table__col-time-end" />
+                        </colgroup>
                         <thead>
                             <tr>
                                 <th>Специальность</th>
                                 <th>Номер кабинета</th>
-                                <th>Статус</th>
                                 <th>Время вызова</th>
                                 <th>Время начала обслуживания</th>
                                 <th>Время окончания обслуживания</th>
                             </tr>
                         </thead>
                         <tbody id="queue-completed-stages-tbody">
-                            <tr><td colspan="6">Загрузка…</td></tr>
+                            <tr class="users-table__empty-row"><td colspan="5">Загрузка…</td></tr>
                         </tbody>
                     </table>
                 </div>

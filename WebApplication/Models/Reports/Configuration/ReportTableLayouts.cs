@@ -16,7 +16,7 @@ public static class ReportDetailRowKinds
 {
     public const string Standard = "standard";
     public const string LoadDowntime = "loadDowntime";
-    public const string RouteAndPauses = "routeAndPauses";
+    public const string StagesAndWaiting = "stagesAndWaiting";
     public const string ArrivedCompleted = "arrivedCompleted";
     public const string AppointmentDuration = "appointmentDuration";
     public const string WaitingBeforeAppointment = "waitingBeforeAppointment";

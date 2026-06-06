@@ -11,8 +11,11 @@ internal static class CatalogReportAnalysisHelper
 
     internal static double? ComputeSvcMinutes(DateOnly dateArrival, TimeOnly start, TimeOnly end)
     {
-        var svcMin = (EqDateTimeExtensions.CombineOnArrivalDate(dateArrival, end)
-                      - EqDateTimeExtensions.CombineOnArrivalDate(dateArrival, start)).TotalMinutes;
-        return svcMin >= 0 && svcMin < 10080 ? svcMin : null;
+        return CatalogReportShared.ComputeDurationMinutes(
+            EqDateTimeExtensions.CombineOnArrivalDate(dateArrival, start),
+            EqDateTimeExtensions.CombineOnArrivalDate(dateArrival, end));
     }
+
+    internal static double? ComputeSvcMinutesExact(DateOnly dateArrival, TimeOnly start, TimeOnly end) =>
+        CatalogReportShared.ComputeDurationMinutesExact(dateArrival, start, end);
 }

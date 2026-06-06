@@ -9,5 +9,4 @@ public interface IReportGenerationService
     
     ReportGenerateResponse Generate(ReportGenerateRequest request, ReportGenerationPurpose purpose = ReportGenerationPurpose.ExportOrFull);
     (byte[] Bytes, string ContentType, string FileName) BuildExport(ReportExportRequest request);
-    byte[] BuildDemoCsv(string reportId, string? analysisMode = null);
 }

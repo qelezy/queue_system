@@ -19,7 +19,13 @@ public static class ElectronicQueueMockData
 
     public static IReadOnlyList<(int Id, string Name)> Categories { get; } =
     [
-        (1, "ОМС"),
-        (2, "Платно")
+        (1, "Диспансеризация"),
+        (2, "Медкомиссии пр."),
+        (3, "Медкомиссии"),
+        (4, "Платный приём пр."),
+        (5, "Профосмотры"),
+        (6, "Профосмотры пр."),
+        (7, "УМО"),
+        (8, "УМО пр.")
     ];
 }

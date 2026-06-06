@@ -17,7 +17,7 @@ public sealed class WaitingBeforeAppointmentReportBuilderTests
         var periodTo = Day.AddDays(2).ToDateTime(new TimeOnly(18, 0));
         var observations = new List<WaitingBeforeAppointmentReportBuilder.WaitingObservation>
         {
-            new(Day, 10, 12.0)
+            new(Day, 10, 12.0, 12.0)
         };
 
         var model = WaitingBeforeAppointmentReportBuilder.Build(
@@ -29,6 +29,7 @@ public sealed class WaitingBeforeAppointmentReportBuilderTests
 
         Assert.DoesNotContain(model.Rows, r => (r.Cells?[0] ?? "").Contains("2026-05-11"));
         var chart = Assert.Single(model.PreviewCharts!);
+        Assert.Equal("groupedBar", chart.Kind);
         Assert.Single(chart.Labels);
     }
 
@@ -39,8 +40,8 @@ public sealed class WaitingBeforeAppointmentReportBuilderTests
         var periodTo = Day.ToDateTime(new TimeOnly(18, 0));
         var observations = new List<WaitingBeforeAppointmentReportBuilder.WaitingObservation>
         {
-            new(Day, 10, 12.0),
-            new(Day, 12, 8.0)
+            new(Day, 10, 12.0, 12.0),
+            new(Day, 12, 8.0, 8.0)
         };
 
         var model = WaitingBeforeAppointmentReportBuilder.Build(
@@ -59,14 +60,15 @@ public sealed class WaitingBeforeAppointmentReportBuilderTests
     }
 
     [Fact]
-    public void Build_chart_uses_nan_outside_day_hour_range()
+    public void Build_chart_grouped_bar_for_multi_day_period()
     {
         var periodFrom = Day.ToDateTime(new TimeOnly(8, 0));
         var periodTo = GapDay.ToDateTime(new TimeOnly(18, 0));
         var observations = new List<WaitingBeforeAppointmentReportBuilder.WaitingObservation>
         {
-            new(Day, 10, 12.0),
-            new(GapDay, 14, 9.0)
+            new(Day, 10, 12.0, 12.0),
+            new(Day, 12, 8.0, 8.0),
+            new(GapDay, 14, 9.0, 9.0)
         };
 
         var model = WaitingBeforeAppointmentReportBuilder.Build(
@@ -77,10 +79,13 @@ public sealed class WaitingBeforeAppointmentReportBuilderTests
             periodTo);
 
         var chart = Assert.Single(model.PreviewCharts!);
-        var hour10 = chart.Datasets!.Single(d => d.Label == "10:00");
-        var hour14 = chart.Datasets!.Single(d => d.Label == "14:00");
-        Assert.True(ChartDatasetValues.IsMissing(hour14.Values[0]));
-        Assert.True(ChartDatasetValues.IsMissing(hour10.Values[1]));
+        Assert.Equal("groupedBar", chart.Kind);
+        Assert.Equal(2, chart.Labels.Count);
+        Assert.Equal(4, chart.Datasets!.Count);
+        Assert.Contains(chart.Datasets, d => d.Label == "10:00");
+        Assert.Contains(chart.Datasets, d => d.Label == "11:00");
+        Assert.Contains(chart.Datasets, d => d.Label == "12:00");
+        Assert.Contains(chart.Datasets, d => d.Label == "14:00");
     }
 
     [Fact]
@@ -88,8 +93,8 @@ public sealed class WaitingBeforeAppointmentReportBuilderTests
     {
         var observations = new List<WaitingBeforeAppointmentReportBuilder.WaitingObservation>
         {
-            new(Day, 6, 5.0),
-            new(Day, 10, 7.0)
+            new(Day, 6, 5.0, 5.0),
+            new(Day, 10, 7.0, 7.0)
         };
 
         var range = WaitingBeforeAppointmentReportBuilder.GetActiveHourRange(observations);
@@ -131,9 +136,9 @@ public sealed class WaitingBeforeAppointmentReportBuilderTests
         var periodTo = Day.ToDateTime(new TimeOnly(18, 0));
         var observations = new List<WaitingBeforeAppointmentReportBuilder.WaitingObservation>
         {
-            new(Day, 10, 12.0),
-            new(Day, 10, 18.0),
-            new(Day, 12, 8.0)
+            new(Day, 10, 12.0, 12.0),
+            new(Day, 10, 18.0, 18.0),
+            new(Day, 12, 8.0, 8.0)
         };
 
         var model = WaitingBeforeAppointmentReportBuilder.BuildReport(
@@ -146,7 +151,7 @@ public sealed class WaitingBeforeAppointmentReportBuilderTests
 
         var periodRow = model.Rows.Last(r => r.RowClass == "report-load-table__row--period-total");
         var hourlyMax = observations.Max(o => o.WaitMin);
-        var periodMax = double.Parse(periodRow.Cells![5], System.Globalization.CultureInfo.InvariantCulture);
+        var periodMax = ReportsDurationTestHelper.ParseDurationCell(periodRow.Cells![5]);
 
         Assert.True(periodMax >= hourlyMax);
     }

@@ -85,40 +85,18 @@
         return (
             '<tr class="queue-row--clickable" data-queue-row' +
             ' data-appointment-id="' + escapeHtml(r.idAppointment) + '"' +
-            ' data-specialty-id="' + escapeHtml(r.idSpecialty) + '"' +
+            ' data-category-id="' + escapeHtml(r.idCategory ?? "") + '"' +
             ' data-status-code="' + escapeHtml(r.statusCode) + '"' +
             ' data-wait="' + escapeHtml(toDisplayNumber(r.waitingMinutes)) + '"' +
             ' tabindex="0" role="button">' +
-            "<td>" + escapeHtml(r.ticketNumber) + "</td>" +
-            '<td><div class="queue-row__doctor-name">' + escapeHtml(r.currentDoctor) + "</div>" +
-            '<div class="queue-row__doctor-specialty">' + escapeHtml(r.specialty) + "</div></td>" +
-            "<td>" + escapeHtml(r.currentCabinet) + "</td>" +
-            "<td>" + buildQueueStatusBadge(r.statusLabel, r.statusCode) + "</td>" +
-            "<td>" + escapeHtml(toDisplayNumber(r.waitingMinutes)) + " мин</td>" +
+            '<td>' + escapeHtml(r.ticketNumber) + "</td>" +
+            '<td>' + escapeHtml(toDisplayNumber(r.neededSpecialtiesCount)) + "</td>" +
+            '<td>' + escapeHtml(toDisplayNumber(r.completedSpecialtiesCount)) + "</td>" +
+            '<td>' + escapeHtml(r.categoryName) + "</td>" +
+            '<td>' + buildQueueStatusBadge(r.statusLabel, r.statusCode) + "</td>" +
+            '<td>' + escapeHtml(toDisplayNumber(r.waitingMinutes)) + " мин</td>" +
             "</tr>"
         );
-    }
-
-    function updateQueueCountBadge(count) {
-        if (!ui.queueTable) return;
-
-        const countValue = toDisplayNumber(count);
-        const label = "Ожидающих: " + countValue;
-        let badge = document.querySelector(".queue-list-count-badge");
-
-        if (!badge) {
-            const title = document.querySelector(".queue-panel__title");
-            const titleText = title?.querySelector(".queue-panel__title-text");
-            if (!(title instanceof HTMLElement) || !(titleText instanceof HTMLElement)) return;
-
-            badge = document.createElement("span");
-            badge.className = "queue-list-count-badge";
-            titleText.insertAdjacentElement("afterend", badge);
-        }
-
-        badge.textContent = label;
-        badge.setAttribute("aria-label", label);
-        badge.hidden = false;
     }
 
     function updateQueueTable(rows) {
@@ -129,12 +107,11 @@
         if (!tbody) return;
 
         if (!rows || rows.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5">Лист ожидания пуст</td></tr>';
+            tbody.innerHTML = '<tr class="users-table__empty-row"><td colspan="6">Лист ожидания пуст</td></tr>';
         } else {
             tbody.innerHTML = rows.map(buildQueueRowHtml).join("");
         }
 
-        updateQueueCountBadge(rows?.length ?? 0);
         window.QueueTable?.rebind?.();
     }
 
@@ -159,18 +136,26 @@
         }
 
         const doctorStatus = d.isInService ? "in-service" : "free";
+        const queueLength = Number.isFinite(Number(d.queueLength)) ? Number(d.queueLength) : 0;
         return (
             '<tr data-doctor-load-row data-doctor-id="' + escapeHtml(d.idDoctor) + '"' +
             ' data-doctor-status="' + doctorStatus + '"' +
-            ' data-specialty-id="' + escapeHtml(d.idSpecialty) + '">' +
+            ' data-specialty-id="' + escapeHtml(d.idSpecialty) + '"' +
+            ' data-queue-length="' + queueLength + '"' +
+            ' tabindex="0" role="button" class="doctor-load-table__row--clickable">' +
             '<td><div class="queue-row__doctor-name">' + escapeHtml(d.fullName) + "</div>" +
             '<div class="queue-row__doctor-specialty">' + specialtyLine + "</div></td>" +
-            "<td>" + statusBadge + "</td>" +
+            '<td>' + statusBadge + "</td>" +
+            '<td>' +
+            (d.isInService && d.currentTicketNumber
+                ? escapeHtml(d.currentTicketNumber)
+                : "—") +
+            "</td>" +
             '<td class="' + (over ? "doctor-load-table__cell--over" : "") + '">' +
             (hasCurrent ? escapeHtml(toDisplayNumber(cur)) + " мин" : "—") +
             "</td>" +
-            "<td>" + (hasNorm ? escapeHtml(toDisplayNumber(norm)) + " мин" : "—") + "</td>" +
-            "<td>" + escapeHtml(toDisplayNumber(d.queueLength)) + "</td>" +
+            '<td>' + (hasNorm ? escapeHtml(toDisplayNumber(norm)) + " мин" : "—") + "</td>" +
+            '<td>' + escapeHtml(toDisplayNumber(d.queueLength)) + "</td>" +
             "</tr>"
         );
     }
@@ -247,7 +232,7 @@
         if (!tbody) return;
 
         if (!cards || cards.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5">Нет активных врачей</td></tr>';
+            tbody.innerHTML = '<tr class="users-table__empty-row"><td colspan="5">Нет активных врачей</td></tr>';
         } else {
             tbody.innerHTML = cards.map(buildDoctorRowHtml).join("");
         }

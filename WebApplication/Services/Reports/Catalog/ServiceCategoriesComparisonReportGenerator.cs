@@ -38,26 +38,43 @@ public sealed class ServiceCategoriesComparisonReportGenerator : IReportGenerato
             {
                 var x = ordered[i];
                 double? wait = null;
+                double? waitExact = null;
                 if (x.TimeCall is { } timeCall)
                 {
-                    wait = ServiceCategoriesComparisonReportBuilder.ComputeWaitMinutes(
+                    waitExact = ServiceCategoriesComparisonReportBuilder.ComputeWaitMinutesExact(
                         x.DateArrival,
                         x.TimeArrival,
                         ordered,
                         i,
                         timeCall);
+                    wait = ServiceCategoriesComparisonReportBuilder.ComputeWaitMinutes(
+                        x.DateArrival,
+                        x.TimeArrival,
+                        ordered,
+                        i,
+                        timeCall) ?? waitExact;
                 }
 
                 double? svc = null;
+                double? svcExact = null;
                 if (x.TimeStartServicing is { } start && x.TimeEndServicing is { } end)
-                    svc = ServiceCategoriesComparisonReportBuilder.ComputeSvcMinutes(x.DateArrival, start, end);
+                {
+                    svcExact = ServiceCategoriesComparisonReportBuilder.ComputeSvcMinutesExact(
+                        x.DateArrival,
+                        start,
+                        end);
+                    svc = ServiceCategoriesComparisonReportBuilder.ComputeSvcMinutes(x.DateArrival, start, end)
+                        ?? svcExact;
+                }
 
                 observations.Add(new ServiceCategoriesComparisonReportBuilder.CategoryStageObservation(
                     x.IdAppointment,
                     x.IdCategory,
                     x.CategoryName,
                     wait,
-                    svc));
+                    waitExact,
+                    svc,
+                    svcExact));
             }
         }
 

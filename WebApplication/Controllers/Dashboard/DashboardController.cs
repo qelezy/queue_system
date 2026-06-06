@@ -77,4 +77,24 @@ public class DashboardController : Controller
             return StatusCode(503);
         }
     }
+
+    [HttpGet("/dashboard/doctors/{id:int}/potential-patients")]
+    public async Task<IActionResult> GetDoctorPotentialPatients(int id, CancellationToken cancellationToken = default)
+    {
+        if (!await _queueAvailability.CanQueryLiveDataAsync(cancellationToken).ConfigureAwait(false))
+            return StatusCode(503);
+
+        try
+        {
+            var result = await _queueDashboard.GetDoctorPotentialPatientsAsync(id, cancellationToken)
+                .ConfigureAwait(false);
+            if (result == null)
+                return NotFound();
+            return Json(result);
+        }
+        catch (Exception)
+        {
+            return StatusCode(503);
+        }
+    }
 }

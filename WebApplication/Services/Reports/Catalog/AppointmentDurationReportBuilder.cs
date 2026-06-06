@@ -1,6 +1,6 @@
 using System.Globalization;
 using WebApplication.Models.Reports.Charts;
-using WebApplication.Services.Reports.Charts;
+using WebApplication.Services.Reports;
 
 namespace WebApplication.Services.Reports.Catalog;
 
@@ -10,16 +10,15 @@ internal static class AppointmentDurationReportBuilder
     internal const string ModeSpecialty = "specialty";
     internal const string ModeCabinet = "cabinet";
 
-    internal const int ChartTopSeriesCount = 8;
-
     private static readonly string[] TailMetricHeaders =
     [
         "Завершённых приёмов",
-        "Средняя длительность, мин",
-        "Норматив, мин",
-        "Отклонение, мин",
-        "Минимум, мин",
-        "Максимум, мин"
+        "Средняя длительность",
+        "Норматив",
+        "Работает быстрее на",
+        "Работает медленнее на",
+        "Самый короткий приём",
+        "Самый длинный приём"
     ];
 
     internal static string ParseAnalysisMode(IReadOnlyDictionary<string, string?>? customParams)
@@ -83,12 +82,6 @@ internal static class AppointmentDurationReportBuilder
             : new List<string>(["Дата", dimensionHeader, ..TailMetricHeaders]);
 
         var rows = new List<ReportResultRowViewModel>();
-        var chartDays = new List<DateOnly>();
-        var topSeries = SelectTopSeries(observations, ChartTopSeriesCount);
-        var seriesDatasets = topSeries
-            .Select(s => new ReportPreviewChartDataset { Label = s, Values = new List<double>(), NormValues = new List<double>() })
-            .ToList();
-        var seriesIndex = topSeries.Select((s, i) => (s, i)).ToDictionary(x => x.s, x => x.i);
 
         for (var day = fromDo; day <= toDo; day = day.AddDays(1))
         {
@@ -96,7 +89,6 @@ internal static class AppointmentDurationReportBuilder
             if (dayObs.Count == 0)
                 continue;
 
-            chartDays.Add(day);
             var isFirstDetail = true;
 
             foreach (var g in dayObs
@@ -117,31 +109,9 @@ internal static class AppointmentDurationReportBuilder
                     includeSpecialtyCol));
                 isFirstDetail = false;
             }
-
-            foreach (var series in topSeries)
-            {
-                if (!seriesIndex.TryGetValue(series, out var idx))
-                    continue;
-                var sliceObs = dayObs.Where(o => o.DimensionLabel == series).ToList();
-                if (sliceObs.Count == 0)
-                {
-                    seriesDatasets[idx].Values.Add(ChartDatasetValues.Missing);
-                    seriesDatasets[idx].NormValues!.Add(ChartDatasetValues.Missing);
-                    continue;
-                }
-
-                var svcValues = sliceObs.Select(o => o.SvcMin).ToList();
-                seriesDatasets[idx].Values.Add(CatalogReportShared.RoundMetric(svcValues.Average()));
-                var normValues = sliceObs.Select(o => (double)o.NormMinutes).ToList();
-                seriesDatasets[idx].NormValues!.Add(CatalogReportShared.RoundMetric(normValues.Average()));
-            }
         }
 
-        var chartDatasets = seriesDatasets;
-        var axis = GroupedBarChartTimeAxis.Prepare(chartDays, chartDatasets, GroupedBarBucketAggregation.Average);
-        var previewCharts = ReportPreviewChartDescriptors.ForAppointmentDurationDailyGroupedBar(
-            axis.Labels.ToList(),
-            axis.Datasets.ToList());
+        var previewCharts = BuildPeriodPreviewCharts(observations);
 
         return new ReportResultViewModel
         {
@@ -151,13 +121,57 @@ internal static class AppointmentDurationReportBuilder
         };
     }
 
-    private static List<string> SelectTopSeries(IReadOnlyList<DurationObservation> observations, int topN) =>
-        observations
+    private static List<ReportPreviewChartDescriptor>? BuildPeriodPreviewCharts(
+        IReadOnlyList<DurationObservation> observations)
+    {
+        var categoryLabels = new List<string>();
+        var avgMinutes = new List<double?>();
+        var normMinutes = new List<double?>();
+        var deviationMinutes = new List<double?>();
+
+        var slices = observations
             .GroupBy(o => o.DimensionLabel)
-            .OrderByDescending(g => g.Count())
-            .Take(topN)
-            .Select(g => g.Key)
+            .Select(g => (Label: g.Key, Minutes: ComputePeriodChartMinutes(g.ToList())))
+            .OrderByDescending(s => s.Minutes.Average ?? 0)
+            .ThenBy(s => s.Label, StringComparer.Ordinal)
             .ToList();
+
+        foreach (var slice in slices)
+        {
+            categoryLabels.Add(slice.Label);
+            avgMinutes.Add(slice.Minutes.Average);
+            normMinutes.Add(slice.Minutes.Normative);
+            deviationMinutes.Add(slice.Minutes.Deviation);
+        }
+
+        return ReportPreviewChartDescriptors.ForAppointmentDurationPeriodHorizontalGroupedBar(
+            categoryLabels,
+            avgMinutes,
+            normMinutes,
+            deviationMinutes);
+    }
+
+    private static (double? Average, double? Normative, double? Deviation) ComputePeriodChartMinutes(
+        IReadOnlyList<DurationObservation> items)
+    {
+        var slice = ComputePeriodSliceMinutes(items);
+        return (
+            CatalogReportShared.RoundDurationDisplayChartValue(slice.AverageMinutes),
+            CatalogReportShared.RoundDurationDisplayChartValue(slice.NormativeMinutes),
+            slice.DeviationMinutes == 0
+                ? null
+                : CatalogReportShared.RoundDurationDisplayChartValue(slice.DeviationMinutes));
+    }
+
+    private static (double AverageMinutes, double NormativeMinutes, double DeviationMinutes) ComputePeriodSliceMinutes(
+        IReadOnlyList<DurationObservation> items)
+    {
+        var svc = items.Select(i => i.SvcMin).ToList();
+        var norms = items.Select(i => (double)i.NormMinutes).ToList();
+        var avg = CatalogReportShared.AverageDurationMinutes(svc);
+        var normAvg = norms.Average();
+        return (avg, normAvg, avg - normAvg);
+    }
 
     private static ReportResultRowViewModel BuildDetailRow(
         string dateCell,
@@ -168,7 +182,7 @@ internal static class AppointmentDurationReportBuilder
     {
         if (includeSpecialtyCol)
         {
-            return ReportResultRowViewModel.FromCells(
+            return ReportCsvCells.FromDisplayCells(
             [
                 dateCell,
                 dimension,
@@ -176,27 +190,47 @@ internal static class AppointmentDurationReportBuilder
                 metrics.Count,
                 metrics.Average,
                 metrics.Normative,
-                metrics.Deviation,
+                metrics.WorksFaster,
+                metrics.WorksSlower,
                 metrics.Min,
                 metrics.Max
-            ]);
+            ],
+            new Dictionary<int, double?>
+            {
+                [4] = metrics.AverageExact,
+                [5] = metrics.NormativeExact,
+                [6] = metrics.WorksFasterExact,
+                [7] = metrics.WorksSlowerExact,
+                [8] = metrics.MinExact,
+                [9] = metrics.MaxExact
+            });
         }
 
-        return ReportResultRowViewModel.FromCells(
+        return ReportCsvCells.FromDisplayCells(
         [
             dateCell,
             dimension,
             metrics.Count,
             metrics.Average,
             metrics.Normative,
-            metrics.Deviation,
+            metrics.WorksFaster,
+            metrics.WorksSlower,
             metrics.Min,
             metrics.Max
-        ]);
+        ],
+        new Dictionary<int, double?>
+        {
+            [3] = metrics.AverageExact,
+            [4] = metrics.NormativeExact,
+            [5] = metrics.WorksFasterExact,
+            [6] = metrics.WorksSlowerExact,
+            [7] = metrics.MinExact,
+            [8] = metrics.MaxExact
+        });
     }
 
-    private static readonly int[] PeriodTotalsLabelColSpansDoctor = [3, 0, 0, 1, 1, 1, 1, 1, 1];
-    private static readonly int[] PeriodTotalsLabelColSpansSlice = [2, 0, 1, 1, 1, 1, 1, 1];
+    private static readonly int[] PeriodTotalsLabelColSpansDoctor = [3, 0, 0, 1, 1, 1, 1, 1, 1, 1];
+    private static readonly int[] PeriodTotalsLabelColSpansSlice = [2, 0, 1, 1, 1, 1, 1, 1, 1];
 
     private static void ApplyPeriodTotalsAndPreview(
         ReportResultViewModel model,
@@ -257,14 +291,14 @@ internal static class AppointmentDurationReportBuilder
         if (includeSpecialtyCol)
         {
             yield return ReportResultRowViewModel.FromCells(
-                [heading, "", "", "", "", "", "", "", ""],
+                [heading, "", "", "", "", "", "", "", "", ""],
                 rowClass: "report-load-table__row--totals-start",
                 cellColSpans: PeriodTotalsLabelColSpansDoctor);
         }
         else
         {
             yield return ReportResultRowViewModel.FromCells(
-                [heading, "", "", "", "", "", "", ""],
+                [heading, "", "", "", "", "", "", "", ""],
                 rowClass: "report-load-table__row--totals-start",
                 cellColSpans: PeriodTotalsLabelColSpansSlice);
         }
@@ -282,13 +316,13 @@ internal static class AppointmentDurationReportBuilder
             if (includeSpecialtyCol)
             {
                 yield return ReportResultRowViewModel.FromCells(
-                    ["", g.Key, specialtyCell ?? "—", metrics.Count, metrics.Average, metrics.Normative, metrics.Deviation, metrics.Min, metrics.Max],
+                    ["", g.Key, specialtyCell ?? "—", metrics.Count, metrics.Average, metrics.Normative, metrics.WorksFaster, metrics.WorksSlower, metrics.Min, metrics.Max],
                     rowClass: "report-load-table__row--period-total");
             }
             else
             {
                 yield return ReportResultRowViewModel.FromCells(
-                    ["", g.Key, metrics.Count, metrics.Average, metrics.Normative, metrics.Deviation, metrics.Min, metrics.Max],
+                    ["", g.Key, metrics.Count, metrics.Average, metrics.Normative, metrics.WorksFaster, metrics.WorksSlower, metrics.Min, metrics.Max],
                     rowClass: "report-load-table__row--period-total");
             }
         }
@@ -308,36 +342,61 @@ internal static class AppointmentDurationReportBuilder
     private static DurationMetrics ComputeMetrics(IReadOnlyList<DurationObservation> items)
     {
         if (items.Count == 0)
-            return new DurationMetrics("0", "—", "—", "—", "—", "—");
+            return new DurationMetrics("0", "—", "—", "—", "—", "—", "—", 0, 0, null, null, 0, 0);
 
         var svc = items.Select(i => i.SvcMin).ToList();
-        var norms = items.Select(i => (double)i.NormMinutes).ToList();
-        var avg = svc.Average();
-        var normAvg = norms.Average();
-        var deviation = avg - normAvg;
+        var svcExact = items.Select(i => i.SvcMinExact).ToList();
+        var slice = ComputePeriodSliceMinutes(items);
+        var avg = slice.AverageMinutes;
+        var normAvg = slice.NormativeMinutes;
+        var deviation = slice.DeviationMinutes;
+        var avgExact = CatalogReportShared.AverageDurationMinutesExact(svcExact);
+        var normExact = items.Select(i => (double)i.NormMinutes).Average();
+        var deviationExact = avgExact - normExact;
+        var worksFaster = deviation < 0
+            ? CatalogReportShared.FormatDuration(Math.Abs(deviation))
+            : "—";
+        var worksSlower = deviation > 0
+            ? CatalogReportShared.FormatDuration(deviation)
+            : "—";
         var appointmentCount = items.Select(i => i.IdAppointment).Distinct().Count();
         return new DurationMetrics(
             appointmentCount.ToString(CultureInfo.InvariantCulture),
-            CatalogReportShared.FormatMetric(avg),
-            CatalogReportShared.FormatMetric(normAvg),
-            CatalogReportShared.FormatMetric(deviation),
-            CatalogReportShared.FormatMetric(svc.Min()),
-            CatalogReportShared.FormatMetric(svc.Max()));
+            CatalogReportShared.FormatDuration(avg),
+            CatalogReportShared.FormatDuration(normAvg),
+            worksFaster,
+            worksSlower,
+            CatalogReportShared.FormatDuration(CatalogReportShared.MinDurationMinutes(svc)),
+            CatalogReportShared.FormatDuration(CatalogReportShared.MaxDurationMinutes(svc)),
+            avgExact,
+            normExact,
+            deviationExact < 0 ? Math.Abs(deviationExact) : null,
+            deviationExact > 0 ? deviationExact : null,
+            CatalogReportShared.MinDurationMinutesExact(svcExact),
+            CatalogReportShared.MaxDurationMinutesExact(svcExact));
     }
 
     private readonly record struct DurationMetrics(
         string Count,
         string Average,
         string Normative,
-        string Deviation,
+        string WorksFaster,
+        string WorksSlower,
         string Min,
-        string Max);
+        string Max,
+        double AverageExact,
+        double NormativeExact,
+        double? WorksFasterExact,
+        double? WorksSlowerExact,
+        double MinExact,
+        double MaxExact);
 
     internal readonly record struct DurationObservation(
         DateOnly Date,
         string DimensionLabel,
         int IdAppointment,
         double SvcMin,
+        double SvcMinExact,
         int NormMinutes,
         string? SpecialtyDefinition);
 }

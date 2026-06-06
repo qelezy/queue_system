@@ -22,6 +22,7 @@ public sealed class ElectronicQueueDbContext : DbContext
     public DbSet<EqAppointment> Appointments => Set<EqAppointment>();
     public DbSet<EqListItem> ListItems => Set<EqListItem>();
     public DbSet<EqLogWork> LogWorks => Set<EqLogWork>();
+    public DbSet<EqStatusAppointment> StatusAppointments => Set<EqStatusAppointment>();
     public DbSet<EqStatusItemList> StatusItemLists => Set<EqStatusItemList>();
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
@@ -88,6 +89,7 @@ public sealed class ElectronicQueueDbContext : DbContext
             entity.ToTable("Appointment");
             entity.HasKey(x => x.IdAppointment);
             entity.Property(x => x.IdAppointment).HasColumnName("id_appointment");
+            entity.Property(x => x.IdStatusApp).HasColumnName("id_status_app");
             entity.Property(x => x.IdCategory).HasColumnName("id_category");
             entity.Property(x => x.DateArrival).HasColumnName("date_arrival");
             entity.Property(x => x.TimeArrival).HasColumnName("time_arrival");
@@ -102,6 +104,19 @@ public sealed class ElectronicQueueDbContext : DbContext
                 .WithMany(x => x.Appointments)
                 .HasForeignKey(x => x.IdCategory)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.StatusAppointment)
+                .WithMany(x => x.Appointments)
+                .HasForeignKey(x => x.IdStatusApp)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<EqStatusAppointment>(entity =>
+        {
+            entity.ToTable("Status_Appointment");
+            entity.HasKey(x => x.IdStatusApp);
+            entity.Property(x => x.IdStatusApp).HasColumnName("id_status_app");
+            entity.Property(x => x.Name).HasColumnName("name").HasMaxLength(200);
         });
 
         builder.Entity<EqStatusItemList>(entity =>
@@ -163,7 +178,6 @@ public sealed class ElectronicQueueDbContext : DbContext
             entity.Property(x => x.DateWork).HasColumnName("date_work");
             entity.Property(x => x.TimeBegin).HasColumnName("time_begin");
             entity.Property(x => x.TimeEnd).HasColumnName("time_end");
-            entity.Ignore(x => x.LastRefresh);
 
             entity.HasOne(x => x.Cabinet)
                 .WithMany(x => x.LogWorks)

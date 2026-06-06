@@ -51,43 +51,28 @@
         }
     }
 
-    function buildStatusBadge(label, code) {
-        const safeCode = code ? String(code).trim() : "";
-        const modifier = safeCode ? " queue-status-badge--" + safeCode : "";
-        return (
-            '<span class="queue-status-badge' +
-            modifier +
-            '">' +
-            escapeHtml(label) +
-            "</span>"
-        );
-    }
-
     function renderStages(stages) {
         if (!stages || stages.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6">Нет этапов</td></tr>';
+            tbody.innerHTML = '<tr class="users-table__empty-row"><td colspan="5">Нет этапов</td></tr>';
             return;
         }
         tbody.innerHTML = stages
             .map(
                 (s) =>
                     "<tr>" +
-                    "<td>" +
+                    '<td>' +
                     escapeHtml(s.specialty) +
                     "</td>" +
-                    "<td>" +
+                    '<td>' +
                     escapeHtml(s.cabinet) +
                     "</td>" +
-                    "<td>" +
-                    buildStatusBadge(s.statusLabel, s.statusCode) +
-                    "</td>" +
-                    "<td>" +
+                    '<td>' +
                     escapeHtml(s.timeCall) +
                     "</td>" +
-                    "<td>" +
+                    '<td>' +
                     escapeHtml(s.timeStart) +
                     "</td>" +
-                    "<td>" +
+                    '<td>' +
                     escapeHtml(s.timeEnd) +
                     "</td>" +
                     "</tr>"
@@ -96,19 +81,19 @@
     }
 
     function renderLoading() {
-        tbody.innerHTML = '<tr><td colspan="6">Загрузка…</td></tr>';
+        tbody.innerHTML = '<tr class="users-table__empty-row"><td colspan="5">Загрузка…</td></tr>';
     }
 
     function renderError(message) {
         tbody.innerHTML =
-            '<tr><td colspan="6">' + escapeHtml(message || "Не удалось загрузить этапы") + "</td></tr>";
+            '<tr class="users-table__empty-row"><td colspan="5">' + escapeHtml(message || "Не удалось загрузить этапы") + "</td></tr>";
     }
 
     async function openForAppointment(appointmentId) {
         const id = Number(appointmentId);
         if (!Number.isFinite(id) || id <= 0) return;
 
-        titleEl.textContent = "Этапы маршрута";
+        titleEl.textContent = "Этапы обслуживания";
         renderLoading();
         openModal();
 
@@ -130,8 +115,8 @@
             const data = await response.json();
             const ticket = data.ticketNumber ? String(data.ticketNumber).trim() : "";
             titleEl.textContent = ticket
-                ? "Этапы маршрута — талон " + ticket
-                : "Этапы маршрута";
+                ? "Этапы обслуживания — талон " + ticket
+                : "Этапы обслуживания";
             renderStages(data.stages);
         } catch {
             renderError("Не удалось загрузить этапы");

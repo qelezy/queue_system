@@ -126,7 +126,8 @@ public static class GroupedBarChartTimeAxis
         return aggregation switch
         {
             GroupedBarBucketAggregation.Sum => finite.Sum(),
-            GroupedBarBucketAggregation.Average => CatalogReportShared.RoundMetric(finite.Average()),
+            GroupedBarBucketAggregation.Average => CatalogReportShared.RoundDurationChartValue(
+                CatalogReportShared.AverageDurationMinutes(finite)),
             _ => throw new ArgumentOutOfRangeException(nameof(aggregation))
         };
     }

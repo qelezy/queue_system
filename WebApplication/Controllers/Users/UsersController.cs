@@ -84,11 +84,5 @@ namespace WebApplication.Controllers.Users
                 return BadRequest(new { message = ex.Message });
             }
         }
-
-        [HttpGet]
-        public IActionResult Register()
-        {
-            return View(new RegisterUserViewModel());
-        }
     }
 }

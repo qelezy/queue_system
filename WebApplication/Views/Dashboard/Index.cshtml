@@ -64,14 +64,14 @@
         }
     </div>
 
-    @if (Model.Ui.DoctorLoad)
-    {
-        <partial name="_DashboardDoctorLoad" model="@(new DashboardDoctorLoadViewModel { Cards = Model.DoctorLoadCards, Filters = Model.QueueFilters, DoctorsOnShiftCount = Model.DoctorsOnShiftCount, DoctorsTotalCount = Model.DoctorsTotalCount })" />
-    }
     @if (Model.Ui.QueueTable)
     {
         <partial name="_DashboardQueueTable" model="@(new DashboardQueueTableViewModel { Rows = Model.ActiveQueue, Filters = Model.QueueFilters })" />
         <partial name="_DashboardCompletedStagesModal" />
+    }
+    @if (Model.Ui.DoctorLoad)
+    {
+        <partial name="_DashboardDoctorLoad" model="@(new DashboardDoctorLoadViewModel { Cards = Model.DoctorLoadCards, Filters = Model.QueueFilters, DoctorsOnShiftCount = Model.DoctorsOnShiftCount, DoctorsTotalCount = Model.DoctorsTotalCount })" />
     }
     }
 </div>
@@ -87,5 +87,9 @@
     @if (Model.Ui.QueueTable && ViewData["QueueDatabaseUnavailable"] is not true)
     {
         <script src="~/js/dashboard-queue-stages.js" asp-append-version="true"></script>
+    }
+    @if (Model.Ui.DoctorLoad && ViewData["QueueDatabaseUnavailable"] is not true)
+    {
+        <script src="~/js/dashboard-doctor-patients.js" asp-append-version="true"></script>
     }
 }

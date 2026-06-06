@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Hosting;
 using WebApplication.Services.Dashboard;
 using WebApplication.Services.Demo;
 using WebApplication.Services.Reports;
@@ -9,15 +10,18 @@ public sealed class ResilientReportGenerationService : IReportGenerationService
     private readonly IElectronicQueueAvailability _availability;
     private readonly ReportGenerationService _live;
     private readonly MockReportGenerationService _mock;
+    private readonly bool _allowMockExport;
 
     public ResilientReportGenerationService(
         IElectronicQueueAvailability availability,
         ReportGenerationService live,
-        MockReportGenerationService mock)
+        MockReportGenerationService mock,
+        IHostEnvironment hostEnvironment)
     {
         _availability = availability;
         _live = live;
         _mock = mock;
+        _allowMockExport = hostEnvironment.IsDevelopment();
     }
 
     public IReadOnlyList<ReportSelectOption> GetCabinetOptions() =>
@@ -52,12 +56,9 @@ public sealed class ResilientReportGenerationService : IReportGenerationService
     }
 
     public (byte[] Bytes, string ContentType, string FileName) BuildExport(ReportExportRequest request) =>
-        ResilientLiveMockExecutor.TryLiveOrMock(_availability,
+        ResilientLiveMockExecutor.TryLiveOrMockForExport(
+            _availability,
+            _allowMockExport,
             () => _live.BuildExport(request),
             () => _mock.BuildExport(request));
-
-    public byte[] BuildDemoCsv(string reportId, string? analysisMode = null) =>
-        ResilientLiveMockExecutor.TryLiveOrMock(_availability,
-            () => _live.BuildDemoCsv(reportId, analysisMode),
-            () => _mock.BuildDemoCsv(reportId, analysisMode));
 }

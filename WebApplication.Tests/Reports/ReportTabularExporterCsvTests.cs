@@ -1,4 +1,5 @@
 ﻿using System.Text;
+using WebApplication.Models.Reports.Charts;
 using WebApplication.Services.Reports;
 using Xunit;
 
@@ -110,6 +111,39 @@ public sealed class ReportTabularExporterCsvTests
     }
 
     [Fact]
+    public void WriteHtmlBytes_embeds_export_table_and_chart_style_overrides()
+    {
+        var descriptor = new ReportPreviewChartDescriptor
+        {
+            Kind = "groupedBar",
+            Labels = ["2026-05-28"],
+            ValueUnit = "мин",
+            Datasets =
+            [
+                new ReportPreviewChartDataset { Label = "08:00", Values = [5] }
+            ]
+        };
+
+        var result = new ReportResultViewModel
+        {
+            Title = "Тест",
+            ColumnHeaders = ["Дата", "Значение"],
+            Rows = [ReportResultRowViewModel.FromCells(["2026-05-28", "5"])],
+            PreviewCharts = [descriptor]
+        };
+
+        var html = Encoding.UTF8.GetString(ReportTabularExporter.WriteHtmlBytes(result));
+
+        Assert.Contains(".report-export-html .users-table.users-table--report-preview thead th", html);
+        Assert.Contains("text-transform: uppercase", html);
+        Assert.Contains("color: #555555", html);
+        Assert.Contains("font-size: clamp(10px, 0.65vw + 9px, 11px)", html);
+        Assert.Contains(".report-export-html .report-preview-modal__chart-wrap svg", html);
+        Assert.Contains("max-height: 600px", html);
+        Assert.Contains("width=\"100%\" height=\"auto\"", html);
+    }
+
+    [Fact]
     public void Embedded_export_css_includes_preview_and_html_prefixes()
     {
         var asm = typeof(ReportTabularExporter).Assembly;
@@ -125,6 +159,62 @@ public sealed class ReportTabularExporterCsvTests
         Assert.Contains(".report-preview-modal__table-wrap", css);
         Assert.Contains(".report-export-html", css);
         Assert.Contains("report-load-table__row--totals-start", css);
+    }
+
+    [Fact]
+    public void WriteCsvBytes_prefers_csv_cells_over_display_duration_parse()
+    {
+        var result = new ReportResultViewModel
+        {
+            ColumnHeaders = ["Дата", "Средняя длительность"],
+            Rows =
+            [
+                ReportResultRowViewModel.FromCells(
+                    ["2026-05-10", "49 с"],
+                    csvCells: ["2026-05-10", "0.83"])
+            ]
+        };
+
+        var text = DecodeCsv(ReportTabularExporter.WriteCsvBytes(result));
+
+        Assert.Contains("0.83", text);
+        Assert.DoesNotContain("0.82", text);
+    }
+
+    [Theory]
+    [InlineData("49 с", "0.82")]
+    [InlineData("4 мин", "4.00")]
+    [InlineData("1 ч 30 мин", "90.00")]
+    [InlineData("—", "")]
+    public void WriteCsvBytes_converts_duration_columns_to_decimal_minutes(string cell, string expectedCsv)
+    {
+        var result = new ReportResultViewModel
+        {
+            ColumnHeaders = ["Дата", "Средняя длительность", "Приёмов"],
+            Rows = [ReportResultRowViewModel.FromCells(["2026-05-10", cell, "15"])]
+        };
+
+        var text = DecodeCsv(ReportTabularExporter.WriteCsvBytes(result));
+        var dataLine = SplitRecords(text)[1];
+
+        Assert.Contains(expectedCsv, dataLine);
+        Assert.Contains(",15", dataLine);
+    }
+
+    [Fact]
+    public void WriteCsvBytes_leaves_count_columns_unconverted()
+    {
+        var result = new ReportResultViewModel
+        {
+            ColumnHeaders = ["Категория", "Приёмов", "Среднее ожидание"],
+            Rows = [ReportResultRowViewModel.FromCells(["ОМС", "15", "4 мин"])]
+        };
+
+        var text = DecodeCsv(ReportTabularExporter.WriteCsvBytes(result));
+        var dataLine = SplitRecords(text)[1];
+
+        Assert.Contains(",15,", dataLine);
+        Assert.Contains("4.00", dataLine);
     }
 
     [Fact]

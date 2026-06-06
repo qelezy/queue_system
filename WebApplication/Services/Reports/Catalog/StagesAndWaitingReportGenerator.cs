@@ -1,11 +1,11 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using WebApplication.Data;
 
 namespace WebApplication.Services.Reports.Catalog;
 
-public sealed class RouteAndPausesReportGenerator : IReportGenerator
+public sealed class StagesAndWaitingReportGenerator : IReportGenerator
 {
-    public ReportGeneratorKind Kind => ReportGeneratorKind.RouteAndPauses;
+    public ReportGeneratorKind Kind => ReportGeneratorKind.StagesAndWaiting;
 
     public ReportGenerateResponse Generate(
         ReportGenerateRequest request,
@@ -14,13 +14,13 @@ public sealed class RouteAndPausesReportGenerator : IReportGenerator
     {
         var (periodFrom, periodTo, fromDo, toDo) = CatalogReportShared.ParsePeriod(request);
 
-        var stages = RouteAndPausesQueries.LoadStages(
+        var stages = StagesAndWaitingQueries.LoadStages(
             queue.ListItems.AsNoTracking(),
             queue.Appointments.AsNoTracking(),
             fromDo,
             toDo);
 
-        var model = RouteAndPausesReportBuilder.BuildReport(stages, periodFrom, periodTo, purpose);
+        var model = StagesAndWaitingReportBuilder.BuildReport(stages, periodFrom, periodTo, purpose);
         return new ReportGenerateResponse { Success = true, Implemented = true, Result = model };
     }
 }

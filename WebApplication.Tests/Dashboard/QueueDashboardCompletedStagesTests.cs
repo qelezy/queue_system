@@ -41,7 +41,7 @@ public sealed class QueueDashboardCompletedStagesTests
     }
 
     [Fact]
-    public void ToDto_formats_specialty_cabinet_status_and_times()
+    public void ToDto_formats_specialty_cabinet_and_times()
     {
         var li = new EqListItem
         {
@@ -57,8 +57,6 @@ public sealed class QueueDashboardCompletedStagesTests
 
         Assert.Equal("Терапевт", dto.Specialty);
         Assert.Equal("201", dto.Cabinet);
-        Assert.Equal("Завершён", dto.StatusLabel);
-        Assert.Equal("done", dto.StatusCode);
         Assert.Equal("09:15:30", dto.TimeCall);
         Assert.Equal("09:20:00", dto.TimeStart);
         Assert.Equal("09:45:12", dto.TimeEnd);

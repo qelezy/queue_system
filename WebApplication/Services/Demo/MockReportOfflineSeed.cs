@@ -198,24 +198,15 @@ internal static class MockReportOfflineSeed
         return stages;
     }
 
-    internal static Dictionary<int, string> BuildServiceDelaysResourceLabels(string analysisMode)
-    {
-        if (string.Equals(analysisMode, ServiceDelaysReportBuilder.ModeCabinet, StringComparison.OrdinalIgnoreCase))
-        {
-            return ElectronicQueueMockData.Cabinets.ToDictionary(
-                c => c.Id,
-                c => ServiceDelaysReportBuilder.FormatCabinetLabel(c.Label.Trim()));
-        }
+    internal static Dictionary<int, string> BuildServiceDelaysResourceLabels() =>
+        ElectronicQueueMockData.Doctors.ToDictionary(d => d.Id, d => d.Name);
 
-        return ElectronicQueueMockData.Doctors.ToDictionary(d => d.Id, d => d.Name);
-    }
-
-    internal static List<RouteAndPausesReportBuilder.RouteStageObservation> BuildRouteStageObservations(
+    internal static List<StagesAndWaitingReportBuilder.RouteStageObservation> BuildRouteStageObservations(
         DateOnly fromDo,
         DateOnly toDo)
     {
         var (appointments, listItems) = BuildRoutePausesEntities(fromDo, toDo);
-        return RouteAndPausesQueries.LoadStages(listItems, appointments, fromDo, toDo);
+        return StagesAndWaitingQueries.LoadStages(listItems, appointments, fromDo, toDo);
     }
 
     internal static (List<EqAppointment> Appointments, List<EqListItem> ListItems) BuildRoutePausesEntities(
@@ -335,14 +326,14 @@ internal static class MockReportOfflineSeed
                         svc = null;
 
                     observations.Add(new ServiceCategoriesComparisonReportBuilder.CategoryStageObservation(
-                        apptId, cat.Id, cat.Name, wait, svc));
+                        apptId, cat.Id, cat.Name, wait, wait, svc, svc));
 
                     if (cat.Id == 2 && i % 2 == 0)
                     {
+                        var wait2 = wait.HasValue ? wait + 1.5 : null;
+                        var svc2 = svc.HasValue ? svc + 2.0 : null;
                         observations.Add(new ServiceCategoriesComparisonReportBuilder.CategoryStageObservation(
-                            apptId, cat.Id, cat.Name,
-                            wait.HasValue ? wait + 1.5 : null,
-                            svc.HasValue ? svc + 2.0 : null));
+                            apptId, cat.Id, cat.Name, wait2, wait2, svc2, svc2));
                     }
                 }
             }

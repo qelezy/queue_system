@@ -20,9 +20,9 @@ public sealed class ReportGeneratorsSmokeTests
         [ReportIds.ServiceRouteOutcomes, new Dictionary<string, string?>()],
         [ReportIds.WaitingBeforeAppointment, new Dictionary<string, string?>()],
         [ReportIds.AppointmentDuration, new Dictionary<string, string?> { ["analysisMode"] = "doctor" }],
-        [ReportIds.RouteAndPauses, new Dictionary<string, string?>()],
+        [ReportIds.StagesAndWaiting, new Dictionary<string, string?>()],
         [ReportIds.ServiceCategoriesComparison, new Dictionary<string, string?>()],
-        [ReportIds.ServiceDelays, new Dictionary<string, string?> { ["analysisMode"] = "doctor" }]
+        [ReportIds.ServiceDelays, new Dictionary<string, string?>()]
     ];
 
     [Theory]
@@ -83,7 +83,7 @@ public sealed class ReportGeneratorsSmokeTests
             ReportIds.ServiceRouteOutcomes => new ServiceRouteOutcomesReportGenerator(),
             ReportIds.WaitingBeforeAppointment => new WaitingBeforeAppointmentReportGenerator(),
             ReportIds.AppointmentDuration => new AppointmentDurationReportGenerator(),
-            ReportIds.RouteAndPauses => new RouteAndPausesReportGenerator(),
+            ReportIds.StagesAndWaiting => new StagesAndWaitingReportGenerator(),
             ReportIds.ServiceCategoriesComparison => new ServiceCategoriesComparisonReportGenerator(),
             ReportIds.ServiceDelays => new ServiceDelaysReportGenerator(),
             _ => throw new ArgumentOutOfRangeException(nameof(reportId), reportId, null)

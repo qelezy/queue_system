@@ -13,7 +13,7 @@ public sealed class ReportCatalogDefaultsTests
     [InlineData(ReportIds.LoadAndDowntime, ReportGeneratorKind.LoadAndDowntime)]
     [InlineData(ReportIds.WaitingBeforeAppointment, ReportGeneratorKind.WaitingBeforeAppointment)]
     [InlineData(ReportIds.AppointmentDuration, ReportGeneratorKind.AppointmentDuration)]
-    [InlineData(ReportIds.RouteAndPauses, ReportGeneratorKind.RouteAndPauses)]
+    [InlineData(ReportIds.StagesAndWaiting, ReportGeneratorKind.StagesAndWaiting)]
     [InlineData(ReportIds.ServiceRouteOutcomes, ReportGeneratorKind.ServiceRouteOutcomes)]
     [InlineData(ReportIds.ServiceCategoriesComparison, ReportGeneratorKind.ServiceCategoriesComparison)]
     [InlineData(ReportIds.ServiceDelays, ReportGeneratorKind.ServiceDelays)]

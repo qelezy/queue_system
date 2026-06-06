@@ -54,8 +54,38 @@ internal static class CatalogReportWaitingHelper
         }
 
         var callDt = EqDateTimeExtensions.CombineOnArrivalDate(dateArrival, timeCall);
-        var waitMin = (callDt - waitStart).TotalMinutes;
-        return waitMin >= 0 && waitMin < 10080 ? waitMin : null;
+        return CatalogReportShared.ComputeDurationMinutes(waitStart, callDt);
+    }
+
+    internal static double? TryComputeWaitBeforeCallMinutesExact<T>(
+        DateOnly dateArrival,
+        TimeOnly timeArrival,
+        IReadOnlyList<T> orderedStages,
+        int stageIndex,
+        TimeOnly timeCall)
+        where T : IWaitStageRow
+    {
+        if (stageIndex < 0 || stageIndex >= orderedStages.Count)
+            return null;
+
+        DateTime waitStart;
+        if (stageIndex == 0)
+        {
+            waitStart = EqDateTimeExtensions.CombineOnArrivalDate(dateArrival, timeArrival);
+        }
+        else
+        {
+            var previous = orderedStages[stageIndex - 1];
+            if (previous.TimeEndServicing is { } prevEnd)
+                waitStart = EqDateTimeExtensions.CombineOnArrivalDate(dateArrival, prevEnd);
+            else if (previous.TimeStartServicing is { } prevStart)
+                waitStart = EqDateTimeExtensions.CombineOnArrivalDate(dateArrival, prevStart);
+            else
+                return null;
+        }
+
+        var callDt = EqDateTimeExtensions.CombineOnArrivalDate(dateArrival, timeCall);
+        return CatalogReportShared.ComputeDurationMinutesExact(waitStart, callDt);
     }
 
     internal static List<WaitingBeforeAppointmentReportBuilder.WaitingObservation> BuildWaitingObservations(
@@ -77,19 +107,27 @@ internal static class CatalogReportWaitingHelper
                         stage.DateArrival, timeCall, periodFrom, periodTo))
                     continue;
 
-                var waitMin = TryComputeWaitBeforeCallMinutes(
+                var waitMinExact = TryComputeWaitBeforeCallMinutesExact(
                     stage.DateArrival,
                     stage.TimeArrival,
                     ordered,
                     i,
                     timeCall);
-                if (waitMin is null)
+                if (waitMinExact is null)
                     continue;
+
+                var waitMin = TryComputeWaitBeforeCallMinutes(
+                    stage.DateArrival,
+                    stage.TimeArrival,
+                    ordered,
+                    i,
+                    timeCall) ?? waitMinExact.Value;
 
                 observations.Add(new WaitingBeforeAppointmentReportBuilder.WaitingObservation(
                     stage.DateArrival,
                     stage.TimeArrival.Hour,
-                    waitMin.Value));
+                    waitMin,
+                    waitMinExact.Value));
             }
         }
 

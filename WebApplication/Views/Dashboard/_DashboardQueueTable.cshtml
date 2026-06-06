@@ -3,7 +3,6 @@
 <div class="dashboard-panel">
     <h3 class="dashboard-panel__title queue-panel__title">
         <span class="queue-panel__title-text">Лист ожидания</span>
-        <span class="queue-list-count-badge" aria-label="Ожидающих: @Model.Rows.Count">Ожидающих: @Model.Rows.Count</span>
     </h3>
 
     <div class="table-toolbar queue-toolbar">
@@ -15,11 +14,11 @@
                 OnInput = "QueueTable.search(this.value)"
             })
             <div class="toolbar-role-filter">
-                <select id="queue-filter-specialty" class="toolbar-role-filter__select" onchange="QueueTable.filterSpecialty(this.value)">
-                    <option value="">Все специальности</option>
-                    @foreach (var s in Model.Filters.Specialties)
+                <select id="queue-filter-category" class="toolbar-role-filter__select" onchange="QueueTable.filterCategory(this.value)">
+                    <option value="">Все категории</option>
+                    @foreach (var c in Model.Filters.Categories)
                     {
-                        <option value="@s.Id">@s.Label</option>
+                        <option value="@c.Id">@c.Label</option>
                     }
                 </select>
             </div>
@@ -40,12 +39,21 @@
     </div>
 
     <div class="users-table-wrap queue-table-scroll">
-        <table class="users-table" aria-label="Лист ожидания">
+        <table class="users-table dashboard-table queue-table" aria-label="Лист ожидания">
+            <colgroup>
+                <col class="queue-table__col-ticket" />
+                <col class="queue-table__col-needed" />
+                <col class="queue-table__col-completed" />
+                <col class="queue-table__col-category" />
+                <col class="queue-table__col-status" />
+                <col class="queue-table__col-wait" />
+            </colgroup>
             <thead>
                 <tr>
                     <th>№ талона</th>
-                    <th>Врач</th>
-                    <th>Кабинет</th>
+                    <th>Нужно пройти специальностей</th>
+                    <th>Пройдено специальностей</th>
+                    <th>Категория обслуживания</th>
                     <th>Статус</th>
                     <th>Время ожидания</th>
                 </tr>
@@ -53,7 +61,7 @@
             <tbody>
             @if (Model.Rows.Count == 0)
             {
-                <tr><td colspan="5">Лист ожидания пуст</td></tr>
+                <tr class="users-table__empty-row"><td colspan="6">Лист ожидания пуст</td></tr>
             }
             else
             {
@@ -62,18 +70,16 @@
                     <tr class="queue-row--clickable"
                         data-queue-row
                         data-appointment-id="@r.IdAppointment"
-                        data-specialty-id="@r.IdSpecialty"
+                        data-category-id="@(r.IdCategory?.ToString() ?? "")"
                         data-status-code="@r.StatusCode"
                         data-wait="@r.WaitingMinutes"
                         tabindex="0"
                         role="button"
-                        aria-label="Этапы маршрута талона @r.TicketNumber">
+                        aria-label="Этапы обслуживания талона @r.TicketNumber">
                         <td>@r.TicketNumber</td>
-                        <td>
-                            <div class="queue-row__doctor-name">@r.CurrentDoctor</div>
-                            <div class="queue-row__doctor-specialty">@r.Specialty</div>
-                        </td>
-                        <td>@r.CurrentCabinet</td>
+                        <td>@r.NeededSpecialtiesCount</td>
+                        <td>@r.CompletedSpecialtiesCount</td>
+                        <td>@r.CategoryName</td>
                         <td>
                             <span class="queue-status-badge queue-status-badge--@r.StatusCode">@r.StatusLabel</span>
                         </td>

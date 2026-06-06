@@ -3,6 +3,7 @@ namespace WebApplication.Models.ElectronicQueueProf;
 public sealed class EqAppointment
 {
     public int IdAppointment { get; set; }
+    public int IdStatusApp { get; set; }
     public int? IdCategory { get; set; }
     public DateOnly DateArrival { get; set; }
     public TimeOnly TimeArrival { get; set; }
@@ -13,6 +14,7 @@ public sealed class EqAppointment
     public int? IdClient { get; set; }
     public TimeOnly? TimeComplete { get; set; }
 
+    public EqStatusAppointment StatusAppointment { get; set; } = null!;
     public EqCategory Category { get; set; } = null!;
     public ICollection<EqListItem> ListItems { get; set; } = new List<EqListItem>();
 }

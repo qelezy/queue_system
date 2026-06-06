@@ -8,7 +8,6 @@ public sealed class EqLogWork
     public DateOnly DateWork { get; set; }
     public TimeOnly? TimeBegin { get; set; }
     public TimeOnly? TimeEnd { get; set; }
-    public DateTime? LastRefresh { get; set; }
 
     public EqCabinet Cabinet { get; set; } = null!;
     public EqDoctor Doctor { get; set; } = null!;

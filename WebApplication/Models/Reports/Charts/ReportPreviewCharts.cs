@@ -1,4 +1,5 @@
 ﻿using System.Text.Json.Serialization;
+using WebApplication.Services.Reports.Charts;
 
 namespace WebApplication.Models.Reports.Charts;
 
@@ -23,6 +24,8 @@ public sealed class ReportPreviewChartDescriptor
     public string? CanvasElementId { get; set; }
 
     public List<ReportPreviewChartDataset>? Datasets { get; set; }
+
+    public string? ChartAxisMode { get; set; }
 }
 
 public sealed class ReportPreviewChartDataset
@@ -53,33 +56,22 @@ public static class ReportPreviewChartDescriptors
                 Labels = [..pie.Labels],
                 Values = [..pie.Values],
                 ValueUnit = "мин",
-                AriaLabel = "Соотношение длительности занятости и простоя",
+                AriaLabel = "Соотношение длительности занятости и простоев",
                 CanvasElementId = "report-preview-chart-0"
             }
         ];
     }
 
     public static List<ReportPreviewChartDescriptor>? ForServiceRouteOutcomesCharts(
-        int completedCount,
-        int incompleteCount,
         IReadOnlyList<string> dailyDayLabels,
         IReadOnlyList<double> completedPerDay,
         IReadOnlyList<double> incompletePerDay)
     {
-        var outList = new List<ReportPreviewChartDescriptor>();
-
-        var doughnut = ForServiceRouteOutcomesMix(completedCount, incompleteCount);
-        if (doughnut is not null)
-            outList.AddRange(doughnut);
-
-        var bar = ForServiceRouteOutcomesDailyGroupedBar(
+        var bar = ForServiceRouteOutcomesDailyStackedBar(
             dailyDayLabels,
             completedPerDay,
             incompletePerDay);
-        if (bar is not null)
-            outList.AddRange(bar);
-
-        return outList.Count == 0 ? null : outList;
+        return bar;
     }
 
     public static List<ReportPreviewChartDescriptor>? ForServiceRouteOutcomesMix(
@@ -90,7 +82,7 @@ public static class ReportPreviewChartDescriptors
         var values = new List<double>();
         if (completedRoute > 0)
         {
-            labels.Add("С завершённым маршрутом");
+            labels.Add("Полностью обслужено");
             values.Add(completedRoute);
         }
 
@@ -111,13 +103,13 @@ public static class ReportPreviewChartDescriptors
                 Labels = labels,
                 Values = values,
                 ValueUnit = "приёмов",
-                AriaLabel = "Исходы обслуживания за период: завершённый маршрут и незавершённое обслуживание",
+                AriaLabel = "Исходы обслуживания за период: полностью и не полностью обслужено",
                 CanvasElementId = "report-preview-chart-0"
             }
         ];
     }
 
-    public static List<ReportPreviewChartDescriptor>? ForServiceRouteOutcomesDailyGroupedBar(
+    public static List<ReportPreviewChartDescriptor>? ForServiceRouteOutcomesDailyStackedBar(
         IReadOnlyList<string> dayLabels,
         IReadOnlyList<double> completedPerDay,
         IReadOnlyList<double> incompletePerDay)
@@ -147,50 +139,79 @@ public static class ReportPreviewChartDescriptors
             new ReportPreviewChartDescriptor
             {
                 Kind = "groupedBar",
+                ChartAxisMode = "stacked",
                 Labels = [..dayLabels],
                 Datasets =
                 [
-                    new ReportPreviewChartDataset { Label = "С завершённым маршрутом", Values = dsCompleted },
+                    new ReportPreviewChartDataset { Label = "Полностью обслужено", Values = dsCompleted },
                     new ReportPreviewChartDataset { Label = "С незавершённым обслуживанием", Values = dsIncomplete }
                 ],
                 ValueUnit = "шт.",
-                AriaLabel = "Исходы обслуживания по дням",
-                CanvasElementId = "report-preview-chart-1"
+                AriaLabel = "Исходы обслуживания по дням (завершённые и незавершённые)",
+                CanvasElementId = "report-preview-chart-0"
             }
         ];
     }
 
-    public static List<ReportPreviewChartDescriptor>? ForMultiStageRoutesMix(int single, int multi)
+    public static List<ReportPreviewChartDescriptor>? ForServiceCategoriesComparisonHorizontalGroupedBar(
+        IReadOnlyList<string> categoryLabels,
+        IReadOnlyList<double?> avgWaitMinutes,
+        IReadOnlyList<double?> avgSvcMinutes,
+        IReadOnlyList<double?> avgTotalSvcMinutes)
     {
-        var labels = new List<string>();
-        var values = new List<double>();
-        if (single > 0)
-        {
-            labels.Add("Одноэтапные маршруты");
-            values.Add(single);
-        }
+        if (categoryLabels.Count == 0)
+            return null;
 
-        if (multi > 0)
+        var count = categoryLabels.Count;
+        var waitValues = ToCategoryChartValues(avgWaitMinutes, count);
+        var svcValues = ToCategoryChartValues(avgSvcMinutes, count);
+        var totalSvcValues = ToCategoryChartValues(avgTotalSvcMinutes, count);
+        var datasets = new List<ReportPreviewChartDataset>
         {
-            labels.Add("Многоэтапные маршруты");
-            values.Add(multi);
-        }
+            new()
+            {
+                Label = "Среднее суммарное обслуживание",
+                Values = totalSvcValues
+            },
+            new()
+            {
+                Label = "Среднее ожидание до вызова",
+                Values = waitValues
+            },
+            new()
+            {
+                Label = "Средняя длительность приёма",
+                Values = svcValues
+            }
+        };
 
-        if (labels.Count == 0)
+        if (datasets.All(d => !ChartDatasetValues.HasFiniteValue(d.Values)))
             return null;
 
         return
         [
             new ReportPreviewChartDescriptor
             {
-                Kind = "doughnut",
-                Labels = labels,
-                Values = values,
-                ValueUnit = "маршрутов",
-                AriaLabel = "Маршруты за период: одноэтапные и многоэтапные по числу этапов",
+                Kind = "horizontalGroupedBar",
+                Labels = [..categoryLabels],
+                Datasets = datasets,
+                ValueUnit = "мин",
+                AriaLabel = "Среднее ожидание и длительность приёма по категориям за период",
                 CanvasElementId = "report-preview-chart-0"
             }
         ];
+    }
+
+    private static List<double> ToCategoryChartValues(IReadOnlyList<double?> source, int count)
+    {
+        var list = new List<double>(count);
+        for (var i = 0; i < count; i++)
+        {
+            var v = i < source.Count ? source[i] : null;
+            list.Add(v is { } x && double.IsFinite(x) && x >= 0 ? x : ChartDatasetValues.Missing);
+        }
+
+        return list;
     }
 
     public static List<ReportPreviewChartDescriptor>? ForArrivedCompletedAppointmentMix(
@@ -232,47 +253,66 @@ public static class ReportPreviewChartDescriptors
         ];
     }
 
-    public static List<ReportPreviewChartDescriptor>? ForAppointmentDurationDailyGroupedBar(
-        IReadOnlyList<string> dayLabels,
-        IReadOnlyList<ReportPreviewChartDataset> series)
+    public static List<ReportPreviewChartDescriptor>? ForAppointmentDurationPeriodHorizontalGroupedBar(
+        IReadOnlyList<string> categoryLabels,
+        IReadOnlyList<double?> avgMinutes,
+        IReadOnlyList<double?> normMinutes,
+        IReadOnlyList<double?> deviationMinutes)
     {
-        if (dayLabels.Count == 0 || series.Count == 0)
+        if (categoryLabels.Count == 0)
             return null;
 
-        var datasets = series
-            .Select(s => new ReportPreviewChartDataset
+        var count = categoryLabels.Count;
+        var datasets = new List<ReportPreviewChartDataset>
+        {
+            new()
             {
-                Label = s.Label,
-                Values = s.Values.Count == dayLabels.Count
-                    ? [..s.Values]
-                    : PadValues(s.Values, dayLabels.Count),
-                NormValues = s.NormValues is null
-                    ? null
-                    : s.NormValues.Count == dayLabels.Count
-                        ? [..s.NormValues]
-                        : PadValues(s.NormValues, dayLabels.Count)
-            })
-            .ToList();
+                Label = "Средняя длительность приёма",
+                Values = ToCategoryChartValues(avgMinutes, count)
+            },
+            new()
+            {
+                Label = "Норматив",
+                Values = ToCategoryChartValues(normMinutes, count)
+            },
+            new()
+            {
+                Label = "Отклонение",
+                Values = ToSignedCategoryChartValues(deviationMinutes, count)
+            }
+        };
 
-        if (datasets.All(d => !ChartDatasetValues.HasFiniteValue(d.Values)
-                              && (d.NormValues is null || !ChartDatasetValues.HasFiniteValue(d.NormValues))))
+        if (datasets.All(d => !ChartDatasetValues.HasFiniteValue(d.Values)))
             return null;
 
         return
         [
             new ReportPreviewChartDescriptor
             {
-                Kind = "groupedBar",
-                Labels = [..dayLabels],
+                Kind = "horizontalGroupedBar",
+                ChartAxisMode = "symmetric",
+                Labels = [..categoryLabels],
                 Datasets = datasets,
                 ValueUnit = "мин",
-                AriaLabel = "Средняя длительность приёма и норматив по дням и срезу",
+                AriaLabel = "Средняя длительность приёма, норматив и отклонение по срезу за период",
                 CanvasElementId = "report-preview-chart-0"
             }
         ];
     }
 
-    public static List<ReportPreviewChartDescriptor>? ForRouteAndPausesDailyGroupedBar(
+    private static List<double> ToSignedCategoryChartValues(IReadOnlyList<double?> source, int count)
+    {
+        var list = new List<double>(count);
+        for (var i = 0; i < count; i++)
+        {
+            var v = i < source.Count ? source[i] : null;
+            list.Add(v is { } x && double.IsFinite(x) && x != 0 ? x : ChartDatasetValues.Missing);
+        }
+
+        return list;
+    }
+
+    public static List<ReportPreviewChartDescriptor>? ForStagesAndWaitingDailyGroupedBar(
         IReadOnlyList<string> dayLabels,
         IReadOnlyList<ReportPreviewChartDataset> series)
     {
@@ -300,7 +340,7 @@ public static class ReportPreviewChartDescriptors
                 Labels = [..dayLabels],
                 Datasets = datasets,
                 ValueUnit = "мин",
-                AriaLabel = "Суммы времени прохождения и пауз по дням",
+                AriaLabel = "Среднее время обслуживания и ожидания после вызова по дням",
                 CanvasElementId = "report-preview-chart-0"
             }
         ];

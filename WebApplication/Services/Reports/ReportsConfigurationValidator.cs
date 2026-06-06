@@ -18,7 +18,7 @@ public static class ReportsConfigurationValidator
     {
         ReportDetailRowKinds.Standard,
         ReportDetailRowKinds.LoadDowntime,
-        ReportDetailRowKinds.RouteAndPauses,
+        ReportDetailRowKinds.StagesAndWaiting,
         ReportDetailRowKinds.ArrivedCompleted,
         ReportDetailRowKinds.AppointmentDuration,
         ReportDetailRowKinds.WaitingBeforeAppointment

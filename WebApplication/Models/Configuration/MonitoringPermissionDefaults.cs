@@ -8,8 +8,8 @@ public static class MonitoringPermissionDefaults
         "dashboard.in-service",
         "dashboard.accepted-today",
         "dashboard.tickets-issued",
-        "dashboard.chart-cabinets-load",
         "dashboard.queue-table",
+        "dashboard.chart-cabinets-load",
     ];
 
     private static readonly IReadOnlyDictionary<string, DashboardUiBlock> UiBlockByPermissionId =

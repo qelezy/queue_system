@@ -456,7 +456,7 @@
     overscroll-behavior: contain;
 }
 
-.report-preview-modal__chart-wrap canvas {
+.report-preview-modal__chart-wrap:not(.report-preview-modal__chart-wrap--horizontal-grouped-bar) canvas {
     display: block;
     width: 100% !important;
     height: clamp(240px, 30vh, 380px) !important;
@@ -464,17 +464,50 @@
 }
 
 .report-preview-modal__chart-wrap--grouped-bar {
+    width: 100%;
     min-width: var(--report-chart-min-width, auto);
     height: var(--report-chart-height, auto);
 }
 
-.report-preview-modal__chart-wrap--grouped-bar canvas {
+.report-preview-modal__chart-wrap--grouped-bar:not(.report-preview-modal__chart-wrap--horizontal-grouped-bar) canvas {
     height: 100% !important;
     max-height: 380px;
 }
 
+.report-preview-modal__chart-wrap--horizontal-grouped-bar {
+    min-width: var(--report-chart-min-width, 640px);
+    height: var(--report-chart-height, auto);
+    min-height: var(--report-chart-height, auto);
+    max-width: 100%;
+    flex-shrink: 0;
+}
+
+.report-preview-modal__chart-wrap--horizontal-grouped-bar canvas {
+    display: block;
+    width: 100% !important;
+    height: var(--report-chart-height, auto) !important;
+    min-height: var(--report-chart-height, auto);
+    max-height: none !important;
+}
+
+.report-preview-modal__chart-wrap--line-chart {
+    width: 100%;
+    height: var(--report-chart-height, 280px);
+    max-width: 100%;
+}
+
+.report-workflow-modal.is-preview .report-preview-modal__chart-wrap--line-chart {
+    max-height: min(360px, 38vh);
+}
+
+.report-preview-modal__chart-wrap--line-chart canvas {
+    height: 100% !important;
+    max-height: 360px;
+}
+
 .report-preview-modal__table-wrap {
     overflow: auto;
+    overflow-x: auto;
     flex: 1;
     min-height: 0;
     min-width: 0;
@@ -484,6 +517,10 @@
 .report-preview-modal__table-wrap .users-table-wrap {
     min-width: 0;
     max-width: 100%;
+}
+
+.report-preview-modal__table-wrap .users-table.users-table--report-preview {
+    min-width: 1080px;
 }
 
 .report-preview-modal__table-wrap .users-table.users-table--report-preview thead th {

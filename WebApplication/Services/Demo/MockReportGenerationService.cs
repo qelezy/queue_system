@@ -1,5 +1,5 @@
 using System.Globalization;
-using System.Text;
+using WebApplication.Services.Reports;
 using WebApplication.Services.Reports.Catalog;
 using WebApplication.Services.Reports.LoadAndDowntime;
 
@@ -23,7 +23,7 @@ public sealed class MockReportGenerationService : IReportGenerationService
             [ReportGeneratorKind.WaitingBeforeAppointment] = GenerateWaitingBeforeAppointmentOffline,
             [ReportGeneratorKind.AppointmentDuration] = GenerateAppointmentDurationOffline,
             [ReportGeneratorKind.ServiceDelays] = GenerateServiceDelaysOffline,
-            [ReportGeneratorKind.RouteAndPauses] = GenerateRouteAndPausesOffline,
+            [ReportGeneratorKind.StagesAndWaiting] = GenerateStagesAndWaitingOffline,
             [ReportGeneratorKind.ServiceRouteOutcomes] = GenerateServiceRouteOutcomesOffline,
             [ReportGeneratorKind.ServiceCategoriesComparison] = GenerateServiceCategoriesComparisonOffline
         };
@@ -147,42 +147,6 @@ public sealed class MockReportGenerationService : IReportGenerationService
             purpose);
     }
 
-    public byte[] BuildDemoCsv(string reportId, string? analysisMode = null)
-    {
-        var rid = reportId.Trim();
-        if (!_catalog.TryGetItem(rid, out var item) || item is null)
-            return Encoding.UTF8.GetBytes("reportId;status\nunknown;not_found\n");
-
-        var p = new ReportGenerateRequest
-        {
-            ReportId = rid,
-            DateFrom = DateTime.UtcNow.AddDays(-7).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
-            DateTo = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
-            CustomParams = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
-        };
-
-        if (item.GeneratorKind is ReportGeneratorKind.LoadAndDowntime or ReportGeneratorKind.ServiceDelays)
-        {
-            p.CustomParams["analysisMode"] = string.Equals(analysisMode?.Trim(), "cabinet", StringComparison.OrdinalIgnoreCase)
-                ? "cabinet"
-                : "doctor";
-        }
-        else if (item.GeneratorKind == ReportGeneratorKind.AppointmentDuration)
-        {
-            p.CustomParams["analysisMode"] = AppointmentDurationReportBuilder.ParseAnalysisMode(
-                new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
-                {
-                    ["analysisMode"] = string.IsNullOrWhiteSpace(analysisMode) ? "doctor" : analysisMode.Trim()
-                });
-        }
-
-        var generated = Generate(p, ReportGenerationPurpose.ExportOrFull);
-        if (!generated.Implemented || generated.Result is null)
-            return Encoding.UTF8.GetBytes("reportId;status\nunknown;not_found\n");
-
-        return ReportTabularExporter.WriteCsvBytes(generated.Result);
-    }
-
     public static ReportResultViewModel GenerateAppointmentDurationOffline(
         ReportGenerateRequest request,
         ReportGenerationPurpose purpose = ReportGenerationPurpose.ExportOrFull)
@@ -212,6 +176,7 @@ public sealed class MockReportGenerationService : IReportGenerationService
                             doc.Name,
                             idAppointment,
                             svc,
+                            svc,
                             norm,
                             AppointmentDurationMockSpecialties[si]));
                     }
@@ -229,7 +194,7 @@ public sealed class MockReportGenerationService : IReportGenerationService
                         var norm = 15 + (daySeed + cab.Id + n * 3) % 31;
                         var idAppointment = day.DayNumber * 10000 + cab.Id * 100 + n;
                         observations.Add(new AppointmentDurationReportBuilder.DurationObservation(
-                            day, label, idAppointment, svc, norm, null));
+                            day, label, idAppointment, svc, svc, norm, null));
                     }
                 }
             }
@@ -247,6 +212,7 @@ public sealed class MockReportGenerationService : IReportGenerationService
                             day,
                             AppointmentDurationMockSpecialties[si],
                             idAppointment,
+                            svc,
                             svc,
                             norm,
                             AppointmentDurationMockSpecialties[si]));
@@ -322,7 +288,7 @@ public sealed class MockReportGenerationService : IReportGenerationService
                 for (var n = 0; n < count; n++)
                 {
                     var wait = 5.0 + (seed + n * 3) % 35 + slot.Hour * 0.2;
-                    observations.Add(new WaitingBeforeAppointmentReportBuilder.WaitingObservation(day, slot.Hour, wait));
+                    observations.Add(new WaitingBeforeAppointmentReportBuilder.WaitingObservation(day, slot.Hour, wait, wait));
                 }
             }
         }
@@ -345,20 +311,19 @@ public sealed class MockReportGenerationService : IReportGenerationService
         ReportGenerationPurpose purpose = ReportGenerationPurpose.ExportOrFull)
     {
         var (_, _, fromDo, toDo) = CatalogReportShared.ParsePeriod(request);
-        var analysisMode = ServiceDelaysReportBuilder.ParseAnalysisMode(request.CustomParams);
         var stages = MockReportOfflineSeed.BuildServiceDelaysStages(fromDo, toDo);
-        var entityLabels = MockReportOfflineSeed.BuildServiceDelaysResourceLabels(analysisMode);
-        var metrics = ServiceDelaysQueries.BuildEntityMetrics(stages, entityLabels, analysisMode);
-        return ServiceDelaysReportBuilder.BuildReport(metrics, analysisMode, purpose);
+        var entityLabels = MockReportOfflineSeed.BuildServiceDelaysResourceLabels();
+        var metrics = ServiceDelaysQueries.BuildEntityMetrics(stages, entityLabels);
+        return ServiceDelaysReportBuilder.BuildReport(metrics, purpose);
     }
 
-    public static ReportResultViewModel GenerateRouteAndPausesOffline(
+    public static ReportResultViewModel GenerateStagesAndWaitingOffline(
         ReportGenerateRequest request,
         ReportGenerationPurpose purpose = ReportGenerationPurpose.ExportOrFull)
     {
         var (periodFrom, periodTo, fromDo, toDo) = CatalogReportShared.ParsePeriod(request);
         var stages = MockReportOfflineSeed.BuildRouteStageObservations(fromDo, toDo);
-        return RouteAndPausesReportBuilder.BuildReport(stages, periodFrom, periodTo, purpose);
+        return StagesAndWaitingReportBuilder.BuildReport(stages, periodFrom, periodTo, purpose);
     }
 
     public static ReportResultViewModel GenerateServiceCategoriesComparisonOffline(

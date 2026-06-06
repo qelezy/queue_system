@@ -60,21 +60,6 @@ public class ReportsController : Controller
         return View(hub);
     }
 
-    [HttpGet]
-    public async Task<IActionResult> Download(string reportId, string? analysisMode, CancellationToken cancellationToken)
-    {
-        if (!_catalog.TryGetItem(reportId, out _))
-            return NotFound();
-
-        if (!await CanAccessReportAsync(reportId, cancellationToken).ConfigureAwait(false))
-            return Forbid();
-
-        await _queueAvailability.CanQueryLiveDataAsync(cancellationToken).ConfigureAwait(false);
-        var bytes = _generation.BuildDemoCsv(reportId, analysisMode);
-        var fileName = $"{reportId.Trim().ToLowerInvariant()}.csv";
-        return File(bytes, "text/csv; charset=utf-8", fileName);
-    }
-
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Generate([FromBody] ReportGenerateRequest request, CancellationToken cancellationToken)
@@ -131,8 +116,15 @@ public class ReportsController : Controller
         if (!await CanAccessReportAsync(request.ReportId, cancellationToken).ConfigureAwait(false))
             return Forbid();
 
-        var built = _generation.BuildExport(request);
-        return File(built.Bytes, built.ContentType, built.FileName);
+        try
+        {
+            var built = _generation.BuildExport(request);
+            return File(built.Bytes, built.ContentType, built.FileName);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return StatusCode(503, new ReportGenerateResponse { Success = false, Message = ex.Message });
+        }
     }
 
     private async Task<HashSet<string>> GetPermissionNamesAsync(CancellationToken cancellationToken)

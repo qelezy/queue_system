@@ -1,8 +1,5 @@
-﻿using System.Globalization;
-using System.Text;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using WebApplication.Data;
-using WebApplication.Services.Reports.Catalog;
 
 namespace WebApplication.Services.Reports;
 
@@ -84,41 +81,5 @@ public sealed class ReportGenerationService : IReportGenerationService
     {
         var rid = reportId?.Trim() ?? "";
         return _catalog.TryGetItem(rid, out var item) && item is not null ? item.GeneratorKind : null;
-    }
-
-    public byte[] BuildDemoCsv(string reportId, string? analysisMode = null)
-    {
-        var rid = reportId.Trim();
-        if (!_catalog.TryGetItem(rid, out var item) || item is null)
-            return Encoding.UTF8.GetBytes("reportId;status\nunknown;not_found\n");
-
-        var p = new ReportGenerateRequest
-        {
-            ReportId = rid,
-            DateFrom = DateTime.UtcNow.AddDays(-7).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
-            DateTo = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
-            CustomParams = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
-        };
-
-        if (item.GeneratorKind is ReportGeneratorKind.LoadAndDowntime or ReportGeneratorKind.ServiceDelays)
-        {
-            p.CustomParams["analysisMode"] = string.Equals(analysisMode?.Trim(), "cabinet", StringComparison.OrdinalIgnoreCase)
-                ? "cabinet"
-                : "doctor";
-        }
-        else if (item.GeneratorKind == ReportGeneratorKind.AppointmentDuration)
-        {
-            p.CustomParams["analysisMode"] = AppointmentDurationReportBuilder.ParseAnalysisMode(
-                new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
-                {
-                    ["analysisMode"] = string.IsNullOrWhiteSpace(analysisMode) ? "doctor" : analysisMode.Trim()
-                });
-        }
-
-        if (_reportGenerators.TryGenerate(rid, p, _queue, ReportGenerationPurpose.ExportOrFull, out var resp)
-            && resp?.Result is not null)
-            return ReportTabularExporter.WriteCsvBytes(resp.Result);
-
-        return Encoding.UTF8.GetBytes("reportId;status\nunknown;not_found\n");
     }
 }

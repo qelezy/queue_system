@@ -26,3 +26,47 @@ body.report-export-html {
     overflow-wrap: anywhere;
     word-break: break-word;
 }
+
+.report-export-html .users-table.users-table--report-preview thead th {
+    color: #555555;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.report-export-html .report-preview-modal__chart-wrap:not(.report-preview-modal__chart-wrap--horizontal-grouped-bar) {
+    padding-left: 0;
+    padding-right: 0;
+    min-height: 0;
+    height: auto;
+}
+
+.report-export-html .report-preview-modal__chart-wrap {
+    width: 100%;
+}
+
+.report-export-html .report-preview-modal__chart-wrap--grouped-bar,
+.report-export-html .report-preview-modal__chart-wrap--line-chart,
+.report-export-html .report-preview-modal__chart-wrap--horizontal-grouped-bar {
+    height: auto;
+    min-height: 0;
+}
+
+.report-export-html .report-preview-modal__chart-wrap svg,
+.report-export-html .report-preview-modal__chart-wrap--grouped-bar svg,
+.report-export-html .report-preview-modal__chart-wrap--line-chart svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-width: 100%;
+    max-height: 600px;
+    margin: 0 auto;
+}
+
+.report-export-html .report-preview-modal__chart-wrap--horizontal-grouped-bar svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-width: 100%;
+    max-height: none;
+    margin: 0 auto;
+}

@@ -1,4 +1,5 @@
 using System.Globalization;
+using WebApplication.Services.Reports;
 using WebApplication.Services.Reports.Charts;
 
 namespace WebApplication.Services.Reports.Catalog;
@@ -9,8 +10,8 @@ internal static class ServiceRouteOutcomesReportBuilder
     [
         "Дата",
         "Категория обслуживания",
-        "Приёмов",
-        "С завершённым маршрутом",
+        "Обращений",
+        "Полностью обслужено",
         "С незавершённым обслуживанием"
     ];
 
@@ -85,7 +86,7 @@ internal static class ServiceRouteOutcomesReportBuilder
         var periodTotals = ComputePeriodChartTotals(detailData);
         var axisDatasets = new List<ReportPreviewChartDataset>
         {
-            new() { Label = "С завершённым маршрутом", Values = periodTotals.CompletedPerDay },
+            new() { Label = "Полностью обслужено", Values = periodTotals.CompletedPerDay },
             new() { Label = "С незавершённым обслуживанием", Values = periodTotals.IncompletePerDay }
         };
         var axis = GroupedBarChartTimeAxis.Prepare(
@@ -94,8 +95,6 @@ internal static class ServiceRouteOutcomesReportBuilder
             GroupedBarBucketAggregation.Sum);
 
         var previewCharts = ReportPreviewChartDescriptors.ForServiceRouteOutcomesCharts(
-            periodTotals.TotalCompleted,
-            periodTotals.TotalIncomplete,
             axis.Labels.ToList(),
             axis.Datasets[0].Values.ToList(),
             axis.Datasets[1].Values.ToList());
@@ -119,27 +118,14 @@ internal static class ServiceRouteOutcomesReportBuilder
         if (detailData.Count == 0)
             return new PeriodChartTotals(0, 0, [], [], []);
 
-        var fromDo = detailData.Min(d => d.DateArrival);
-        var toDo = detailData.Max(d => d.DateArrival);
+        var byDay = detailData
+            .GroupBy(d => d.DateArrival)
+            .OrderBy(g => g.Key)
+            .ToList();
 
-        var chartDays = new List<DateOnly>();
-        var completedByDay = new Dictionary<DateOnly, double>();
-        var incompleteByDay = new Dictionary<DateOnly, double>();
-        for (var d = fromDo; d <= toDo; d = d.AddDays(1))
-        {
-            chartDays.Add(d);
-            completedByDay[d] = 0;
-            incompleteByDay[d] = 0;
-        }
-
-        foreach (var row in detailData)
-        {
-            completedByDay[row.DateArrival] += row.FullyCompletedAppointments;
-            incompleteByDay[row.DateArrival] += row.AppointmentsIncomplete;
-        }
-
-        var completedSeries = chartDays.Select(d => completedByDay[d]).ToList();
-        var incompleteSeries = chartDays.Select(d => incompleteByDay[d]).ToList();
+        var chartDays = byDay.Select(g => g.Key).ToList();
+        var completedSeries = byDay.Select(g => (double)g.Sum(x => x.FullyCompletedAppointments)).ToList();
+        var incompleteSeries = byDay.Select(g => (double)g.Sum(x => x.AppointmentsIncomplete)).ToList();
 
         return new PeriodChartTotals(
             totalCompleted,
