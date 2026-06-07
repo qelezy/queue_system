@@ -82,3 +82,27 @@
     border-color: var(--input-focus-color);
     box-shadow: 0 0 0 2px rgba(0, 179, 184, 0.16);
 }
+
+.table-toolbar__archived-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 9px var(--space-3);
+    background: var(--color-white);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 2px 8px rgba(13, 61, 64, 0.06);
+    font-size: var(--font-size-base);
+    color: var(--text-secondary-color);
+    white-space: nowrap;
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
+}
+
+.table-toolbar__archived-toggle:has(input:focus-visible) {
+    box-shadow: 0 0 0 2px rgba(0, 179, 184, 0.16);
+    background: #fcffff;
+}
+
+.table-toolbar__archived-toggle .app-checkbox {
+    margin: 0;
+}

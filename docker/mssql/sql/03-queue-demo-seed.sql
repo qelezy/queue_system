@@ -3,7 +3,7 @@ GO
 
 SET NOCOUNT ON;
 
-IF EXISTS (SELECT 1 FROM dbo.Appointment WHERE id_client = 99990001)
+IF EXISTS (SELECT 1 FROM dbo.Appointment WHERE id_client BETWEEN 99990101 AND 99990104)
 BEGIN
     PRINT 'Docker demo queue data already present — skip seed.';
 END
@@ -46,21 +46,21 @@ BEGIN
 
     SET IDENTITY_INSERT dbo.Setting_queue ON;
     IF NOT EXISTS (SELECT 1 FROM dbo.Setting_queue WHERE id_setting = 1)
-        INSERT INTO dbo.Setting_queue (id_setting, start_id_specialty, end_id_specialty) VALUES (1, 1, 2);
+        INSERT INTO dbo.Setting_queue (id_setting, start_id_specialty, end_id_specialty, time_pause, critical_num_pause, name) VALUES (1, 1, 2, 5, 3, N'ОМС');
     SET IDENTITY_INSERT dbo.Setting_queue OFF;
 
     SET IDENTITY_INSERT dbo.Category ON;
     IF NOT EXISTS (SELECT 1 FROM dbo.Category WHERE id_category = 1)
-        INSERT INTO dbo.Category (id_category, id_setting, name, priority) VALUES (1, 1, N'ОМС', 1);
+        INSERT INTO dbo.Category (id_category, id_setting, name, priority, letter, old) VALUES (1, 1, N'ОМС', 1, N'A', 0);
     SET IDENTITY_INSERT dbo.Category OFF;
 
     SET IDENTITY_INSERT dbo.Appointment ON;
     INSERT INTO dbo.Appointment (id_appointment, id_category, date_arrival, time_arrival, number, priority, info, id_client, time_complete)
     VALUES
-        (1, 1, @today, @tMinus30, N'DEMO-001', 1, N'-', 99990001, NULL),
-        (2, 1, @today, @tMinus30, N'DEMO-002', 1, N'-', 99990002, NULL),
-        (3, 1, @today, @tMinus30, N'DEMO-003', 1, N'-', 99990003, NULL),
-        (4, 1, @today, @tMinus30, N'DEMO-004', 1, N'-', 99990004, @tMinus5);
+        (1, 1, @today, @tMinus30, N'DEMO-001', 1, N'-', 99990101, NULL),
+        (2, 1, @today, @tMinus30, N'DEMO-002', 1, N'-', 99990102, NULL),
+        (3, 1, @today, @tMinus30, N'DEMO-003', 1, N'-', 99990103, NULL),
+        (4, 1, @today, @tMinus30, N'DEMO-004', 1, N'-', 99990104, @tMinus5);
     SET IDENTITY_INSERT dbo.Appointment OFF;
 
     SET IDENTITY_INSERT dbo.List_item ON;

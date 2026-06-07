@@ -482,7 +482,105 @@ WHERE lw.date_work = @todayMsk
         AND li.id_doctor = lw.id_doctor
   );
 
-PRINT 'Expected: tickets_today=20, waiting>=11, in_service>=6, serviced>=3, log_work>=8, distinct_wait>=4, max_wait<=20, potential patients checks OK.';
+PRINT 'Expected: tickets_today=20, waiting>=11, in_service>=6, serviced>=3, log_work>=8, distinct_wait>=4, max_wait<=20, potential patients checks OK, doctor_in_service_and_called=OK, doctor_multi_in_service=OK, timestamp_order=OK.';
+
+PRINT '--- Doctor logic: no in-service + called on same doctor ---';
+;WITH OpenToday AS (
+    SELECT a.id_appointment
+    FROM Appointment a
+    WHERE a.date_arrival = @todayMsk AND a.id_client BETWEEN @clientIdMin AND @clientIdMax
+      AND a.time_complete IS NULL
+),
+CurrentStep AS (
+    SELECT li.id_appointment, li.id_doctor, li.time_call, li.time_start_servicing,
+        ROW_NUMBER() OVER (PARTITION BY li.id_appointment ORDER BY li.id_list_item ASC) AS rn
+    FROM List_item li
+    JOIN OpenToday o ON o.id_appointment = li.id_appointment
+    WHERE li.time_end_servicing IS NULL
+),
+DoctorStates AS (
+    SELECT
+        cs.id_doctor,
+        MAX(CASE WHEN cs.time_start_servicing IS NOT NULL THEN 1 ELSE 0 END) AS has_in_service,
+        MAX(CASE WHEN cs.time_start_servicing IS NULL AND cs.time_call IS NOT NULL THEN 1 ELSE 0 END) AS has_called
+    FROM CurrentStep cs
+    WHERE cs.rn = 1 AND cs.id_doctor IS NOT NULL
+    GROUP BY cs.id_doctor
+)
+SELECT
+    CASE WHEN EXISTS (
+        SELECT 1 FROM DoctorStates
+        WHERE has_in_service = 1 AND has_called = 1
+    ) THEN N'FAIL' ELSE N'OK' END AS doctor_in_service_and_called_check;
+
+PRINT '--- Doctor logic: at most one in-service patient per doctor ---';
+;WITH OpenToday AS (
+    SELECT a.id_appointment
+    FROM Appointment a
+    WHERE a.date_arrival = @todayMsk AND a.id_client BETWEEN @clientIdMin AND @clientIdMax
+      AND a.time_complete IS NULL
+),
+CurrentStep AS (
+    SELECT li.id_appointment, li.id_doctor, li.time_start_servicing,
+        ROW_NUMBER() OVER (PARTITION BY li.id_appointment ORDER BY li.id_list_item ASC) AS rn
+    FROM List_item li
+    JOIN OpenToday o ON o.id_appointment = li.id_appointment
+    WHERE li.time_end_servicing IS NULL
+),
+InServiceByDoctor AS (
+    SELECT cs.id_doctor, COUNT(*) AS in_service_cnt
+    FROM CurrentStep cs
+    WHERE cs.rn = 1 AND cs.time_start_servicing IS NOT NULL AND cs.id_doctor IS NOT NULL
+    GROUP BY cs.id_doctor
+)
+SELECT
+    CASE WHEN EXISTS (SELECT 1 FROM InServiceByDoctor WHERE in_service_cnt > 1)
+         THEN N'FAIL' ELSE N'OK' END AS doctor_multi_in_service_check,
+    ISNULL((SELECT MAX(in_service_cnt) FROM InServiceByDoctor), 0) AS max_in_service_per_doctor;
+
+PRINT '--- Timestamp order: call >= start >= end within step, next call <= prev end ---';
+;WITH TestSteps AS (
+    SELECT
+        a.number,
+        ROW_NUMBER() OVER (PARTITION BY li.id_appointment ORDER BY li.id_list_item) AS step_rn,
+        li.time_call,
+        li.time_start_servicing,
+        li.time_end_servicing
+    FROM List_item li
+    JOIN Appointment a ON a.id_appointment = li.id_appointment
+    WHERE a.date_arrival = @todayMsk
+      AND a.id_client BETWEEN @clientIdMin AND @clientIdMax
+),
+StepMinutes AS (
+    SELECT
+        number,
+        step_rn,
+        CASE WHEN time_call IS NOT NULL
+            THEN DATEDIFF(minute, CAST(CAST(@todayMsk AS datetime) + CAST(time_call AS datetime) AS datetime2), @nowMsk)
+            END AS call_min,
+        CASE WHEN time_start_servicing IS NOT NULL
+            THEN DATEDIFF(minute, CAST(CAST(@todayMsk AS datetime) + CAST(time_start_servicing AS datetime) AS datetime2), @nowMsk)
+            END AS start_min,
+        CASE WHEN time_end_servicing IS NOT NULL
+            THEN DATEDIFF(minute, CAST(CAST(@todayMsk AS datetime) + CAST(time_end_servicing AS datetime) AS datetime2), @nowMsk)
+            END AS end_min
+    FROM TestSteps
+),
+Violations AS (
+    SELECT number, step_rn, N'within_step' AS violation_type
+    FROM StepMinutes
+    WHERE (call_min IS NOT NULL AND start_min IS NOT NULL AND call_min < start_min)
+       OR (start_min IS NOT NULL AND end_min IS NOT NULL AND start_min < end_min)
+       OR (call_min IS NOT NULL AND end_min IS NOT NULL AND call_min < end_min)
+    UNION ALL
+    SELECT a.number, b.step_rn, N'between_steps' AS violation_type
+    FROM StepMinutes a
+    JOIN StepMinutes b ON b.number = a.number AND b.step_rn = a.step_rn + 1
+    WHERE a.end_min IS NOT NULL AND b.call_min IS NOT NULL AND b.call_min > a.end_min
+)
+SELECT
+    CASE WHEN EXISTS (SELECT 1 FROM Violations) THEN N'FAIL' ELSE N'OK' END AS timestamp_order_check,
+    (SELECT COUNT(*) FROM Violations) AS timestamp_violations;
 
 PRINT '--- No procedural-cabinet specialty (id 25) on test tickets ---';
 SELECT a.number, d.full_name, s.definition

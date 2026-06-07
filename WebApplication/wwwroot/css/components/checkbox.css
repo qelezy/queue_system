@@ -59,3 +59,40 @@
     border-color: var(--input-focus-color);
     box-shadow: 0 0 0 2px rgba(0, 179, 184, 0.2);
 }
+
+.app-radio {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    flex-shrink: 0;
+    cursor: pointer;
+    border: 1px solid var(--input-border-color);
+    border-radius: 50%;
+    background: var(--color-white);
+    position: relative;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.app-radio:checked {
+    border-color: var(--primary-color);
+}
+
+.app-radio:checked::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    transform: translate(-50%, -50%);
+}
+
+.app-radio:focus-visible {
+    outline: none;
+    border-color: var(--input-focus-color);
+    box-shadow: 0 0 0 2px rgba(0, 179, 184, 0.2);
+}

@@ -52,25 +52,30 @@ BEGIN
 END
 GO
 
+IF OBJECT_ID(N'dbo.Setting_queue', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Setting_queue (
+        id_setting int NOT NULL IDENTITY(1, 1),
+        start_id_specialty int NULL,
+        end_id_specialty int NULL,
+        time_pause int NOT NULL CONSTRAINT DF_Setting_queue_time_pause DEFAULT (5),
+        critical_num_pause int NOT NULL CONSTRAINT DF_Setting_queue_critical_num_pause DEFAULT (3),
+        name varchar(64) NULL,
+        CONSTRAINT PK_Setting_queue PRIMARY KEY (id_setting)
+    );
+END
+GO
+
 IF OBJECT_ID(N'dbo.Category', N'U') IS NULL
 BEGIN
     CREATE TABLE dbo.Category (
         id_category int NOT NULL IDENTITY(1, 1),
         id_setting int NOT NULL,
-        name nvarchar(500) NOT NULL,
+        name varchar(64) NOT NULL,
         priority int NOT NULL CONSTRAINT DF_Category_priority DEFAULT (0),
+        letter varchar(1) NOT NULL CONSTRAINT DF_Category_letter DEFAULT ('A'),
+        old bit NOT NULL CONSTRAINT DF_Category_old DEFAULT (1),
         CONSTRAINT PK_Category PRIMARY KEY (id_category)
-    );
-END
-GO
-
-IF OBJECT_ID(N'dbo.Setting_queue', N'U') IS NULL
-BEGIN
-    CREATE TABLE dbo.Setting_queue (
-        id_setting int NOT NULL IDENTITY(1, 1),
-        start_id_specialty int NOT NULL,
-        end_id_specialty int NOT NULL,
-        CONSTRAINT PK_Setting_queue PRIMARY KEY (id_setting)
     );
 END
 GO

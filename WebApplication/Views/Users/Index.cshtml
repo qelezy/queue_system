@@ -13,6 +13,7 @@
 <div class="tabs-bar">
     <button class="is-active" data-tab="list">Список пользователей</button>
     <button data-tab="access">Настройка доступа</button>
+    <button data-tab="categories">Категории обслуживания</button>
 </div>
 
 <div id="panel-list" class="tab-panel is-visible">
@@ -21,6 +22,10 @@
 
 <div id="panel-access" class="tab-panel">
     @await Component.InvokeAsync("AccessMatrix", Model.AccessSettings)
+</div>
+
+<div id="panel-categories" class="tab-panel">
+    <partial name="_ServiceCategoriesPanel" />
 </div>
 
 @await Component.InvokeAsync("UserRegistrationModal", new UserRegistrationModalViewModel
@@ -38,9 +43,11 @@
 })
 
 @section Scripts {
+    <script src="~/js/table-list-ui.js" asp-append-version="true"></script>
     <script src="~/js/admin-users-tabs.js" asp-append-version="true"></script>
     <script src="~/js/users-modal.js" asp-append-version="true"></script>
     <script src="~/js/admin-register-user.js" asp-append-version="true"></script>
     <script src="~/js/admin-edit-user.js" asp-append-version="true"></script>
     <script src="~/js/access-settings.js" asp-append-version="true"></script>
+    <script src="~/js/admin-service-categories.js" asp-append-version="true"></script>
 }

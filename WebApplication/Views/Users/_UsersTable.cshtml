@@ -5,23 +5,28 @@
 }
 
 <div class="users-list-layout">
-    @await Component.InvokeAsync("TableToolbar", new UsersToolbarViewModel
+    @await Component.InvokeAsync("TableToolbar", new TableToolbarViewModel
     {
         Search = new SearchBoxViewModel
         {
             Placeholder = "Поиск",
             OnInput = "UsersUI.search(this.value)"
         },
-        RoleFilterAllLabel = "Все роли",
-        RoleFilterOnChange = "UsersUI.filterByRole(this.value)",
-        RoleFilterOptions = new List<RoleFilterOptionViewModel>
+        Filter = new TableToolbarFilterViewModel
         {
-            new() { Value = "Администратор", Label = "Администраторы" },
-            new() { Value = "Менеджер", Label = "Менеджеры" },
-            new() { Value = "Диспетчер", Label = "Диспетчеры" }
+            SelectId = "users-role-filter",
+            AllLabel = "Все роли",
+            OnChange = "UsersUI.filterByRole(this.value)",
+            Options =
+            [
+                new() { Value = "Администратор", Label = "Администраторы" },
+                new() { Value = "Менеджер", Label = "Менеджеры" },
+                new() { Value = "Диспетчер", Label = "Диспетчеры" }
+            ]
         },
         CreateButtonText = "Регистрация пользователя",
-        CreateButtonOnClick = "UsersUI.openCreate()"
+        CreateButtonOnClick = "UsersUI.openCreate()",
+        CreateButtonIcon = "bi-person-plus"
     })
 
     <div class="users-table-region">

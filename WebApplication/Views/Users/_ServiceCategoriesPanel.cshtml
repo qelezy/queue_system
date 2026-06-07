@@ -1,0 +1,196 @@
+<div class="users-list-layout">
+    @await Component.InvokeAsync("TableToolbar", new TableToolbarViewModel
+    {
+        Search = new SearchBoxViewModel
+        {
+            InputId = "service-categories-search-input",
+            Placeholder = "Поиск",
+            OnInput = "ServiceCategoriesUI.search(this.value)"
+        },
+        ShowArchivedToggle = true,
+        ArchivedToggleInputId = "service-categories-show-archived",
+        ArchivedToggleOnChange = "ServiceCategoriesUI.toggleArchived(this.checked)",
+        CreateButtonText = "Добавить категорию",
+        CreateButtonOnClick = "ServiceCategoriesUI.openCreate()",
+        CreateButtonIcon = "bi-plus-lg"
+    })
+
+    <div class="users-table-region">
+        <div class="users-table-wrap">
+            <table class="users-table" id="service-categories-table">
+                <thead>
+                    <tr>
+                        <th data-sort-key="name"
+                            scope="col"
+                            role="button"
+                            tabindex="0"
+                            onclick="ServiceCategoriesUI.sortBy('name')"
+                            onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); ServiceCategoriesUI.sortBy('name'); }">
+                            <span class="users-sort-label">Название</span>
+                            <i class="bi users-sort-icon" aria-hidden="true"></i>
+                        </th>
+                        <th data-sort-key="priority"
+                            scope="col"
+                            role="button"
+                            tabindex="0"
+                            onclick="ServiceCategoriesUI.sortBy('priority')"
+                            onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); ServiceCategoriesUI.sortBy('priority'); }">
+                            <span class="users-sort-label">Приоритет</span>
+                            <i class="bi users-sort-icon" aria-hidden="true"></i>
+                        </th>
+                        <th data-sort-key="startSpecialty"
+                            scope="col"
+                            role="button"
+                            tabindex="0"
+                            onclick="ServiceCategoriesUI.sortBy('startSpecialty')"
+                            onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); ServiceCategoriesUI.sortBy('startSpecialty'); }">
+                            <span class="users-sort-label">Начальная специальность</span>
+                            <i class="bi users-sort-icon" aria-hidden="true"></i>
+                        </th>
+                        <th data-sort-key="endSpecialty"
+                            scope="col"
+                            role="button"
+                            tabindex="0"
+                            onclick="ServiceCategoriesUI.sortBy('endSpecialty')"
+                            onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); ServiceCategoriesUI.sortBy('endSpecialty'); }">
+                            <span class="users-sort-label">Конечная специальность</span>
+                            <i class="bi users-sort-icon" aria-hidden="true"></i>
+                        </th>
+                        <th data-sort-key="timePause"
+                            scope="col"
+                            role="button"
+                            tabindex="0"
+                            onclick="ServiceCategoriesUI.sortBy('timePause')"
+                            onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); ServiceCategoriesUI.sortBy('timePause'); }">
+                            <span class="users-sort-label">Время паузы</span>
+                            <i class="bi users-sort-icon" aria-hidden="true"></i>
+                        </th>
+                        <th data-sort-key="criticalNumPause"
+                            scope="col"
+                            role="button"
+                            tabindex="0"
+                            onclick="ServiceCategoriesUI.sortBy('criticalNumPause')"
+                            onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); ServiceCategoriesUI.sortBy('criticalNumPause'); }">
+                            <span class="users-sort-label">Критическое количество пауз</span>
+                            <i class="bi users-sort-icon" aria-hidden="true"></i>
+                        </th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody id="service-categories-tbody">
+                    <tr class="service-categories-placeholder">
+                        <td colspan="7">Загрузка…</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <nav id="service-categories-pagination"
+             class="users-pagination"
+             aria-label="Пагинация таблицы категорий">
+        </nav>
+    </div>
+</div>
+
+<div id="service-category-modal" class="app-modal" aria-hidden="true">
+    <div class="app-modal__overlay" data-modal-close="service-category-modal"></div>
+    <div class="app-modal__dialog service-category-modal__dialog" role="dialog" aria-modal="true" aria-label="Категория обслуживания" tabindex="-1">
+        <div class="app-modal__body">
+            <section class="register-panel">
+                <header class="register-panel-head">
+                    <h2 class="register-panel-title" id="service-category-modal-title">Категория обслуживания</h2>
+                    <button type="button" class="register-panel-close" aria-label="Закрыть" data-modal-close="service-category-modal">×</button>
+                </header>
+
+                <form id="serviceCategoryForm" class="register-form">
+                    <input type="hidden" id="ServiceCategoryId" value="" />
+
+                    <div class="service-category-form-section">
+                        <h3 class="service-category-form-section__title">Категория</h3>
+                        <div class="service-category-form-grid">
+                            <div class="form-field">
+                                <label for="ServiceCategoryName" class="field-required">Название</label>
+                                <input id="ServiceCategoryName" maxlength="64" required />
+                            </div>
+                            <div class="form-field">
+                                <label for="ServiceCategoryLetter" class="field-required">Буква талона</label>
+                                <input id="ServiceCategoryLetter" maxlength="1" required />
+                                <p id="service-category-letter-warning" class="form-field-warning" hidden></p>
+                            </div>
+                            <div class="form-field">
+                                <label for="ServiceCategoryPriority" class="field-required">Приоритет</label>
+                                <input id="ServiceCategoryPriority" type="number" min="0" step="1" required />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="service-category-form-section" id="service-category-route-section">
+                        <h3 class="service-category-form-section__title">Настройки обслуживания</h3>
+
+                        <div id="service-category-create-mode" class="service-category-create-mode" hidden>
+                            <fieldset class="service-category-mode-fieldset">
+                                <legend class="visually-hidden">Режим создания</legend>
+                                <label class="service-category-mode-option">
+                                    <input type="radio" class="app-radio" name="ServiceCategoryCreateMode" value="link" checked />
+                                    <span>Использовать существующую настройку обслуживания</span>
+                                </label>
+                                <label class="service-category-mode-option">
+                                    <input type="radio" class="app-radio" name="ServiceCategoryCreateMode" value="new" />
+                                    <span>Создать новую настройку обслуживания</span>
+                                </label>
+                            </fieldset>
+
+                            <div class="form-field" id="service-category-link-field">
+                                <label for="ServiceCategoryExistingSetting" class="field-required">Настройка обслуживания</label>
+                                <select id="ServiceCategoryExistingSetting" required>
+                                    <option value="">—</option>
+                                </select>
+                            </div>
+
+                            <div id="service-category-setting-preview" class="service-category-setting-preview" hidden></div>
+                        </div>
+
+                        <div id="service-category-route-fields" class="service-category-route-fields" hidden>
+                            <div id="service-category-setting-name-field" class="form-field" hidden>
+                                <label for="ServiceCategorySettingName">Название настройки</label>
+                                <input id="ServiceCategorySettingName" maxlength="64" />
+                            </div>
+                            <div class="service-category-form-grid service-category-route-fields__specialties">
+                                <div class="form-field">
+                                    <label for="ServiceCategoryStartSpecialty">Начальная специальность</label>
+                                    <select id="ServiceCategoryStartSpecialty">
+                                        <option value="">—</option>
+                                    </select>
+                                </div>
+                                <div class="form-field">
+                                    <label for="ServiceCategoryEndSpecialty">Конечная специальность</label>
+                                    <select id="ServiceCategoryEndSpecialty">
+                                        <option value="">—</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="service-category-form-grid service-category-route-fields__pauses">
+                                <div class="form-field">
+                                    <label for="ServiceCategoryTimePause" class="field-required">Время паузы, мин</label>
+                                    <input id="ServiceCategoryTimePause" type="number" min="0" step="1" value="5" />
+                                </div>
+                                <div class="form-field">
+                                    <label for="ServiceCategoryCriticalNumPause" class="field-required">Критическое количество пауз</label>
+                                    <input id="ServiceCategoryCriticalNumPause" type="number" min="0" step="1" value="3" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <p id="service-category-shared-hint" class="service-category-shared-hint" hidden></p>
+                    </div>
+
+                    <div class="service-category-form-footer">
+                        <div class="register-actions">
+                            <button class="register-submit" type="submit" id="service-category-submit">Добавить</button>
+                        </div>
+                    </div>
+                </form>
+            </section>
+        </div>
+    </div>
+</div>

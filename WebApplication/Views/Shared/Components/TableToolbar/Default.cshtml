@@ -1,29 +1,42 @@
-﻿@model UsersToolbarViewModel
+﻿@model TableToolbarViewModel
 
 <div class="table-toolbar">
     <div class="table-toolbar__left">
         @await Component.InvokeAsync("SearchBox", Model.Search)
 
-        <div class="toolbar-role-filter">
-            <select id="users-role-filter"
-                    class="toolbar-role-filter__select"
-                    onchange="@Model.RoleFilterOnChange">
-                <option value="">@Model.RoleFilterAllLabel</option>
-                @foreach (var role in Model.RoleFilterOptions)
-                {
-                    <option value="@role.Value">@role.Label</option>
-                }
-            </select>
-        </div>
+        @if (Model.Filter is not null)
+        {
+            <div class="toolbar-role-filter">
+                <select id="@Model.Filter.SelectId"
+                        class="toolbar-role-filter__select"
+                        onchange="@Model.Filter.OnChange">
+                    <option value="">@Model.Filter.AllLabel</option>
+                    @foreach (var option in Model.Filter.Options)
+                    {
+                        <option value="@option.Value">@option.Label</option>
+                    }
+                </select>
+            </div>
+        }
+
+        @if (Model.ShowArchivedToggle)
+        {
+            <label class="table-toolbar__archived-toggle">
+                <input type="checkbox"
+                       class="app-checkbox"
+                       id="@Model.ArchivedToggleInputId"
+                       onchange="@Model.ArchivedToggleOnChange" />
+                <span>Показать архивные</span>
+            </label>
+        }
     </div>
 
     <div class="table-toolbar__right">
         <button class="btn btn-primary"
                 type="button"
                 onclick="@Model.CreateButtonOnClick">
-            <i class="bi bi-person-plus"></i>
+            <i class="bi @Model.CreateButtonIcon"></i>
             @Model.CreateButtonText
         </button>
     </div>
-
 </div>

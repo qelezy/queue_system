@@ -6,6 +6,8 @@ public sealed class EqCategory
     public int IdSetting { get; set; }
     public string Name { get; set; } = "";
     public int Priority { get; set; }
+    public string Letter { get; set; } = "";
+    public bool Old { get; set; }
 
     public EqSettingQueue Setting { get; set; } = null!;
     public ICollection<EqAppointment> Appointments { get; set; } = new List<EqAppointment>();

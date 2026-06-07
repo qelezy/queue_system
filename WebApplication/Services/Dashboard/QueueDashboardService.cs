@@ -148,6 +148,7 @@ public sealed class QueueDashboardService : IQueueDashboardService
     private async Task<DashboardQueueFilterViewModel> LoadQueueFiltersAsync(CancellationToken cancellationToken)
     {
         var categories = await _queue.Categories.AsNoTracking()
+            .Where(c => !c.Old)
             .OrderBy(c => c.Name)
             .Select(c => new DashboardFilterOption(c.IdCategory, c.Name.Trim()))
             .ToListAsync(cancellationToken)

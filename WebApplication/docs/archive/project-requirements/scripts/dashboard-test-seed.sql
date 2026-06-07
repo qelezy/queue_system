@@ -105,26 +105,26 @@ INSERT INTO @stepTiming (ticket_rn, step_rn, call_min, start_min, end_min, id_st
     (2, 1, NULL, NULL, NULL, @st_wait, 0),
     (2, 2, NULL, NULL, NULL, @st_wait, 0),
     (2, 3, NULL, NULL, NULL, @st_wait, 0),
-    (3, 1, 18, 16, 9, @st_done, 1),
-    (3, 2, 12, 10, 3, @st_done, 1),
-    (3, 3, 9, NULL, NULL, @st_called, 0),
-    (4, 1, 15, 13, 8, @st_done, 1),
-    (4, 2, 11, 9, 4, @st_done, 1),
-    (4, 3, 6, NULL, NULL, @st_called, 0),
-    (5, 1, 20, 18, 11, @st_done, 1),
-    (5, 2, 14, 12, 5, @st_done, 1),
-    (5, 3, 14, 11, NULL, @st_service, 0),
-    (6, 1, 17, 15, 10, @st_done, 1),
-    (6, 2, 11, 9, 4, @st_done, 1),
-    (6, 3, 7, 4, NULL, @st_service, 0),
-    (7, 1, 20, 18, 11, @st_done, 1),
-    (7, 2, 14, 12, 5, @st_done, 1),
-    (7, 3, 10, 8, 1, @st_done, 1),
-    (8, 1, 14, 12, 5, @st_done, 1),
-    (8, 2, 8, 6, 1, @st_done, 1),
+    (3, 1, 19, 17, 14, @st_done, 1),
+    (3, 2, 13, 11, 6, @st_done, 1),
+    (3, 3, 5, NULL, NULL, @st_called, 0),
+    (4, 1, 16, 14, 11, @st_done, 1),
+    (4, 2, 10, 8, 5, @st_done, 1),
+    (4, 3, 4, NULL, NULL, @st_called, 0),
+    (5, 1, 21, 19, 15, @st_done, 1),
+    (5, 2, 14, 12, 8, @st_done, 1),
+    (5, 3, 7, 4, NULL, @st_service, 0),
+    (6, 1, 18, 16, 13, @st_done, 1),
+    (6, 2, 12, 10, 7, @st_done, 1),
+    (6, 3, 6, 3, NULL, @st_service, 0),
+    (7, 1, 22, 20, 16, @st_done, 1),
+    (7, 2, 15, 13, 9, @st_done, 1),
+    (7, 3, 8, 6, 3, @st_done, 1),
+    (8, 1, 14, 12, 8, @st_done, 1),
+    (8, 2, 7, 5, 4, @st_done, 1),
     (8, 3, NULL, NULL, NULL, @st_results, 0),
     (9, 1, NULL, NULL, NULL, @st_wait, 0),
-    (10, 1, 11, 9, 4, @st_done, 1),
+    (10, 1, 12, 10, 7, @st_done, 1),
     (10, 2, NULL, NULL, NULL, @st_wait, 0),
     (11, 1, NULL, NULL, NULL, @st_wait, 0),
     (11, 2, NULL, NULL, NULL, @st_wait, 0),
@@ -134,26 +134,26 @@ INSERT INTO @stepTiming (ticket_rn, step_rn, call_min, start_min, end_min, id_st
     (12, 3, NULL, NULL, NULL, @st_wait, 0),
     (13, 1, NULL, NULL, NULL, @st_wait, 0),
     (13, 2, NULL, NULL, NULL, @st_wait, 0),
-    (14, 1, 17, 15, 10, @st_done, 1),
-    (14, 2, 11, 9, 4, @st_done, 1),
-    (14, 3, 9, 6, NULL, @st_service, 0),
-    (15, 1, 14, 12, 8, @st_done, 1),
-    (15, 2, 9, 7, 3, @st_done, 1),
-    (15, 3, 5, 3, NULL, @st_service, 0),
-    (16, 1, 19, 17, 12, @st_done, 1),
-    (16, 2, 13, 11, 6, @st_done, 1),
-    (16, 3, 13, 10, NULL, @st_service, 0),
-    (17, 1, 12, 10, 6, @st_done, 1),
-    (17, 2, 8, 6, 2, @st_done, 1),
-    (17, 3, 5, 2, NULL, @st_service, 0),
-    (18, 1, 18, 16, 10, @st_done, 1),
-    (18, 2, 12, 10, 5, @st_done, 1),
-    (18, 3, 8, 6, 2, @st_done, 1),
-    (19, 1, 15, 13, 9, @st_done, 1),
-    (19, 2, 10, 8, 4, @st_done, 1),
-    (19, 3, 7, 5, 1, @st_done, 1),
-    (20, 1, 16, 14, 9, @st_done, 1),
-    (20, 2, 10, 8, 3, @st_done, 1),
+    (14, 1, 18, 16, 13, @st_done, 1),
+    (14, 2, 11, 9, 6, @st_done, 1),
+    (14, 3, 5, 2, NULL, @st_service, 0),
+    (15, 1, 15, 13, 10, @st_done, 1),
+    (15, 2, 9, 7, 4, @st_done, 1),
+    (15, 3, 3, 1, NULL, @st_service, 0),
+    (16, 1, 20, 18, 15, @st_done, 1),
+    (16, 2, 13, 11, 8, @st_done, 1),
+    (16, 3, 6, 3, NULL, @st_service, 0),
+    (17, 1, 13, 11, 8, @st_done, 1),
+    (17, 2, 7, 5, 3, @st_done, 1),
+    (17, 3, 2, 1, NULL, @st_service, 0),
+    (18, 1, 18, 16, 12, @st_done, 1),
+    (18, 2, 12, 10, 7, @st_done, 1),
+    (18, 3, 6, 4, 2, @st_done, 1),
+    (19, 1, 15, 13, 10, @st_done, 1),
+    (19, 2, 10, 8, 5, @st_done, 1),
+    (19, 3, 4, 2, 2, @st_done, 1),
+    (20, 1, 16, 14, 10, @st_done, 1),
+    (20, 2, 10, 8, 4, @st_done, 1),
     (20, 3, NULL, NULL, NULL, @st_results, 0);
 
 IF EXISTS (
@@ -212,28 +212,21 @@ END;
 DECLARE @spec_procedural int = 25;
 
 UPDATE cr
-SET
-    cr.id_doctor = alt.id_doctor,
-    cr.id_specialty = alt.id_specialty,
-    cr.id_cabinet = alt.id_cabinet
+SET cr.id_doctor = ref.id_doctor,
+    cr.id_specialty = ref.id_specialty,
+    cr.id_cabinet = ref.id_cabinet
 FROM @cloneRoute cr
-CROSS APPLY (
+CROSS JOIN (
     SELECT li.id_doctor, li.id_specialty, li.id_cabinet
     FROM (
-        SELECT
-            li2.id_doctor,
-            li2.id_specialty,
-            li2.id_cabinet,
+        SELECT li2.id_doctor, li2.id_specialty, li2.id_cabinet,
             ROW_NUMBER() OVER (ORDER BY li2.id_list_item) AS step_rn
         FROM List_item li2
-        WHERE li2.id_appointment = 239065
-          AND li2.id_specialty <> @spec_procedural
+        WHERE li2.id_appointment = 238815
     ) li
-    WHERE li.step_rn = 3
-) alt
-WHERE cr.ticket_rn = 16
-  AND cr.step_rn = 3
-  AND cr.id_specialty = @spec_procedural;
+    WHERE li.step_rn = 1
+) ref
+WHERE cr.id_specialty = @spec_procedural;
 
 UPDATE cr
 SET cr.id_doctor = ref.id_doctor,
@@ -241,11 +234,16 @@ SET cr.id_doctor = ref.id_doctor,
     cr.id_cabinet = ref.id_cabinet
 FROM @cloneRoute cr
 CROSS JOIN (
-    SELECT id_doctor, id_specialty, id_cabinet
-    FROM @cloneRoute
-    WHERE ticket_rn = 6 AND step_rn = 1
+    SELECT li.id_doctor, li.id_specialty, li.id_cabinet
+    FROM (
+        SELECT li2.id_doctor, li2.id_specialty, li2.id_cabinet,
+            ROW_NUMBER() OVER (ORDER BY li2.id_list_item) AS step_rn
+        FROM List_item li2
+        WHERE li2.id_appointment = 239082
+    ) li
+    WHERE li.step_rn = 3
 ) ref
-WHERE cr.ticket_rn = 16
+WHERE cr.ticket_rn = 5
   AND cr.step_rn = 3;
 
 UPDATE cr
@@ -254,9 +252,28 @@ SET cr.id_doctor = ref.id_doctor,
     cr.id_cabinet = ref.id_cabinet
 FROM @cloneRoute cr
 CROSS JOIN (
-    SELECT id_doctor, id_specialty, id_cabinet
-    FROM @cloneRoute
-    WHERE ticket_rn = 3 AND step_rn = 3
+    SELECT TOP 1 li.id_doctor, li.id_specialty, li.id_cabinet
+    FROM List_item li
+    WHERE li.id_appointment = 239082 AND li.id_doctor = 52
+    ORDER BY li.id_list_item
+) ref
+WHERE cr.ticket_rn = 6
+  AND cr.step_rn = 3;
+
+UPDATE cr
+SET cr.id_doctor = ref.id_doctor,
+    cr.id_specialty = ref.id_specialty,
+    cr.id_cabinet = ref.id_cabinet
+FROM @cloneRoute cr
+CROSS JOIN (
+    SELECT li.id_doctor, li.id_specialty, li.id_cabinet
+    FROM (
+        SELECT li2.id_doctor, li2.id_specialty, li2.id_cabinet,
+            ROW_NUMBER() OVER (ORDER BY li2.id_list_item) AS step_rn
+        FROM List_item li2
+        WHERE li2.id_appointment = 239082
+    ) li
+    WHERE li.step_rn = 1
 ) ref
 WHERE cr.ticket_rn = 14
   AND cr.step_rn = 3;
@@ -267,9 +284,14 @@ SET cr.id_doctor = ref.id_doctor,
     cr.id_cabinet = ref.id_cabinet
 FROM @cloneRoute cr
 CROSS JOIN (
-    SELECT id_doctor, id_specialty, id_cabinet
-    FROM @cloneRoute
-    WHERE ticket_rn = 4 AND step_rn = 3
+    SELECT li.id_doctor, li.id_specialty, li.id_cabinet
+    FROM (
+        SELECT li2.id_doctor, li2.id_specialty, li2.id_cabinet,
+            ROW_NUMBER() OVER (ORDER BY li2.id_list_item) AS step_rn
+        FROM List_item li2
+        WHERE li2.id_appointment = 238945
+    ) li
+    WHERE li.step_rn = 2
 ) ref
 WHERE cr.ticket_rn = 15
   AND cr.step_rn = 3;
@@ -280,9 +302,32 @@ SET cr.id_doctor = ref.id_doctor,
     cr.id_cabinet = ref.id_cabinet
 FROM @cloneRoute cr
 CROSS JOIN (
-    SELECT id_doctor, id_specialty, id_cabinet
-    FROM @cloneRoute
-    WHERE ticket_rn = 12 AND step_rn = 2
+    SELECT li.id_doctor, li.id_specialty, li.id_cabinet
+    FROM (
+        SELECT li2.id_doctor, li2.id_specialty, li2.id_cabinet,
+            ROW_NUMBER() OVER (ORDER BY li2.id_list_item) AS step_rn
+        FROM List_item li2
+        WHERE li2.id_appointment = 238815
+    ) li
+    WHERE li.step_rn = 1
+) ref
+WHERE cr.ticket_rn = 16
+  AND cr.step_rn = 3;
+
+UPDATE cr
+SET cr.id_doctor = ref.id_doctor,
+    cr.id_specialty = ref.id_specialty,
+    cr.id_cabinet = ref.id_cabinet
+FROM @cloneRoute cr
+CROSS JOIN (
+    SELECT li.id_doctor, li.id_specialty, li.id_cabinet
+    FROM (
+        SELECT li2.id_doctor, li2.id_specialty, li2.id_cabinet,
+            ROW_NUMBER() OVER (ORDER BY li2.id_list_item) AS step_rn
+        FROM List_item li2
+        WHERE li2.id_appointment = 238815
+    ) li
+    WHERE li.step_rn = 3
 ) ref
 WHERE cr.ticket_rn = 17
   AND cr.step_rn = 3;

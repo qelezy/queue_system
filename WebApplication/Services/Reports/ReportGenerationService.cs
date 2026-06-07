@@ -36,6 +36,7 @@ public sealed class ReportGenerationService : IReportGenerationService
     public IReadOnlyList<ReportSelectOption> GetCategoryOptions() =>
         _queue.Categories
             .AsNoTracking()
+            .Where(c => !c.Old)
             .OrderBy(c => c.Priority)
             .ThenBy(c => c.Name)
             .Select(c => new ReportSelectOption { Id = c.IdCategory, Label = c.Name })

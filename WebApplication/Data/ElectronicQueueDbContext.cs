@@ -56,8 +56,11 @@ public sealed class ElectronicQueueDbContext : DbContext
             entity.ToTable("Setting_queue");
             entity.HasKey(x => x.IdSetting);
             entity.Property(x => x.IdSetting).HasColumnName("id_setting");
+            entity.Property(x => x.Name).HasColumnName("name").HasMaxLength(64);
             entity.Property(x => x.StartIdSpecialty).HasColumnName("start_id_specialty");
             entity.Property(x => x.EndIdSpecialty).HasColumnName("end_id_specialty");
+            entity.Property(x => x.TimePause).HasColumnName("time_pause");
+            entity.Property(x => x.CriticalNumPause).HasColumnName("critical_num_pause");
         });
 
         builder.Entity<EqCategory>(entity =>
@@ -66,8 +69,10 @@ public sealed class ElectronicQueueDbContext : DbContext
             entity.HasKey(x => x.IdCategory);
             entity.Property(x => x.IdCategory).HasColumnName("id_category");
             entity.Property(x => x.IdSetting).HasColumnName("id_setting");
-            entity.Property(x => x.Name).HasColumnName("name").HasMaxLength(500);
+            entity.Property(x => x.Name).HasColumnName("name").HasMaxLength(64);
             entity.Property(x => x.Priority).HasColumnName("priority");
+            entity.Property(x => x.Letter).HasColumnName("letter").HasMaxLength(1);
+            entity.Property(x => x.Old).HasColumnName("old");
 
             entity.HasOne(x => x.Setting)
                 .WithMany(x => x.Categories)

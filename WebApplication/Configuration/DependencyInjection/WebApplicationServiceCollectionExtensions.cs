@@ -35,6 +35,7 @@ public static class WebApplicationServiceCollectionExtensions
         services.AddWebApplicationElectronicQueue(configuration);
         services.AddWebApplicationAuth(configuration);
         services.AddWebApplicationUsers();
+        services.AddWebApplicationAdmin();
         services.AddWebApplicationDashboard(configuration);
         services.AddWebApplicationSignalR();
         services.AddWebApplicationReports(configuration, environment);
