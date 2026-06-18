@@ -61,7 +61,40 @@ public class UsersApiController : ControllerBase
         if (!result.Succeeded)
             return BadRequest(new { success = false, errors = result.Errors });
 
-        return Ok(new { success = true, data = result.Data });
+        if (result.Data == null)
+            return BadRequest(new { success = false, errors = new[] { "Не удалось обновить пользователя" } });
+
+        var emailChange = result.Data.EmailChange;
+        if (emailChange != null)
+        {
+            var confirmationLink = Url.Action(
+                action: "ConfirmChangeEmail",
+                controller: "Account",
+                values: new { userId = emailChange.UserId, email = emailChange.NewEmail, token = emailChange.Token },
+                protocol: Request.Scheme);
+
+            if (string.IsNullOrEmpty(confirmationLink))
+                return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, errors = new[] { "Не удалось сформировать ссылку подтверждения смены email" } });
+
+            var body = await _emailTemplates.RenderChangeEmailAsync(new ChangeEmailEmailViewModel
+            {
+                CurrentEmail = emailChange.CurrentEmail,
+                NewEmail = emailChange.NewEmail,
+                ConfirmationLink = confirmationLink
+            });
+
+            await _emailService.SendEmailAsync(emailChange.NewEmail, "Подтверждение смены почты", body);
+
+            return Ok(new
+            {
+                success = true,
+                data = result.Data.User,
+                emailChangeRequested = true,
+                message = "Данные пользователя обновлены. На новый email отправлена ссылка подтверждения."
+            });
+        }
+
+        return Ok(new { success = true, data = result.Data.User, emailChangeRequested = false });
     }
 
     [HttpDelete("{id}")]

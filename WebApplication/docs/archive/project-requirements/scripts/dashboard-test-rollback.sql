@@ -1,5 +1,3 @@
--- Remove dashboard test data
--- Marker: id_client 99990001..99990020, info = N'-'; legacy DASHBOARD_TEST / D-T%
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
 
@@ -20,24 +18,6 @@ WHERE (
     )
   AND li.id_doctor IS NOT NULL
   AND li.id_doctor > 0;
-
-INSERT INTO @testDoctors (id_doctor)
-SELECT DISTINCT li.id_doctor
-FROM (
-    VALUES
-        (239062), (239064), (239065), (239068), (239070), (239082), (239084), (239086),
-        (238835), (238926), (238815), (238945), (239305), (238961), (239213), (239088),
-        (239220), (238817), (239096), (239235)
-) s(source_id)
-INNER JOIN List_item li ON li.id_appointment = s.source_id
-WHERE li.id_doctor IS NOT NULL
-  AND li.id_doctor > 0
-  AND li.id_list_item = (
-      SELECT MIN(li2.id_list_item)
-      FROM List_item li2
-      WHERE li2.id_appointment = li.id_appointment
-  )
-  AND NOT EXISTS (SELECT 1 FROM @testDoctors td WHERE td.id_doctor = li.id_doctor);
 
 BEGIN TRAN;
 

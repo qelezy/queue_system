@@ -1,13 +1,14 @@
 services:
   mssql:
-    image: mcr.microsoft.com/mssql/server:2022-latest
+    build:
+      context: .
+      dockerfile: docker/mssql/Dockerfile
     env_file:
       - .env.docker.example
       - path: .env.docker
         required: false
     environment:
       ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:-YourStrong!Passw0rd}
     volumes:
       - mssql-data:/var/opt/mssql
       - ./docker/backups:/backups:ro
@@ -17,32 +18,12 @@ services:
       test:
         [
           "CMD-SHELL",
-          "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q \"SELECT 1\" || exit 1",
+          "count=$$(/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -h -1 -W -Q \"SET NOCOUNT ON; SELECT COUNT(*) FROM sys.databases WHERE name IN (N'UserDb', N'ElectronicQueueProf')\" | tr -d '[:space:]'); [ \"$$count\" = \"2\" ] || exit 1",
         ]
       interval: 5s
       timeout: 5s
-      retries: 30
-      start_period: 30s
-
-  db-init:
-    build:
-      context: .
-      dockerfile: docker/mssql/Dockerfile
-    depends_on:
-      mssql:
-        condition: service_healthy
-    env_file:
-      - .env.docker.example
-      - path: .env.docker
-        required: false
-    environment:
-      ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:-YourStrong!Passw0rd}
-      MSSQL_HOST: mssql
-      BACKUP_DIR: /backups
-    volumes:
-      - ./docker/backups:/backups:ro
-    restart: "no"
+      retries: 60
+      start_period: 180s
 
   mailhog:
     image: mailhog/mailhog:latest
@@ -54,8 +35,8 @@ services:
       context: ./WebApplication
       dockerfile: Dockerfile
     depends_on:
-      db-init:
-        condition: service_completed_successfully
+      mssql:
+        condition: service_healthy
       mailhog:
         condition: service_started
     env_file:
@@ -65,15 +46,8 @@ services:
     environment:
       ASPNETCORE_URLS: http://+:8080
       ASPNETCORE_ENVIRONMENT: Production
-      DOTNET_RUNNING_IN_CONTAINER: "true"
     ports:
       - "8080:8080"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 40s
 
 volumes:
   mssql-data:

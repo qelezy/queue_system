@@ -13,6 +13,7 @@ public sealed class RazorEmailTemplateRenderer : IEmailTemplateRenderer
 {
     private const string RegistrationView = "/Views/Shared/Components/RegistrationEmail/Default.cshtml";
     private const string PasswordResetView = "/Views/Shared/Components/PasswordResetEmail/Default.cshtml";
+    private const string ChangeEmailView = "/Views/Shared/Components/ChangeEmailEmail/Default.cshtml";
 
     private readonly IRazorViewEngine _viewEngine;
     private readonly ITempDataProvider _tempDataProvider;
@@ -36,6 +37,9 @@ public sealed class RazorEmailTemplateRenderer : IEmailTemplateRenderer
 
     public Task<string> RenderPasswordResetAsync(PasswordResetEmailViewModel model) =>
         RenderViewAsync(PasswordResetView, model);
+
+    public Task<string> RenderChangeEmailAsync(ChangeEmailEmailViewModel model) =>
+        RenderViewAsync(ChangeEmailView, model);
 
     private async Task<string> RenderViewAsync<TModel>(string viewPath, TModel model)
     {

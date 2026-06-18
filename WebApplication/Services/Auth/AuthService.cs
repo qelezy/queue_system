@@ -122,6 +122,38 @@ namespace WebApplication.Services.Auth {
             return ServiceResult.Success("Email успешно подтвержден");
         }
 
+        public async Task<ServiceResult> ConfirmChangeEmailAsync(Guid userId, string email, string token)
+        {
+            var user = await _userManager.FindByIdAsync(userId.ToString());
+
+            if (user == null)
+                return ServiceResult.Fail(new[] { "Пользователь не найден" });
+
+            var decodedEmail = Uri.UnescapeDataString(email);
+            var decodedToken = Uri.UnescapeDataString(token);
+
+            var existingUser = await _userManager.FindByEmailAsync(decodedEmail);
+            if (existingUser != null && existingUser.Id != user.Id)
+                return ServiceResult.Fail(new[] { "Email уже используется" });
+
+            var result = await _userManager.ChangeEmailAsync(user, decodedEmail, decodedToken);
+
+            if (!result.Succeeded)
+                return ServiceResult.Fail(result.Errors.Select(e => e.Description));
+
+            var userNameResult = await _userManager.SetUserNameAsync(user, decodedEmail);
+            if (!userNameResult.Succeeded)
+                return ServiceResult.Fail(userNameResult.Errors.Select(e => e.Description));
+
+            user.RefreshToken = null;
+            user.RefreshTokenExpiresAt = null;
+            user.RefreshSessionExtended = false;
+            await _userManager.UpdateSecurityStampAsync(user);
+            await _userManager.UpdateAsync(user);
+
+            return ServiceResult.Success("Email успешно изменён");
+        }
+
         public async Task<ServiceResult<PasswordResetDto>> ForgotPasswordAsync(ForgotPasswordRequestDto request)
         {
             var user = await _userManager.FindByEmailAsync(request.Email);

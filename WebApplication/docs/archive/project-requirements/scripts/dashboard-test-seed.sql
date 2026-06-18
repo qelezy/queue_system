@@ -1,5 +1,3 @@
--- Test data: clone 20 tickets from multiple dates to today (Configurator + /dashboard).
--- Marker: info = N'-', id_client 99990001..99990020. Rollback: dashboard-test-rollback.sql
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
 
@@ -28,36 +26,6 @@ END;
 
 DECLARE @st_wait int = 1, @st_called int = 2, @st_service int = 3, @st_done int = 4, @st_results int = 5;
 DECLARE @sa_wait int = 1, @sa_called int = 2, @sa_service int = 3, @sa_done int = 4, @sa_pause int = 5;
-
-DECLARE @sources TABLE (
-    ticket_rn int NOT NULL PRIMARY KEY,
-    source_id int NOT NULL,
-    source_date date NOT NULL,
-    id_status_app int NOT NULL,
-    scenario nvarchar(20) NOT NULL
-);
-
-INSERT INTO @sources (ticket_rn, source_id, source_date, id_status_app, scenario) VALUES
-    (1, 239062, '2026-05-06', @sa_wait, N'wait'),
-    (2, 239064, '2026-05-06', @sa_wait, N'wait'),
-    (3, 239065, '2026-05-06', @sa_called, N'called'),
-    (4, 239068, '2026-05-06', @sa_called, N'called'),
-    (5, 239070, '2026-05-06', @sa_service, N'service'),
-    (6, 239082, '2026-05-06', @sa_service, N'service'),
-    (7, 239084, '2026-05-06', @sa_done, N'done'),
-    (8, 239086, '2026-05-06', @sa_wait, N'results'),
-    (9, 238835, '2026-05-04', @sa_wait, N'edge_single'),
-    (10, 238926, '2026-05-05', @sa_pause, N'edge_pause'),
-    (11, 238815, '2026-05-04', @sa_wait, N'wait'),
-    (12, 238945, '2026-05-05', @sa_wait, N'wait'),
-    (13, 239305, '2026-05-08', @sa_wait, N'wait'),
-    (14, 238961, '2026-05-05', @sa_service, N'service'),
-    (15, 239213, '2026-05-07', @sa_service, N'service'),
-    (16, 239088, '2026-05-06', @sa_service, N'service'),
-    (17, 239220, '2026-05-07', @sa_service, N'service'),
-    (18, 238817, '2026-05-04', @sa_done, N'done'),
-    (19, 239096, '2026-05-06', @sa_done, N'done'),
-    (20, 239235, '2026-05-07', @sa_wait, N'results');
 
 DECLARE @ticketTiming TABLE (
     ticket_rn int NOT NULL PRIMARY KEY,
@@ -106,7 +74,7 @@ INSERT INTO @stepTiming (ticket_rn, step_rn, call_min, start_min, end_min, id_st
     (2, 2, NULL, NULL, NULL, @st_wait, 0),
     (2, 3, NULL, NULL, NULL, @st_wait, 0),
     (3, 1, 19, 17, 14, @st_done, 1),
-    (3, 2, 13, 11, 6, @st_done, 1),
+    (3, 2, 13, 12, 6, @st_done, 1),
     (3, 3, 5, NULL, NULL, @st_called, 0),
     (4, 1, 16, 14, 11, @st_done, 1),
     (4, 2, 10, 8, 5, @st_done, 1),
@@ -156,14 +124,127 @@ INSERT INTO @stepTiming (ticket_rn, step_rn, call_min, start_min, end_min, id_st
     (20, 2, 10, 8, 4, @st_done, 1),
     (20, 3, NULL, NULL, NULL, @st_results, 0);
 
-IF EXISTS (
-    SELECT s.ticket_rn
-    FROM @sources s
-    LEFT JOIN Appointment a ON a.id_appointment = s.source_id AND a.date_arrival = s.source_date
-    WHERE a.id_appointment IS NULL
-)
+DECLARE @sourcePlan TABLE (
+    ticket_rn int NOT NULL PRIMARY KEY,
+    id_status_app int NOT NULL,
+    scenario nvarchar(20) NOT NULL,
+    required_steps int NOT NULL
+);
+
+INSERT INTO @sourcePlan (ticket_rn, id_status_app, scenario, required_steps)
+SELECT tt.ticket_rn,
+       CASE
+           WHEN v.scenario = N'called' THEN @sa_called
+           WHEN v.scenario = N'service' THEN @sa_service
+           WHEN v.scenario = N'done' THEN @sa_done
+           WHEN v.scenario = N'edge_pause' THEN @sa_pause
+           ELSE @sa_wait
+       END,
+       v.scenario,
+       MAX(st.step_rn)
+FROM @ticketTiming tt
+INNER JOIN (VALUES
+    (1, N'wait'),
+    (2, N'wait'),
+    (3, N'called'),
+    (4, N'called'),
+    (5, N'service'),
+    (6, N'service'),
+    (7, N'done'),
+    (8, N'results'),
+    (9, N'edge_single'),
+    (10, N'edge_pause'),
+    (11, N'wait'),
+    (12, N'wait'),
+    (13, N'wait'),
+    (14, N'service'),
+    (15, N'service'),
+    (16, N'service'),
+    (17, N'service'),
+    (18, N'done'),
+    (19, N'done'),
+    (20, N'results')
+) v(ticket_rn, scenario) ON v.ticket_rn = tt.ticket_rn
+INNER JOIN @stepTiming st ON st.ticket_rn = tt.ticket_rn
+GROUP BY tt.ticket_rn, v.scenario;
+
+DECLARE @routeCandidates TABLE (
+    id_appointment int NOT NULL PRIMARY KEY,
+    date_arrival date NOT NULL,
+    letter varchar(1) NOT NULL,
+    source_number varchar(32) NOT NULL,
+    route_steps int NOT NULL
+);
+
+INSERT INTO @routeCandidates (id_appointment, date_arrival, letter, source_number, route_steps)
+SELECT a.id_appointment, a.date_arrival, cat.letter, a.number, COUNT(*) AS route_steps
+FROM Appointment a
+INNER JOIN Category cat ON cat.id_category = a.id_category
+INNER JOIN List_item li ON li.id_appointment = a.id_appointment
+LEFT JOIN Doctor d ON d.id_doctor = li.id_doctor
+LEFT JOIN Specialty sp ON sp.id_specialty = li.id_specialty
+LEFT JOIN Cabinet cab ON cab.id_cabinet = li.id_cabinet
+LEFT JOIN Refer r ON r.id_specialty = li.id_specialty AND r.id_cabinet = li.id_cabinet
+WHERE (a.id_client IS NULL OR a.id_client NOT BETWEEN @clientIdMin AND @clientIdMax)
+  AND NULLIF(LTRIM(RTRIM(a.number)), '') IS NOT NULL
+  AND NULLIF(LTRIM(RTRIM(cat.name)), '') IS NOT NULL
+  AND NULLIF(LTRIM(RTRIM(cat.letter)), '') IS NOT NULL
+GROUP BY a.id_appointment, a.date_arrival, cat.letter, a.number
+HAVING COUNT(*) BETWEEN 1 AND 3
+   AND SUM(CASE
+       WHEN li.id_doctor IS NULL
+         OR li.id_doctor <= 0
+         OR li.id_cabinet IS NULL
+         OR li.id_cabinet <= 0
+         OR li.id_specialty = 25
+         OR NULLIF(LTRIM(RTRIM(d.full_name)), '') IS NULL
+         OR NULLIF(LTRIM(RTRIM(sp.definition)), '') IS NULL
+         OR NULLIF(LTRIM(RTRIM(cab.cabinet_number)), '') IS NULL
+         OR r.id_specialty IS NULL
+       THEN 1 ELSE 0 END) = 0;
+
+DECLARE @sources TABLE (
+    ticket_rn int NOT NULL PRIMARY KEY,
+    source_id int NOT NULL,
+    source_date date NOT NULL,
+    id_status_app int NOT NULL,
+    scenario nvarchar(20) NOT NULL
+);
+
+DECLARE @pickTicket int = 1;
+
+WHILE @pickTicket <= @ticketCount
 BEGIN
-    RAISERROR('One or more source appointments not found. Check @sources ids and dates in dashboard-test-seed.sql.', 16, 1);
+    INSERT INTO @sources (ticket_rn, source_id, source_date, id_status_app, scenario)
+    SELECT TOP 1
+        p.ticket_rn,
+        rc.id_appointment,
+        rc.date_arrival,
+        p.id_status_app,
+        p.scenario
+    FROM @sourcePlan p
+    INNER JOIN @routeCandidates rc ON rc.route_steps >= p.required_steps
+    WHERE p.ticket_rn = @pickTicket
+      AND NOT EXISTS (SELECT 1 FROM @sources s WHERE s.source_id = rc.id_appointment)
+      AND NOT EXISTS (
+          SELECT 1
+          FROM @sources s
+          INNER JOIN @routeCandidates used ON used.id_appointment = s.source_id
+          WHERE used.letter = rc.letter
+            AND TRY_CONVERT(int, SUBSTRING(used.source_number, LEN(used.letter) + 1, 31))
+                = TRY_CONVERT(int, SUBSTRING(rc.source_number, LEN(rc.letter) + 1, 31))
+      )
+    ORDER BY
+        CASE WHEN rc.route_steps = p.required_steps THEN 0 ELSE 1 END,
+        rc.date_arrival DESC,
+        rc.id_appointment DESC;
+
+    SET @pickTicket += 1;
+END;
+
+IF (SELECT COUNT(*) FROM @sources) <> @ticketCount
+BEGIN
+    RAISERROR('Could not select 20 valid source routes from current database.', 16, 1);
     RETURN;
 END;
 
@@ -171,7 +252,8 @@ DECLARE @cloneRoute TABLE (
     ticket_rn int NOT NULL,
     step_rn int NOT NULL,
     id_category int NOT NULL,
-    letter nchar(1) NOT NULL,
+    letter varchar(1) NOT NULL,
+    source_number varchar(32) NOT NULL,
     priority int NOT NULL,
     id_specialty int NOT NULL,
     id_cabinet int NULL,
@@ -179,12 +261,13 @@ DECLARE @cloneRoute TABLE (
     PRIMARY KEY (ticket_rn, step_rn)
 );
 
-INSERT INTO @cloneRoute (ticket_rn, step_rn, id_category, letter, priority, id_specialty, id_cabinet, id_doctor)
+INSERT INTO @cloneRoute (ticket_rn, step_rn, id_category, letter, source_number, priority, id_specialty, id_cabinet, id_doctor)
 SELECT
     s.ticket_rn,
     x.step_rn,
     a.id_category,
     cat.letter,
+    a.number,
     a.priority,
     x.id_specialty,
     x.id_cabinet,
@@ -201,7 +284,12 @@ CROSS APPLY (
     FROM List_item li
     WHERE li.id_appointment = s.source_id
 ) x
-WHERE x.step_rn <= 3;
+WHERE x.step_rn <= 3
+  AND x.step_rn <= (
+      SELECT MAX(st.step_rn)
+      FROM @stepTiming st
+      WHERE st.ticket_rn = s.ticket_rn
+  );
 
 IF (SELECT COUNT(DISTINCT ticket_rn) FROM @cloneRoute) < @ticketCount
 BEGIN
@@ -209,128 +297,77 @@ BEGIN
     RETURN;
 END;
 
-DECLARE @spec_procedural int = 25;
+DECLARE @doctorRefs TABLE (
+    ref_rn int IDENTITY(1, 1) NOT NULL PRIMARY KEY,
+    id_doctor int NOT NULL,
+    id_specialty int NOT NULL,
+    id_cabinet int NOT NULL
+);
 
-UPDATE cr
-SET cr.id_doctor = ref.id_doctor,
-    cr.id_specialty = ref.id_specialty,
-    cr.id_cabinet = ref.id_cabinet
-FROM @cloneRoute cr
-CROSS JOIN (
-    SELECT li.id_doctor, li.id_specialty, li.id_cabinet
-    FROM (
-        SELECT li2.id_doctor, li2.id_specialty, li2.id_cabinet,
-            ROW_NUMBER() OVER (ORDER BY li2.id_list_item) AS step_rn
-        FROM List_item li2
-        WHERE li2.id_appointment = 238815
-    ) li
-    WHERE li.step_rn = 1
-) ref
-WHERE cr.id_specialty = @spec_procedural;
-
-UPDATE cr
-SET cr.id_doctor = ref.id_doctor,
-    cr.id_specialty = ref.id_specialty,
-    cr.id_cabinet = ref.id_cabinet
-FROM @cloneRoute cr
-CROSS JOIN (
-    SELECT li.id_doctor, li.id_specialty, li.id_cabinet
-    FROM (
-        SELECT li2.id_doctor, li2.id_specialty, li2.id_cabinet,
-            ROW_NUMBER() OVER (ORDER BY li2.id_list_item) AS step_rn
-        FROM List_item li2
-        WHERE li2.id_appointment = 239082
-    ) li
-    WHERE li.step_rn = 3
-) ref
-WHERE cr.ticket_rn = 5
-  AND cr.step_rn = 3;
-
-UPDATE cr
-SET cr.id_doctor = ref.id_doctor,
-    cr.id_specialty = ref.id_specialty,
-    cr.id_cabinet = ref.id_cabinet
-FROM @cloneRoute cr
-CROSS JOIN (
-    SELECT TOP 1 li.id_doctor, li.id_specialty, li.id_cabinet
+;WITH PairUsage AS (
+    SELECT li.id_doctor, li.id_specialty, li.id_cabinet, COUNT(*) AS cnt
     FROM List_item li
-    WHERE li.id_appointment = 239082 AND li.id_doctor = 52
-    ORDER BY li.id_list_item
-) ref
-WHERE cr.ticket_rn = 6
-  AND cr.step_rn = 3;
+    INNER JOIN Doctor d ON d.id_doctor = li.id_doctor
+    INNER JOIN Specialty sp ON sp.id_specialty = li.id_specialty
+    INNER JOIN Cabinet cab ON cab.id_cabinet = li.id_cabinet
+    INNER JOIN Refer r ON r.id_specialty = li.id_specialty AND r.id_cabinet = li.id_cabinet
+    WHERE li.id_doctor > 0
+      AND li.id_cabinet > 0
+      AND li.id_specialty <> 25
+      AND NULLIF(LTRIM(RTRIM(d.full_name)), '') IS NOT NULL
+      AND NULLIF(LTRIM(RTRIM(sp.definition)), '') IS NOT NULL
+      AND NULLIF(LTRIM(RTRIM(cab.cabinet_number)), '') IS NOT NULL
+    GROUP BY li.id_doctor, li.id_specialty, li.id_cabinet
+),
+RankedPairs AS (
+    SELECT id_doctor, id_specialty, id_cabinet, cnt,
+           ROW_NUMBER() OVER (PARTITION BY id_doctor ORDER BY cnt DESC, id_specialty, id_cabinet) AS rn
+    FROM PairUsage
+)
+INSERT INTO @doctorRefs (id_doctor, id_specialty, id_cabinet)
+SELECT TOP 12 id_doctor, id_specialty, id_cabinet
+FROM RankedPairs
+WHERE rn = 1
+ORDER BY cnt DESC, id_doctor;
+
+IF (SELECT COUNT(*) FROM @doctorRefs) < 12
+BEGIN
+    RAISERROR('Need at least 12 doctors with valid specialty/cabinet pairs.', 16, 1);
+    RETURN;
+END;
+
+DECLARE @currentDoctorPlan TABLE (
+    ticket_rn int NOT NULL PRIMARY KEY,
+    step_rn int NOT NULL,
+    ref_rn int NOT NULL
+);
+
+INSERT INTO @currentDoctorPlan (ticket_rn, step_rn, ref_rn) VALUES
+    (1, 1, 1),
+    (2, 1, 1),
+    (3, 3, 7),
+    (4, 3, 8),
+    (5, 3, 2),
+    (6, 3, 3),
+    (8, 3, 9),
+    (9, 1, 10),
+    (10, 2, 11),
+    (11, 1, 12),
+    (12, 1, 9),
+    (13, 1, 10),
+    (14, 3, 1),
+    (15, 3, 4),
+    (16, 3, 5),
+    (17, 3, 6),
+    (20, 3, 11);
 
 UPDATE cr
-SET cr.id_doctor = ref.id_doctor,
-    cr.id_specialty = ref.id_specialty,
-    cr.id_cabinet = ref.id_cabinet
+SET cr.id_doctor = dr.id_doctor,
+    cr.id_specialty = dr.id_specialty,
+    cr.id_cabinet = dr.id_cabinet
 FROM @cloneRoute cr
-CROSS JOIN (
-    SELECT li.id_doctor, li.id_specialty, li.id_cabinet
-    FROM (
-        SELECT li2.id_doctor, li2.id_specialty, li2.id_cabinet,
-            ROW_NUMBER() OVER (ORDER BY li2.id_list_item) AS step_rn
-        FROM List_item li2
-        WHERE li2.id_appointment = 239082
-    ) li
-    WHERE li.step_rn = 1
-) ref
-WHERE cr.ticket_rn = 14
-  AND cr.step_rn = 3;
-
-UPDATE cr
-SET cr.id_doctor = ref.id_doctor,
-    cr.id_specialty = ref.id_specialty,
-    cr.id_cabinet = ref.id_cabinet
-FROM @cloneRoute cr
-CROSS JOIN (
-    SELECT li.id_doctor, li.id_specialty, li.id_cabinet
-    FROM (
-        SELECT li2.id_doctor, li2.id_specialty, li2.id_cabinet,
-            ROW_NUMBER() OVER (ORDER BY li2.id_list_item) AS step_rn
-        FROM List_item li2
-        WHERE li2.id_appointment = 238945
-    ) li
-    WHERE li.step_rn = 2
-) ref
-WHERE cr.ticket_rn = 15
-  AND cr.step_rn = 3;
-
-UPDATE cr
-SET cr.id_doctor = ref.id_doctor,
-    cr.id_specialty = ref.id_specialty,
-    cr.id_cabinet = ref.id_cabinet
-FROM @cloneRoute cr
-CROSS JOIN (
-    SELECT li.id_doctor, li.id_specialty, li.id_cabinet
-    FROM (
-        SELECT li2.id_doctor, li2.id_specialty, li2.id_cabinet,
-            ROW_NUMBER() OVER (ORDER BY li2.id_list_item) AS step_rn
-        FROM List_item li2
-        WHERE li2.id_appointment = 238815
-    ) li
-    WHERE li.step_rn = 1
-) ref
-WHERE cr.ticket_rn = 16
-  AND cr.step_rn = 3;
-
-UPDATE cr
-SET cr.id_doctor = ref.id_doctor,
-    cr.id_specialty = ref.id_specialty,
-    cr.id_cabinet = ref.id_cabinet
-FROM @cloneRoute cr
-CROSS JOIN (
-    SELECT li.id_doctor, li.id_specialty, li.id_cabinet
-    FROM (
-        SELECT li2.id_doctor, li2.id_specialty, li2.id_cabinet,
-            ROW_NUMBER() OVER (ORDER BY li2.id_list_item) AS step_rn
-        FROM List_item li2
-        WHERE li2.id_appointment = 238815
-    ) li
-    WHERE li.step_rn = 3
-) ref
-WHERE cr.ticket_rn = 17
-  AND cr.step_rn = 3;
+INNER JOIN @currentDoctorPlan cdp ON cdp.ticket_rn = cr.ticket_rn AND cdp.step_rn = cr.step_rn
+INNER JOIN @doctorRefs dr ON dr.ref_rn = cdp.ref_rn;
 
 UPDATE cr
 SET cr.priority = v.priority
@@ -341,30 +378,44 @@ INNER JOIN (VALUES
 ) v(ticket_rn, priority) ON v.ticket_rn = cr.ticket_rn
 WHERE cr.step_rn = 1;
 
-UPDATE cr
-SET cr.id_doctor = ref.id_doctor,
-    cr.id_specialty = ref.id_specialty,
-    cr.id_cabinet = ref.id_cabinet
-FROM @cloneRoute cr
-CROSS JOIN (
-    SELECT id_doctor, id_specialty, id_cabinet
-    FROM @cloneRoute
-    WHERE ticket_rn = 1 AND step_rn = 1
-) ref
-WHERE cr.ticket_rn = 2
-  AND cr.step_rn = 1;
+IF EXISTS (
+    SELECT 1
+    FROM @cloneRoute cr
+    LEFT JOIN Doctor d ON d.id_doctor = cr.id_doctor
+    LEFT JOIN Specialty sp ON sp.id_specialty = cr.id_specialty
+    LEFT JOIN Cabinet cab ON cab.id_cabinet = cr.id_cabinet
+    LEFT JOIN Refer r ON r.id_specialty = cr.id_specialty AND r.id_cabinet = cr.id_cabinet
+    WHERE cr.id_doctor IS NULL
+       OR cr.id_doctor <= 0
+       OR cr.id_cabinet IS NULL
+       OR cr.id_cabinet <= 0
+       OR cr.id_specialty = 25
+       OR NULLIF(LTRIM(RTRIM(d.full_name)), '') IS NULL
+       OR NULLIF(LTRIM(RTRIM(sp.definition)), '') IS NULL
+       OR NULLIF(LTRIM(RTRIM(cab.cabinet_number)), '') IS NULL
+       OR r.id_specialty IS NULL
+)
+BEGIN
+    RAISERROR('Selected routes contain invalid doctor, specialty, cabinet, or refer data.', 16, 1);
+    RETURN;
+END;
 
-DECLARE @num_base int = (SELECT ISNULL(MAX(Number), 0) FROM Numbers);
 DECLARE @id_client_test int = 99990000;
 
 DECLARE @nums TABLE (
     ticket_rn int NOT NULL PRIMARY KEY,
     ticket_num int NOT NULL,
-    letter nchar(1) NOT NULL
+    letter varchar(1) NOT NULL
 );
 
 INSERT INTO @nums (ticket_rn, ticket_num, letter)
-SELECT cr.ticket_rn, @num_base + cr.ticket_rn, cr.letter
+SELECT
+    cr.ticket_rn,
+    COALESCE(
+        TRY_CONVERT(int, SUBSTRING(cr.source_number, LEN(cr.letter) + 1, 31)),
+        cr.ticket_rn
+    ),
+    cr.letter
 FROM @cloneRoute cr
 WHERE cr.step_rn = 1;
 

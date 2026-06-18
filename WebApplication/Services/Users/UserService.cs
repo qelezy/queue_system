@@ -46,11 +46,11 @@ namespace WebApplication.Services.Users
             });
         }
 
-        public async Task<ServiceResult<UserDto>> UpdateAsync(string userId, UserDto request)
+        public async Task<ServiceResult<UserUpdateResultDto>> UpdateAsync(string userId, UserDto request)
         {
             var user = await _userManager.FindByIdAsync(userId);
             if (user == null)
-                return ServiceResult<UserDto>.Fail(new[] { "Пользователь не найден", userId });
+                return ServiceResult<UserUpdateResultDto>.Fail(new[] { "Пользователь не найден", userId });
 
             if (!string.IsNullOrWhiteSpace(request.LastName))
             {
@@ -64,14 +64,23 @@ namespace WebApplication.Services.Users
 
             user.Patronymic = request.Patronymic?.Trim() ?? string.Empty;
 
-            if (!string.IsNullOrEmpty(request.Email) && request.Email != user.Email)
+            EmailChangeConfirmationDto? emailChange = null;
+            var requestedEmail = request.Email?.Trim() ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(requestedEmail)
+                && !string.Equals(requestedEmail, user.Email, StringComparison.OrdinalIgnoreCase))
             {
-                var existingUser = await _userManager.FindByEmailAsync(request.Email);
+                var existingUser = await _userManager.FindByEmailAsync(requestedEmail);
                 if (existingUser != null && existingUser.Id != user.Id)
-                    return ServiceResult<UserDto>.Fail(new[] { "Email уже используется" });
+                    return ServiceResult<UserUpdateResultDto>.Fail(new[] { "Email уже используется" });
 
-                user.Email = request.Email;
-                user.UserName = request.Email;
+                var token = await _userManager.GenerateChangeEmailTokenAsync(user, requestedEmail);
+                emailChange = new EmailChangeConfirmationDto
+                {
+                    UserId = user.Id,
+                    CurrentEmail = user.Email ?? string.Empty,
+                    NewEmail = requestedEmail,
+                    Token = token
+                };
             }
 
             if (!string.IsNullOrEmpty(request.Role))
@@ -89,20 +98,24 @@ namespace WebApplication.Services.Users
                 var resetToken = await _userManager.GeneratePasswordResetTokenAsync(user);
                 var pwdResult = await _userManager.ResetPasswordAsync(user, resetToken, request.Password);
                 if (!pwdResult.Succeeded)
-                    return ServiceResult<UserDto>.Fail(pwdResult.Errors.Select(e => e.Description));
+                    return ServiceResult<UserUpdateResultDto>.Fail(pwdResult.Errors.Select(e => e.Description));
             }
 
             var updateResult = await _userManager.UpdateAsync(user);
             if (!updateResult.Succeeded)
-                return ServiceResult<UserDto>.Fail(updateResult.Errors.Select(e => e.Description));
+                return ServiceResult<UserUpdateResultDto>.Fail(updateResult.Errors.Select(e => e.Description));
 
-            return ServiceResult<UserDto>.Success(new UserDto
+            return ServiceResult<UserUpdateResultDto>.Success(new UserUpdateResultDto
             {
-                FirstName = user.FirstName ?? string.Empty,
-                LastName = user.LastName ?? string.Empty,
-                Patronymic = user.Patronymic,
-                Email = user.Email ?? string.Empty,
-                Role = (await _userManager.GetRolesAsync(user)).FirstOrDefault() ?? "Dispatcher"
+                User = new UserDto
+                {
+                    FirstName = user.FirstName ?? string.Empty,
+                    LastName = user.LastName ?? string.Empty,
+                    Patronymic = user.Patronymic,
+                    Email = user.Email ?? string.Empty,
+                    Role = (await _userManager.GetRolesAsync(user)).FirstOrDefault() ?? "Dispatcher"
+                },
+                EmailChange = emailChange
             });
         }
 

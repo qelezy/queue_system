@@ -74,6 +74,18 @@ namespace WebApplication.Controllers.Auth {
             return Ok(new { success = true, message = result.Message });
         }
 
+        [HttpGet("confirm-change-email")]
+        [AllowAnonymous]
+        public async Task<ActionResult> ConfirmChangeEmail(Guid userId, string email, string token)
+        {
+            var result = await _authService.ConfirmChangeEmailAsync(userId, email, token);
+
+            if (!result.Succeeded)
+                return BadRequest(new { success = false, errors = result.Errors });
+
+            return Ok(new { success = true, message = result.Message });
+        }
+
         [HttpPost("forgot-password")]
         [AllowAnonymous]
         public async Task<ActionResult> ForgotPassword(ForgotPasswordRequestDto request)

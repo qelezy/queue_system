@@ -582,6 +582,79 @@ SELECT
     CASE WHEN EXISTS (SELECT 1 FROM Violations) THEN N'FAIL' ELSE N'OK' END AS timestamp_order_check,
     (SELECT COUNT(*) FROM Violations) AS timestamp_violations;
 
+PRINT '--- Filled route references ---';
+SELECT a.number,
+       li.id_doctor,
+       d.full_name,
+       li.id_specialty,
+       s.definition,
+       li.id_cabinet,
+       cab.cabinet_number,
+       cat.name AS category_name
+FROM Appointment a
+JOIN List_item li ON li.id_appointment = a.id_appointment
+LEFT JOIN Doctor d ON d.id_doctor = li.id_doctor
+LEFT JOIN Specialty s ON s.id_specialty = li.id_specialty
+LEFT JOIN Cabinet cab ON cab.id_cabinet = li.id_cabinet
+LEFT JOIN Category cat ON cat.id_category = a.id_category
+LEFT JOIN Refer r ON r.id_specialty = li.id_specialty AND r.id_cabinet = li.id_cabinet
+WHERE a.id_client BETWEEN @clientIdMin AND @clientIdMax
+  AND a.date_arrival = @todayMsk
+  AND (
+      NULLIF(LTRIM(RTRIM(a.number)), '') IS NULL
+      OR NULLIF(LTRIM(RTRIM(cat.name)), '') IS NULL
+      OR NULLIF(LTRIM(RTRIM(cat.letter)), '') IS NULL
+      OR li.id_doctor IS NULL
+      OR li.id_doctor <= 0
+      OR NULLIF(LTRIM(RTRIM(d.full_name)), '') IS NULL
+      OR li.id_specialty IS NULL
+      OR li.id_specialty = 25
+      OR NULLIF(LTRIM(RTRIM(s.definition)), '') IS NULL
+      OR li.id_cabinet IS NULL
+      OR li.id_cabinet <= 0
+      OR NULLIF(LTRIM(RTRIM(cab.cabinet_number)), '') IS NULL
+      OR r.id_specialty IS NULL
+  )
+ORDER BY a.number, li.id_list_item;
+
+IF @@ROWCOUNT = 0
+    PRINT 'OK: ticket numbers, categories, doctors, specialties, cabinets and refer pairs are filled.';
+ELSE
+    PRINT 'FAIL: found incomplete route references.';
+
+PRINT '--- Ticket number format: category letter + realistic source number ---';
+SELECT a.number,
+       cat.letter,
+       TRY_CONVERT(int, SUBSTRING(a.number, LEN(cat.letter) + 1, 31)) AS ticket_num
+FROM Appointment a
+JOIN Category cat ON cat.id_category = a.id_category
+WHERE a.id_client BETWEEN @clientIdMin AND @clientIdMax
+  AND a.date_arrival = @todayMsk
+  AND (
+      LEFT(a.number, LEN(cat.letter)) <> cat.letter
+      OR TRY_CONVERT(int, SUBSTRING(a.number, LEN(cat.letter) + 1, 31)) IS NULL
+      OR TRY_CONVERT(int, SUBSTRING(a.number, LEN(cat.letter) + 1, 31)) > 200
+  )
+ORDER BY a.number;
+
+IF @@ROWCOUNT = 0
+    PRINT 'OK: ticket letters match categories and numeric parts are realistic.';
+ELSE
+    PRINT 'FAIL: found ticket numbers with wrong category letter or unrealistic numeric part.';
+
+PRINT '--- Ticket number uniqueness ---';
+SELECT a.number, COUNT(*) AS duplicate_count
+FROM Appointment a
+WHERE a.id_client BETWEEN @clientIdMin AND @clientIdMax
+  AND a.date_arrival = @todayMsk
+GROUP BY a.number
+HAVING COUNT(*) > 1;
+
+IF @@ROWCOUNT = 0
+    PRINT 'OK: test ticket numbers are unique.';
+ELSE
+    PRINT 'FAIL: duplicate test ticket numbers found.';
+
 PRINT '--- No procedural-cabinet specialty (id 25) on test tickets ---';
 SELECT a.number, d.full_name, s.definition
 FROM Appointment a

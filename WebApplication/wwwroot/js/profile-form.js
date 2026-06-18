@@ -57,6 +57,7 @@
         const email = valueOf(inputs.email);
         const currentPassword = valueOf(inputs.currentPassword);
         const newPassword = valueOf(inputs.newPassword);
+        const emailChanged = email.toLowerCase() !== initial.email.toLowerCase();
 
         if (!lastName) errors.push("Поле «Фамилия» обязательно для заполнения");
         if (!firstName) errors.push("Поле «Имя» обязательно для заполнения");
@@ -67,7 +68,11 @@
             if (!emailValid) errors.push("Введите корректный Email");
         }
 
-        if ((currentPassword && !newPassword) || (!currentPassword && newPassword)) {
+        if (emailChanged && !currentPassword) {
+            errors.push("Для смены Email укажите текущий пароль");
+        }
+
+        if (!currentPassword && newPassword) {
             errors.push("Для смены пароля заполните оба поля");
         }
 

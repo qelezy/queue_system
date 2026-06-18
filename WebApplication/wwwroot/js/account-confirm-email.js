@@ -11,6 +11,7 @@
 
     const baseUrl = window.AppConfig?.confirmEmailUrl ?? "";
     const userId = window.AppConfig?.confirmEmailUserId ?? "";
+    const email = window.AppConfig?.confirmEmailEmail ?? "";
     const token = window.AppConfig?.confirmEmailToken ?? "";
     const loginPageUrl = window.AppConfig?.loginPageUrl ?? "/Account/Login";
     const toastManager = window.AppToasts?.getManager("global-toast-stack");
@@ -39,7 +40,8 @@
 
     (async function () {
         try {
-            const requestUrl = `${baseUrl}?userId=${encodeURIComponent(userId)}&token=${encodeURIComponent(token)}`;
+            const emailParam = email ? `&email=${encodeURIComponent(email)}` : "";
+            const requestUrl = `${baseUrl}?userId=${encodeURIComponent(userId)}${emailParam}&token=${encodeURIComponent(token)}`;
             const response = await fetch(requestUrl);
             const result = await response.json();
 

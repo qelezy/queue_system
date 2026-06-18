@@ -32,47 +32,60 @@ namespace WebApplication.Services.Users {
             });
         }
 
-        public async Task<ServiceResult> UpdateProfileAsync(ClaimsPrincipal userPrincipal, UserProfilePageViewModel model)
+        public async Task<ServiceResult<UserProfileUpdateResultDto>> UpdateProfileAsync(ClaimsPrincipal userPrincipal, UserProfilePageViewModel model)
         {
             var user = await _userManager.GetUserAsync(userPrincipal);
 
             if (user == null)
-                return ServiceResult.Fail(new[] { "Пользователь не найден" });
+                return ServiceResult<UserProfileUpdateResultDto>.Fail(new[] { "Пользователь не найден" });
+
+            var requestedEmail = model.Profile.Email?.Trim() ?? string.Empty;
+            var emailChanged = !string.Equals(user.Email, requestedEmail, StringComparison.OrdinalIgnoreCase);
 
             var hasPasswordChangeRequest =
                 !string.IsNullOrWhiteSpace(model.Password?.CurrentPassword) ||
                 !string.IsNullOrWhiteSpace(model.Password?.NewPassword);
 
-            if (hasPasswordChangeRequest)
+            if (emailChanged || hasPasswordChangeRequest)
             {
                 var currentPassword = model.Password?.CurrentPassword ?? string.Empty;
                 var isCurrentPasswordValid = await _userManager.CheckPasswordAsync(user, currentPassword);
                 if (!isCurrentPasswordValid)
                 {
-                    return ServiceResult.Fail(new[] { "PASSWORD_CURRENT_INVALID" });
+                    return ServiceResult<UserProfileUpdateResultDto>.Fail(new[] { "PASSWORD_CURRENT_INVALID" });
                 }
+            }
+
+            EmailChangeConfirmationDto? emailChange = null;
+            if (emailChanged)
+            {
+                if (string.IsNullOrWhiteSpace(requestedEmail))
+                    return ServiceResult<UserProfileUpdateResultDto>.Fail(new[] { "Email не задан" });
+
+                var existingUser = await _userManager.FindByEmailAsync(requestedEmail);
+                if (existingUser != null && existingUser.Id != user.Id)
+                    return ServiceResult<UserProfileUpdateResultDto>.Fail(new[] { "Email уже используется" });
+
+                var token = await _userManager.GenerateChangeEmailTokenAsync(user, requestedEmail);
+                emailChange = new EmailChangeConfirmationDto
+                {
+                    UserId = user.Id,
+                    CurrentEmail = user.Email ?? string.Empty,
+                    NewEmail = requestedEmail,
+                    Token = token
+                };
             }
 
             user.FirstName = model.Profile.FirstName?.Trim() ?? string.Empty;
             user.LastName = model.Profile.LastName?.Trim() ?? string.Empty;
             user.Patronymic = model.Profile.Patronymic?.Trim();
 
-            if (!string.Equals(user.Email, model.Profile.Email,
-                StringComparison.OrdinalIgnoreCase))
-            {
-                var normalizedEmail = (model.Profile.Email ?? string.Empty).Trim().ToUpperInvariant();
-                user.Email = model.Profile.Email;
-                user.UserName = model.Profile.Email;
-                user.NormalizedEmail = normalizedEmail;
-                user.NormalizedUserName = normalizedEmail;
-            }
-
             var result = await _userManager.UpdateAsync(user);
 
             if (!result.Succeeded)
-                return ServiceResult.Fail(result.Errors.Select(x => x.Description));
+                return ServiceResult<UserProfileUpdateResultDto>.Fail(result.Errors.Select(x => x.Description));
 
-            if (hasPasswordChangeRequest)
+            if (!string.IsNullOrWhiteSpace(model.Password?.NewPassword))
             {
                 var passResult = await _userManager.ChangePasswordAsync(
                     user,
@@ -82,11 +95,14 @@ namespace WebApplication.Services.Users {
                 if (!passResult.Succeeded)
                 {
                     var mappedErrors = passResult.Errors.Select(MapPasswordError).ToList();
-                    return ServiceResult.Fail(mappedErrors);
+                    return ServiceResult<UserProfileUpdateResultDto>.Fail(mappedErrors);
                 }
             }
 
-            return ServiceResult.Success();
+            return ServiceResult<UserProfileUpdateResultDto>.Success(new UserProfileUpdateResultDto
+            {
+                EmailChange = emailChange
+            });
         }
 
         private static string MapPasswordError(IdentityError error)

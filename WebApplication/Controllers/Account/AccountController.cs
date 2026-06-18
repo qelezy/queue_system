@@ -53,6 +53,19 @@ namespace WebApplication.Controllers.Account {
 
         [HttpGet]
         [AllowAnonymous]
+        public IActionResult ConfirmChangeEmail(string userId, string email, string token)
+        {
+            ViewData["Title"] = "Подтверждение смены email";
+            ViewData["UserId"] = userId;
+            ViewData["Email"] = email;
+            ViewData["Token"] = token;
+            ViewData["ConfirmEmailUrl"] = Url.Action("ConfirmChangeEmail", "Auth", null, Request.Scheme);
+            ViewData["PendingText"] = "Подтверждаем смену email…";
+            return View(nameof(ConfirmEmail));
+        }
+
+        [HttpGet]
+        [AllowAnonymous]
         public IActionResult ForgotPassword(string email, string token)
         {
             ViewData["Email"] = email;

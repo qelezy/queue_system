@@ -1,0 +1,9 @@
+@model WebApplication.Models.Emails.ChangeEmailEmailViewModel
+@{
+    Layout = "~/Views/Emails/_EmailLayout.cshtml";
+}
+<p>Для вашей учётной записи запрошена смена email.</p>
+<p>Подтвердите новый адрес электронной почты, нажав кнопку ниже.</p>
+<div class="email-btn-wrap">
+    <a class="email-btn" href="@Model.ConfirmationLink">Подтвердить смену почты</a>
+</div>

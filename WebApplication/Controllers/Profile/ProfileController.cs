@@ -1,16 +1,26 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using WebApplication.Models.Emails;
 using WebApplication.Services;
+using WebApplication.Services.Auth;
+using WebApplication.Services.Emails;
 
 namespace WebApplication.Controllers.Profile {
     [Authorize]
     public class ProfileController : Controller
     {
         private readonly IUserProfileService _profileService;
+        private readonly IEmailService _emailService;
+        private readonly IEmailTemplateRenderer _emailTemplates;
 
-        public ProfileController(IUserProfileService profileService)
+        public ProfileController(
+            IUserProfileService profileService,
+            IEmailService emailService,
+            IEmailTemplateRenderer emailTemplates)
         {
             _profileService = profileService;
+            _emailService = emailService;
+            _emailTemplates = emailTemplates;
         }
 
         [HttpGet]
@@ -44,10 +54,8 @@ namespace WebApplication.Controllers.Profile {
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Index(UserProfilePageViewModel model)
         {
-            if ((string.IsNullOrWhiteSpace(model.Password?.CurrentPassword) &&
-                 !string.IsNullOrWhiteSpace(model.Password?.NewPassword)) ||
-                (!string.IsNullOrWhiteSpace(model.Password?.CurrentPassword) &&
-                 string.IsNullOrWhiteSpace(model.Password?.NewPassword)))
+            if (string.IsNullOrWhiteSpace(model.Password?.CurrentPassword) &&
+                !string.IsNullOrWhiteSpace(model.Password?.NewPassword))
             {
                 ModelState.AddModelError(string.Empty, "Для смены пароля заполните оба поля");
             }
@@ -83,6 +91,33 @@ namespace WebApplication.Controllers.Profile {
                 }
 
                 return View(model);
+            }
+
+            var emailChange = result.Data?.EmailChange;
+            if (emailChange != null)
+            {
+                var confirmationLink = Url.Action(
+                    action: "ConfirmChangeEmail",
+                    controller: "Account",
+                    values: new { userId = emailChange.UserId, email = emailChange.NewEmail, token = emailChange.Token },
+                    protocol: Request.Scheme);
+
+                if (string.IsNullOrEmpty(confirmationLink))
+                {
+                    ModelState.AddModelError(string.Empty, "Не удалось сформировать ссылку подтверждения смены email");
+                    return View(model);
+                }
+
+                var body = await _emailTemplates.RenderChangeEmailAsync(new ChangeEmailEmailViewModel
+                {
+                    CurrentEmail = emailChange.CurrentEmail,
+                    NewEmail = emailChange.NewEmail,
+                    ConfirmationLink = confirmationLink
+                });
+
+                await _emailService.SendEmailAsync(emailChange.NewEmail, "Подтверждение смены почты", body);
+                TempData["ProfileSuccess"] = "Данные сохранены. На новый email отправлена ссылка подтверждения.";
+                return RedirectToAction(nameof(Index));
             }
 
             TempData["ProfileSuccess"] = "Данные успешно сохранены";

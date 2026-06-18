@@ -1,4 +1,3 @@
--- Preflight before dashboard-test-seed.sql (20 tickets, multiple source dates)
 SET NOCOUNT ON;
 
 DECLARE @todayMsk date = CAST(SYSDATETIME() AS date);
@@ -16,62 +15,117 @@ IF EXISTS (
 )
     PRINT 'WARNING: Test rows exist. Run dashboard-test-rollback.sql first.';
 
-PRINT '--- Source tickets (required 20) ---';
-SELECT s.ticket_rn, s.source_id, s.source_date, s.scenario, a.number AS source_number,
-       (SELECT COUNT(*) FROM List_item li WHERE li.id_appointment = s.source_id) AS source_steps,
-       CASE WHEN a.id_appointment IS NULL THEN 0 ELSE 1 END AS found
-FROM (VALUES
-    (1, 239062, CAST('2026-05-06' AS date), N'wait'),
-    (2, 239064, CAST('2026-05-06' AS date), N'wait'),
-    (3, 239065, CAST('2026-05-06' AS date), N'called'),
-    (4, 239068, CAST('2026-05-06' AS date), N'called'),
-    (5, 239070, CAST('2026-05-06' AS date), N'service'),
-    (6, 239082, CAST('2026-05-06' AS date), N'service'),
-    (7, 239084, CAST('2026-05-06' AS date), N'done'),
-    (8, 239086, CAST('2026-05-06' AS date), N'results'),
-    (9, 238835, CAST('2026-05-04' AS date), N'edge_single'),
-    (10, 238926, CAST('2026-05-05' AS date), N'edge_pause'),
-    (11, 238815, CAST('2026-05-04' AS date), N'wait'),
-    (12, 238945, CAST('2026-05-05' AS date), N'wait'),
-    (13, 239305, CAST('2026-05-08' AS date), N'wait'),
-    (14, 238961, CAST('2026-05-05' AS date), N'service'),
-    (15, 239213, CAST('2026-05-07' AS date), N'service'),
-    (16, 239088, CAST('2026-05-06' AS date), N'service'),
-    (17, 239220, CAST('2026-05-07' AS date), N'service'),
-    (18, 238817, CAST('2026-05-04' AS date), N'done'),
-    (19, 239096, CAST('2026-05-06' AS date), N'done'),
-    (20, 239235, CAST('2026-05-07' AS date), N'results')
-) s(ticket_rn, source_id, source_date, scenario)
-LEFT JOIN Appointment a ON a.id_appointment = s.source_id AND a.date_arrival = s.source_date
-ORDER BY s.ticket_rn;
-
-IF EXISTS (
-    SELECT 1
-    FROM (VALUES
-        (239062, CAST('2026-05-06' AS date)), (239064, CAST('2026-05-06' AS date)),
-        (239065, CAST('2026-05-06' AS date)), (239068, CAST('2026-05-06' AS date)),
-        (239070, CAST('2026-05-06' AS date)), (239082, CAST('2026-05-06' AS date)),
-        (239084, CAST('2026-05-06' AS date)), (239086, CAST('2026-05-06' AS date)),
-        (238835, CAST('2026-05-04' AS date)), (238926, CAST('2026-05-05' AS date)),
-        (238815, CAST('2026-05-04' AS date)), (238945, CAST('2026-05-05' AS date)),
-        (239305, CAST('2026-05-08' AS date)), (238961, CAST('2026-05-05' AS date)),
-        (239213, CAST('2026-05-07' AS date)), (239088, CAST('2026-05-06' AS date)),
-        (239220, CAST('2026-05-07' AS date)), (238817, CAST('2026-05-04' AS date)),
-        (239096, CAST('2026-05-06' AS date)), (239235, CAST('2026-05-07' AS date))
-    ) s(source_id, source_date)
-    LEFT JOIN Appointment a ON a.id_appointment = s.source_id AND a.date_arrival = s.source_date
-    WHERE a.id_appointment IS NULL
-)
-BEGIN
-    PRINT '--- Replacement candidates (2026-05-03..2026-05-09, 1..3 steps) ---';
-    SELECT TOP 30 a.date_arrival, a.id_appointment, COUNT(li.id_list_item) AS steps
+PRINT '--- Dynamic source route candidates ---';
+;WITH RouteCandidates AS (
+    SELECT a.id_appointment, a.date_arrival, COUNT(*) AS route_steps
     FROM Appointment a
-    JOIN List_item li ON li.id_appointment = a.id_appointment
-    WHERE a.date_arrival BETWEEN '2026-05-03' AND '2026-05-09'
-    GROUP BY a.date_arrival, a.id_appointment
-    HAVING COUNT(li.id_list_item) BETWEEN 1 AND 3
-    ORDER BY a.date_arrival, steps DESC, a.id_appointment;
-END;
+    INNER JOIN Category cat ON cat.id_category = a.id_category
+    INNER JOIN List_item li ON li.id_appointment = a.id_appointment
+    LEFT JOIN Doctor d ON d.id_doctor = li.id_doctor
+    LEFT JOIN Specialty sp ON sp.id_specialty = li.id_specialty
+    LEFT JOIN Cabinet cab ON cab.id_cabinet = li.id_cabinet
+    LEFT JOIN Refer r ON r.id_specialty = li.id_specialty AND r.id_cabinet = li.id_cabinet
+    WHERE (a.id_client IS NULL OR a.id_client NOT BETWEEN @clientIdMin AND @clientIdMax)
+      AND NULLIF(LTRIM(RTRIM(a.number)), '') IS NOT NULL
+      AND NULLIF(LTRIM(RTRIM(cat.name)), '') IS NOT NULL
+      AND NULLIF(LTRIM(RTRIM(cat.letter)), '') IS NOT NULL
+    GROUP BY a.id_appointment, a.date_arrival
+    HAVING COUNT(*) BETWEEN 1 AND 3
+       AND SUM(CASE
+           WHEN li.id_doctor IS NULL OR li.id_doctor <= 0
+             OR li.id_cabinet IS NULL OR li.id_cabinet <= 0
+             OR li.id_specialty = 25
+             OR NULLIF(LTRIM(RTRIM(d.full_name)), '') IS NULL
+             OR NULLIF(LTRIM(RTRIM(sp.definition)), '') IS NULL
+             OR NULLIF(LTRIM(RTRIM(cab.cabinet_number)), '') IS NULL
+             OR r.id_specialty IS NULL
+           THEN 1 ELSE 0 END) = 0
+)
+SELECT route_steps, COUNT(*) AS valid_routes
+FROM RouteCandidates
+GROUP BY route_steps
+ORDER BY route_steps;
+
+PRINT '--- Dynamic source route sample ---';
+;WITH RouteCandidates AS (
+    SELECT a.id_appointment, a.date_arrival, a.number, COUNT(*) AS route_steps
+    FROM Appointment a
+    INNER JOIN Category cat ON cat.id_category = a.id_category
+    INNER JOIN List_item li ON li.id_appointment = a.id_appointment
+    LEFT JOIN Doctor d ON d.id_doctor = li.id_doctor
+    LEFT JOIN Specialty sp ON sp.id_specialty = li.id_specialty
+    LEFT JOIN Cabinet cab ON cab.id_cabinet = li.id_cabinet
+    LEFT JOIN Refer r ON r.id_specialty = li.id_specialty AND r.id_cabinet = li.id_cabinet
+    WHERE (a.id_client IS NULL OR a.id_client NOT BETWEEN @clientIdMin AND @clientIdMax)
+      AND NULLIF(LTRIM(RTRIM(a.number)), '') IS NOT NULL
+      AND NULLIF(LTRIM(RTRIM(cat.name)), '') IS NOT NULL
+      AND NULLIF(LTRIM(RTRIM(cat.letter)), '') IS NOT NULL
+    GROUP BY a.id_appointment, a.date_arrival, a.number
+    HAVING COUNT(*) BETWEEN 1 AND 3
+       AND SUM(CASE
+           WHEN li.id_doctor IS NULL OR li.id_doctor <= 0
+             OR li.id_cabinet IS NULL OR li.id_cabinet <= 0
+             OR li.id_specialty = 25
+             OR NULLIF(LTRIM(RTRIM(d.full_name)), '') IS NULL
+             OR NULLIF(LTRIM(RTRIM(sp.definition)), '') IS NULL
+             OR NULLIF(LTRIM(RTRIM(cab.cabinet_number)), '') IS NULL
+             OR r.id_specialty IS NULL
+           THEN 1 ELSE 0 END) = 0
+)
+SELECT TOP 20 id_appointment, date_arrival, number, route_steps
+FROM RouteCandidates
+ORDER BY date_arrival DESC, id_appointment DESC;
+
+PRINT '--- Dynamic doctor references ---';
+;WITH PairUsage AS (
+    SELECT li.id_doctor, li.id_specialty, li.id_cabinet, COUNT(*) AS cnt
+    FROM List_item li
+    INNER JOIN Doctor d ON d.id_doctor = li.id_doctor
+    INNER JOIN Specialty sp ON sp.id_specialty = li.id_specialty
+    INNER JOIN Cabinet cab ON cab.id_cabinet = li.id_cabinet
+    INNER JOIN Refer r ON r.id_specialty = li.id_specialty AND r.id_cabinet = li.id_cabinet
+    WHERE li.id_doctor > 0
+      AND li.id_cabinet > 0
+      AND li.id_specialty <> 25
+      AND NULLIF(LTRIM(RTRIM(d.full_name)), '') IS NOT NULL
+      AND NULLIF(LTRIM(RTRIM(sp.definition)), '') IS NOT NULL
+      AND NULLIF(LTRIM(RTRIM(cab.cabinet_number)), '') IS NOT NULL
+    GROUP BY li.id_doctor, li.id_specialty, li.id_cabinet
+),
+RankedPairs AS (
+    SELECT id_doctor, id_specialty, id_cabinet, cnt,
+           ROW_NUMBER() OVER (PARTITION BY id_doctor ORDER BY cnt DESC, id_specialty, id_cabinet) AS rn
+    FROM PairUsage
+)
+SELECT COUNT(*) AS doctors_with_valid_primary_pair,
+       CASE WHEN COUNT(*) >= 12 THEN N'OK' ELSE N'FAIL' END AS doctor_reference_check
+FROM RankedPairs
+WHERE rn = 1;
+
+;WITH PairUsage AS (
+    SELECT li.id_doctor, li.id_specialty, li.id_cabinet, COUNT(*) AS cnt
+    FROM List_item li
+    INNER JOIN Doctor d ON d.id_doctor = li.id_doctor
+    INNER JOIN Specialty sp ON sp.id_specialty = li.id_specialty
+    INNER JOIN Cabinet cab ON cab.id_cabinet = li.id_cabinet
+    INNER JOIN Refer r ON r.id_specialty = li.id_specialty AND r.id_cabinet = li.id_cabinet
+    WHERE li.id_doctor > 0
+      AND li.id_cabinet > 0
+      AND li.id_specialty <> 25
+      AND NULLIF(LTRIM(RTRIM(d.full_name)), '') IS NOT NULL
+      AND NULLIF(LTRIM(RTRIM(sp.definition)), '') IS NOT NULL
+      AND NULLIF(LTRIM(RTRIM(cab.cabinet_number)), '') IS NOT NULL
+    GROUP BY li.id_doctor, li.id_specialty, li.id_cabinet
+),
+RankedPairs AS (
+    SELECT id_doctor, id_specialty, id_cabinet, cnt,
+           ROW_NUMBER() OVER (PARTITION BY id_doctor ORDER BY cnt DESC, id_specialty, id_cabinet) AS rn
+    FROM PairUsage
+)
+SELECT TOP 12 id_doctor, id_specialty, id_cabinet, cnt
+FROM RankedPairs
+WHERE rn = 1
+ORDER BY cnt DESC, id_doctor;
 
 PRINT '--- Status_Appointment / Status_item_list (need ids 1..5) ---';
 SELECT id_status_app, name FROM Status_Appointment ORDER BY id_status_app;
@@ -88,8 +142,39 @@ SELECT scenario, COUNT(*) AS cnt FROM (VALUES
 ) v(scenario)
 GROUP BY scenario ORDER BY scenario;
 
-PRINT '--- Next Numbers ---';
-SELECT ISNULL(MAX(Number), 0) AS current_max_number FROM Numbers;
+PRINT '--- Source ticket numeric range ---';
+;WITH RouteCandidates AS (
+    SELECT TOP 20
+        a.number,
+        cat.letter,
+        TRY_CONVERT(int, SUBSTRING(a.number, LEN(cat.letter) + 1, 31)) AS source_ticket_num
+    FROM Appointment a
+    INNER JOIN Category cat ON cat.id_category = a.id_category
+    INNER JOIN List_item li ON li.id_appointment = a.id_appointment
+    LEFT JOIN Doctor d ON d.id_doctor = li.id_doctor
+    LEFT JOIN Specialty sp ON sp.id_specialty = li.id_specialty
+    LEFT JOIN Cabinet cab ON cab.id_cabinet = li.id_cabinet
+    LEFT JOIN Refer r ON r.id_specialty = li.id_specialty AND r.id_cabinet = li.id_cabinet
+    WHERE (a.id_client IS NULL OR a.id_client NOT BETWEEN @clientIdMin AND @clientIdMax)
+      AND NULLIF(LTRIM(RTRIM(a.number)), '') IS NOT NULL
+      AND NULLIF(LTRIM(RTRIM(cat.name)), '') IS NOT NULL
+      AND NULLIF(LTRIM(RTRIM(cat.letter)), '') IS NOT NULL
+    GROUP BY a.id_appointment, a.date_arrival, a.number, cat.letter
+    HAVING COUNT(*) BETWEEN 1 AND 3
+       AND SUM(CASE
+           WHEN li.id_doctor IS NULL OR li.id_doctor <= 0
+             OR li.id_cabinet IS NULL OR li.id_cabinet <= 0
+             OR li.id_specialty = 25
+             OR NULLIF(LTRIM(RTRIM(d.full_name)), '') IS NULL
+             OR NULLIF(LTRIM(RTRIM(sp.definition)), '') IS NULL
+             OR NULLIF(LTRIM(RTRIM(cab.cabinet_number)), '') IS NULL
+             OR r.id_specialty IS NULL
+           THEN 1 ELSE 0 END) = 0
+    ORDER BY a.date_arrival DESC, a.id_appointment DESC
+)
+SELECT MIN(source_ticket_num) AS min_source_ticket_num,
+       MAX(source_ticket_num) AS max_source_ticket_num
+FROM RouteCandidates;
 
 PRINT '--- Existing test rows ---';
 SELECT COUNT(*) AS test_by_client_id FROM Appointment WHERE id_client BETWEEN @clientIdMin AND @clientIdMax;

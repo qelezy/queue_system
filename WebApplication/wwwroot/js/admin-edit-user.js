@@ -21,6 +21,24 @@
         return parts.join(" ").trim();
     }
 
+    function updateRowFallback(user) {
+        const rows = Array.from(document.querySelectorAll("#panel-list .users-table tbody tr[data-user-id]"));
+        const row = rows.find((item) => item.getAttribute("data-user-id") === user.id);
+        if (!(row instanceof HTMLTableRowElement)) {
+            return;
+        }
+
+        row.dataset.firstName = user.firstName;
+        row.dataset.lastName = user.lastName;
+        row.dataset.patronymic = user.patronymic;
+        row.dataset.email = user.email;
+        row.dataset.role = user.role;
+
+        if (row.children[0]) row.children[0].textContent = getFullName(user.lastName, user.firstName, user.patronymic);
+        if (row.children[1]) row.children[1].textContent = user.email;
+        if (row.children[2]) row.children[2].textContent = roleTextByValue[user.role] || user.role;
+    }
+
     form.addEventListener("submit", async (e) => {
         e.preventDefault();
 
@@ -45,20 +63,26 @@
 
             const result = await response.json().catch(() => ({}));
             if (response.ok && result.success) {
-                const row = document.querySelector(`.users-table tbody tr[data-user-id="${id}"]`);
-                if (row instanceof HTMLTableRowElement) {
-                    row.dataset.firstName = firstName;
-                    row.dataset.lastName = lastName;
-                    row.dataset.patronymic = patronymic;
-                    row.dataset.email = email;
-                    row.dataset.role = role;
-
-                    if (row.children[0]) row.children[0].textContent = getFullName(lastName, firstName, patronymic);
-                    if (row.children[1]) row.children[1].textContent = email;
-                    if (row.children[2]) row.children[2].textContent = roleTextByValue[role] || role;
+                const updated = result.data || {};
+                const savedFirstName = updated.firstName ?? updated.FirstName ?? firstName;
+                const savedLastName = updated.lastName ?? updated.LastName ?? lastName;
+                const savedPatronymic = updated.patronymic ?? updated.Patronymic ?? patronymic;
+                const savedEmail = updated.email ?? updated.Email ?? email;
+                const savedRole = updated.role ?? updated.Role ?? role;
+                const updatedUser = {
+                    id,
+                    firstName: savedFirstName,
+                    lastName: savedLastName,
+                    patronymic: savedPatronymic,
+                    email: savedEmail,
+                    role: savedRole
+                };
+                const updatedInTable = window.UsersUI?.updateUserRow?.(updatedUser) === true;
+                if (!updatedInTable) {
+                    updateRowFallback(updatedUser);
                 }
 
-                toastManager?.show("Данные пользователя обновлены.", "success");
+                toastManager?.show(result.message || "Данные пользователя обновлены.", "success");
                 window.UsersUI?.closeEdit?.();
                 return;
             }

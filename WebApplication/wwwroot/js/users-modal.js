@@ -261,6 +261,35 @@
         tableList.applyFilters();
     }
 
+    function updateUserRow(user) {
+        if (!tableBody || !user?.id || !tableList) return false;
+
+        const row = getDataRows().find((dataRow) => dataRow.getAttribute("data-user-id") === user.id);
+        if (!(row instanceof HTMLTableRowElement)) return false;
+
+        const firstName = user.firstName ?? "";
+        const lastName = user.lastName ?? "";
+        const patronymic = user.patronymic ?? "";
+        const email = user.email ?? "";
+        const role = user.role ?? "";
+        const fullName = getFullName(lastName, firstName, patronymic);
+        const roleName = roleTextByValue[role] || role;
+
+        row.dataset.firstName = firstName;
+        row.dataset.lastName = lastName;
+        row.dataset.patronymic = patronymic;
+        row.dataset.email = email;
+        row.dataset.role = role;
+
+        if (row.children[0]) row.children[0].textContent = fullName;
+        if (row.children[1]) row.children[1].textContent = email;
+        if (row.children[2]) row.children[2].textContent = roleName;
+
+        tableList.reorderByCurrentSort();
+        tableList.applyFilters();
+        return true;
+    }
+
     function getDataRows() {
         return Array.from(document.querySelectorAll("#panel-list .users-table tbody tr")).filter((row) =>
             row.querySelector(".actions-cell") !== null
@@ -347,7 +376,8 @@
         goToPage: (page) => tableList?.goToPage(page),
         sortBy: (field) => tableList?.sortBy(field),
         openEdit,
-        addRegisteredUser
+        addRegisteredUser,
+        updateUserRow
     };
 
     setModalHiddenState("register", true);

@@ -3,12 +3,14 @@
     Layout = "_AuthConfirm";
     ViewData["Title"] = "Подтверждение email";
     var userId = ViewData["UserId"]?.ToString() ?? "";
+    var email = ViewData["Email"]?.ToString() ?? "";
     var token = ViewData["Token"]?.ToString() ?? "";
     var confirmEmailUrl = ViewData["ConfirmEmailUrl"]?.ToString() ?? "";
+    var pendingText = ViewData["PendingText"]?.ToString() ?? "Подтверждаем email…";
     var loginPageUrl = Url.Action("Login", "Account") ?? "/Account/Login";
 }
 
-<p class="auth-form-subtitle" id="confirmPending">Подтверждаем email…</p>
+<p class="auth-form-subtitle" id="confirmPending">@pendingText</p>
 
 <div class="auth-confirm" id="confirmSuccess" hidden>
     <i class="bi bi-check-circle-fill auth-confirm-icon" aria-hidden="true"></i>
@@ -26,6 +28,7 @@
         window.AppConfig = window.AppConfig || {};
         window.AppConfig.confirmEmailUrl = @Html.Raw(JsonSerializer.Serialize(confirmEmailUrl));
         window.AppConfig.confirmEmailUserId = @Html.Raw(JsonSerializer.Serialize(userId));
+        window.AppConfig.confirmEmailEmail = @Html.Raw(JsonSerializer.Serialize(email));
         window.AppConfig.confirmEmailToken = @Html.Raw(JsonSerializer.Serialize(token));
         window.AppConfig.loginPageUrl = @Html.Raw(JsonSerializer.Serialize(loginPageUrl));
     </script>
