@@ -46,7 +46,7 @@ namespace WebApplication.Migrations
                         .HasDatabaseName("RoleNameIndex")
                         .HasFilter("[NormalizedName] IS NOT NULL");
 
-                    b.ToTable("roles", (string)null);
+                    b.ToTable("Role", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
@@ -175,7 +175,7 @@ namespace WebApplication.Migrations
                     b.HasIndex("PermissionName")
                         .IsUnique();
 
-                    b.ToTable("permission", (string)null);
+                    b.ToTable("Permission", (string)null);
                 });
 
             modelBuilder.Entity("WebApplication.Models.Identity.RolePermission", b =>
@@ -193,7 +193,7 @@ namespace WebApplication.Migrations
 
                     b.HasIndex("PermissionId");
 
-                    b.ToTable("role_permission", (string)null);
+                    b.ToTable("RolePermission", (string)null);
                 });
 
             modelBuilder.Entity("WebApplication.Models.Identity.User", b =>
@@ -288,7 +288,7 @@ namespace WebApplication.Migrations
                         .HasDatabaseName("UserNameIndex")
                         .HasFilter("[NormalizedUserName] IS NOT NULL");
 
-                    b.ToTable("user", (string)null);
+                    b.ToTable("User", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>

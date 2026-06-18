@@ -18,12 +18,12 @@ namespace WebApplication.Data
         {
             base.OnModelCreating(builder);
 
-            builder.Entity<User>().ToTable("user");
-            builder.Entity<IdentityRole>().ToTable("roles");
+            builder.Entity<User>().ToTable("User");
+            builder.Entity<IdentityRole>().ToTable("Role");
 
             builder.Entity<Permission>(entity =>
             {
-                entity.ToTable("permission");
+                entity.ToTable("Permission");
                 entity.HasKey(x => x.PermissionId);
                 entity.Property(x => x.PermissionId).HasColumnName("permission_id");
                 entity.Property(x => x.PermissionName).HasColumnName("permission_name").HasMaxLength(256);
@@ -32,7 +32,7 @@ namespace WebApplication.Data
 
             builder.Entity<RolePermission>(entity =>
             {
-                entity.ToTable("role_permission");
+                entity.ToTable("RolePermission");
                 entity.HasKey(x => new { x.RoleId, x.PermissionId });
                 entity.Property(x => x.RoleId).HasColumnName("role_id").HasMaxLength(450);
                 entity.Property(x => x.PermissionId).HasColumnName("permission_id");
