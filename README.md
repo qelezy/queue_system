@@ -1,36 +1,53 @@
-# WebApplication
+# Инструкция по запуску приложения
 
-Мониторинг электронной очереди и отчёты (ASP.NET Core 10 MVC).
+## 1. Подготовка окружения
 
-## Docker
+Перед запуском убедитесь, что установлены:
 
-Требования: [Docker Desktop](https://www.docker.com/products/docker-desktop/) с Docker Compose v2.
+- Docker
+- Git
 
-1. Положите `UserDb.bak` и `ElectronicQueueProf.bak` в [docker/backups/](docker/backups/).
-2. При необходимости скопируйте [.env.docker.example](.env.docker.example) в `.env.docker`.
-3. Из корня репозитория:
+Подготовьте файлы backup (в репозиторий не входят):
+
+- `UserDb.bak`
+- `ElectronicQueueProf.bak`
+
+## 2. Настройка базы данных
+
+Скопируйте оба файла backup в каталог `docker/backups/`:
+
+```
+docker/backups/UserDb.bak
+docker/backups/ElectronicQueueProf.bak
+```
+
+При первом запуске базы `UserDb` и `ElectronicQueueProf` будут восстановлены из этих файлов автоматически.
+
+При необходимости скопируйте `.env.docker.example` в `.env.docker` и измените настройки (пароль SA, JWT и т.д.). По умолчанию используется `.env.docker.example`.
+
+## 3. Запуск приложения
+
+Из корня репозитория выполните:
 
 ```bash
 docker compose up --build
 ```
 
-| Сервис | URL |
-|--------|-----|
-| Приложение | http://localhost:8080 |
-| MailHog | http://localhost:8025 |
-| SQL Server | localhost:1433 |
+Первый запуск может занять 1–2 минуты (восстановление backup).
 
-Вход — учётные записи из `UserDb.bak`. При первом старте mssql восстанавливает БД из `.bak` (1–2 мин). Повторный `docker compose up` не перезаписывает данные.
+После запуска:
 
-Сброс данных:
+- приложение — http://localhost:8080
+- почта (MailHog) — http://localhost:8025
+- SQL Server — localhost:1433
+
+Вход выполняется учётными записями из `UserDb.bak`.
+
+## 4. Сброс данных
+
+Для полного сброса баз и повторного restore:
 
 ```bash
 docker compose down -v
 docker compose up --build
 ```
-
-Если restore падает с Msg 3169 — backup создан на SQL новее 2022, пересоздайте `.bak` на SQL ≤ 2022. Если `web` падает на EF-миграциях — `DOCKER_SKIP_EF_MIGRATE=true` в `.env.docker`.
-
-## Локальная разработка без Docker
-
-См. [WebApplication/.env.example](WebApplication/.env.example) — SQL Server на хосте, `dotnet run` в каталоге `WebApplication/`.
